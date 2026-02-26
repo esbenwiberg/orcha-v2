@@ -1,0 +1,12 @@
+<div
+  class="session-grid"
+  id="session-grid"
+  hx-get="/api/sessions/cards"
+  hx-trigger="load"
+  hx-swap="innerHTML"
+>
+  <!-- Loading skeleton shown until HTMX replaces innerHTML -->
+  <div class="skeleton skeleton-card"></div>
+  <div class="skeleton skeleton-card"></div>
+  <div class="skeleton skeleton-card"></div>
+</div>

@@ -1,0 +1,65 @@
+<form
+  hx-post="/api/presets"
+  hx-target="#preset-list-slot"
+  hx-swap="innerHTML"
+  hx-on::after-request="if(event.detail.successful){ document.getElementById('form-panel').classList.remove('is-open'); }"
+>
+  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;">Save Preset</h2>
+
+  <div class="form-group">
+    <label for="sp-name">Preset Name</label>
+    <input
+      id="sp-name"
+      type="text"
+      name="name"
+      required
+      maxlength="64"
+      placeholder="My preset"
+      autocomplete="off"
+      value="<%= it.name ?? '' %>"
+    />
+  </div>
+
+  <div class="form-group">
+    <label for="sp-branch">Branch Name</label>
+    <input
+      id="sp-branch"
+      type="text"
+      name="branch"
+      placeholder="feature/my-branch"
+      autocomplete="off"
+      value="<%= it.branch ?? '' %>"
+    />
+  </div>
+
+  <div class="form-group">
+    <label for="sp-prompt">Initial Prompt</label>
+    <textarea
+      id="sp-prompt"
+      name="prompt"
+      rows="4"
+      placeholder="Describe what you want the agent to do…"
+    ><%= it.prompt ?? '' %></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="sp-base-path">Worktree Base</label>
+    <input
+      id="sp-base-path"
+      type="text"
+      name="basePath"
+      placeholder="/workspace"
+      autocomplete="off"
+      value="<%= it.basePath ?? '' %>"
+    />
+  </div>
+
+  <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+    <button type="submit" class="btn btn-primary">Save</button>
+    <button
+      type="button"
+      class="btn btn-ghost"
+      onclick="document.getElementById('form-panel').classList.remove('is-open')"
+    >Cancel</button>
+  </div>
+</form>

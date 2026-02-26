@@ -1,0 +1,19 @@
+<li class="preset-item" id="preset-<%= it.preset.id %>">
+  <span class="preset-item__name"><%= it.preset.name %></span>
+  <div class="preset-item__actions">
+    <button
+      class="btn btn-ghost btn-xs"
+      hx-get="/api/presets/<%= it.preset.id %>/load"
+      hx-target="#form-panel-slot"
+      hx-swap="innerHTML"
+      onclick="document.getElementById('form-panel').classList.add('is-open')"
+    >Load</button>
+    <button
+      class="btn btn-ghost btn-xs"
+      hx-delete="/api/presets/<%= it.preset.id %>"
+      hx-target="#preset-<%= it.preset.id %>"
+      hx-swap="outerHTML"
+      hx-confirm="Delete preset?"
+    >Del</button>
+  </div>
+</li>

@@ -1,0 +1,52 @@
+<form
+  hx-post="/api/sessions"
+  hx-target="#form-panel-slot"
+  hx-swap="innerHTML"
+  hx-on::after-request="if(event.detail.successful){ document.getElementById('form-panel').classList.remove('is-open'); }"
+>
+  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;">New Session</h2>
+
+  <div class="form-group">
+    <label for="ns-branch">Branch Name</label>
+    <input
+      id="ns-branch"
+      type="text"
+      name="branch"
+      required
+      placeholder="feature/my-branch"
+      autocomplete="off"
+      value="<%= it.branch ?? '' %>"
+    />
+  </div>
+
+  <div class="form-group">
+    <label for="ns-prompt">Initial Prompt</label>
+    <textarea
+      id="ns-prompt"
+      name="prompt"
+      rows="4"
+      placeholder="Describe what you want the agent to do…"
+    ><%= it.prompt ?? '' %></textarea>
+  </div>
+
+  <div class="form-group">
+    <label for="ns-base-path">Worktree Base</label>
+    <input
+      id="ns-base-path"
+      type="text"
+      name="basePath"
+      placeholder="/workspace"
+      autocomplete="off"
+      value="<%= it.basePath ?? '' %>"
+    />
+  </div>
+
+  <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+    <button type="submit" class="btn btn-primary">Create</button>
+    <button
+      type="button"
+      class="btn btn-ghost"
+      onclick="document.getElementById('form-panel').classList.remove('is-open')"
+    >Cancel</button>
+  </div>
+</form>

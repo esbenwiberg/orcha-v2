@@ -1,0 +1,7 @@
+<div class="terminal-panel is-open" id="terminal-panel-<%= it.id %>">
+  <div class="xterm-container" id="xterm-<%= it.id %>"></div>
+</div>
+<script type="module">
+  import { openTerminal } from '/js/terminal.js';
+  openTerminal('<%= it.id %>', 'xterm-<%= it.id %>');
+</script>

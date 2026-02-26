@@ -1,0 +1,13 @@
+# Local development only — not used in CI or production
+version: '3.9'
+
+services:
+  orcha:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data-dev:/data
+    environment:
+      - AUTH_MODE=none
+      - ORCHA_DATA_DIR=/data

@@ -1,0 +1,192 @@
+import Database from 'better-sqlite3';
+import type { Session, SessionStatus, SessionConfig, WorktreeInfo } from '@orcha/domain';
+import { assertValidTransition } from '@orcha/domain';
+
+export class SessionStore {
+  #db: Database.Database;
+
+  constructor(db: Database.Database) {
+    this.#db = db;
+  }
+
+  #rowToSession(row: Record<string, unknown>): Session {
+    const startedAt = row['started_at'] as string | null;
+    const completedAt = row['completed_at'] as string | null;
+    const exitCode = row['exit_code'] as number | null;
+    const errorMessage = row['error_message'] as string | null;
+
+    const worktreeRaw = JSON.parse(row['worktree_json'] as string) as {
+      worktreePath: string;
+      branch: string;
+      headSha: string;
+      repoRoot: string;
+      createdAt: string;
+    };
+
+    const worktree: WorktreeInfo = {
+      worktreePath: worktreeRaw.worktreePath,
+      branch: worktreeRaw.branch,
+      headSha: worktreeRaw.headSha,
+      repoRoot: worktreeRaw.repoRoot,
+      createdAt: new Date(worktreeRaw.createdAt),
+    };
+
+    const session: Session = {
+      id: row['id'] as string,
+      displayId: row['display_id'] as number,
+      instanceId: row['instance_id'] as string,
+      status: row['status'] as SessionStatus,
+      config: JSON.parse(row['config_json'] as string) as SessionConfig,
+      worktree,
+      createdAt: new Date(row['created_at'] as string),
+      updatedAt: new Date(row['updated_at'] as string),
+    };
+
+    if (startedAt !== null) {
+      session.startedAt = new Date(startedAt);
+    }
+    if (completedAt !== null) {
+      session.completedAt = new Date(completedAt);
+    }
+    if (exitCode !== null) {
+      session.exitCode = exitCode;
+    }
+    if (errorMessage !== null) {
+      session.errorMessage = errorMessage;
+    }
+
+    return session;
+  }
+
+  createSession(config: SessionConfig, worktree: WorktreeInfo): Session {
+    const worktreeJson = JSON.stringify({
+      worktreePath: worktree.worktreePath,
+      branch: worktree.branch,
+      headSha: worktree.headSha,
+      repoRoot: worktree.repoRoot,
+      createdAt: worktree.createdAt.toISOString(),
+    });
+
+    let id!: string;
+
+    this.#db.transaction(() => {
+      const nextRow = this.#db
+        .prepare('SELECT COALESCE(MAX(display_id), 0) + 1 AS next FROM sessions')
+        .get() as { next: number };
+      const displayId = nextRow.next;
+
+      id = crypto.randomUUID();
+      const now = new Date().toISOString();
+
+      this.#db
+        .prepare(
+          `INSERT INTO sessions
+            (id, display_id, instance_id, status, config_json, worktree_json, created_at, updated_at)
+           VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)`,
+        )
+        .run(id, displayId, config.instanceId, JSON.stringify(config), worktreeJson, now, now);
+    })();
+
+    return this.getSession(id)!;
+  }
+
+  getSession(id: string): Session | undefined {
+    const row = this.#db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as
+      | Record<string, unknown>
+      | undefined;
+    if (row === undefined) return undefined;
+    return this.#rowToSession(row);
+  }
+
+  getSessionByDisplayId(displayId: number): Session | undefined {
+    const row = this.#db.prepare('SELECT * FROM sessions WHERE display_id = ?').get(displayId) as
+      | Record<string, unknown>
+      | undefined;
+    if (row === undefined) return undefined;
+    return this.#rowToSession(row);
+  }
+
+  listSessions(instanceId?: string): Session[] {
+    let rows: Record<string, unknown>[];
+    if (instanceId !== undefined) {
+      rows = this.#db
+        .prepare('SELECT * FROM sessions WHERE instance_id = ? ORDER BY display_id ASC')
+        .all(instanceId) as Record<string, unknown>[];
+    } else {
+      rows = this.#db.prepare('SELECT * FROM sessions ORDER BY display_id ASC').all() as Record<
+        string,
+        unknown
+      >[];
+    }
+    return rows.map((row) => this.#rowToSession(row));
+  }
+
+  updateStatus(id: string, to: SessionStatus, note?: string): Session {
+    this.#db.transaction(() => {
+      const session = this.getSession(id);
+      if (session === undefined) {
+        throw new TypeError(`Session not found: ${id}`);
+      }
+
+      const from = session.status;
+      assertValidTransition(from, to);
+
+      const now = new Date().toISOString();
+      const isTerminal = to === 'completed' || to === 'failed' || to === 'cancelled';
+
+      let sql: string;
+      let params: (string | null)[];
+
+      if (to === 'running') {
+        sql = 'UPDATE sessions SET status = ?, updated_at = ?, started_at = ? WHERE id = ?';
+        params = [to, now, now, id];
+      } else if (isTerminal) {
+        sql = 'UPDATE sessions SET status = ?, updated_at = ?, completed_at = ? WHERE id = ?';
+        params = [to, now, now, id];
+      } else {
+        sql = 'UPDATE sessions SET status = ?, updated_at = ? WHERE id = ?';
+        params = [to, now, id];
+      }
+
+      this.#db.prepare(sql).run(...params);
+
+      this.#db
+        .prepare(
+          'INSERT INTO status_events (session_id, from_status, to_status, occurred_at, note) VALUES (?, ?, ?, ?, ?)',
+        )
+        .run(id, from, to, now, note ?? null);
+    })();
+
+    return this.getSession(id)!;
+  }
+
+  updateSession(id: string, patch: { errorMessage?: string; exitCode?: number }): Session {
+    this.#db.transaction(() => {
+      const session = this.getSession(id);
+      if (session === undefined) {
+        throw new TypeError(`Session not found: ${id}`);
+      }
+
+      const now = new Date().toISOString();
+      this.#db
+        .prepare(
+          'UPDATE sessions SET error_message = ?, exit_code = ?, updated_at = ? WHERE id = ?',
+        )
+        .run(patch.errorMessage ?? null, patch.exitCode ?? null, now, id);
+    })();
+
+    return this.getSession(id)!;
+  }
+
+  deleteSession(id: string): void {
+    const session = this.getSession(id);
+    if (session === undefined) {
+      throw new TypeError(`Session not found: ${id}`);
+    }
+
+    this.#db.transaction(() => {
+      this.#db.prepare('DELETE FROM status_events WHERE session_id = ?').run(id);
+      this.#db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+    })();
+  }
+}

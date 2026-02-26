@@ -1,0 +1,16 @@
+<div class="confirm-dialog" id="confirm-<%= it.id %>">
+  <p class="confirm-dialog__message"><%= it.message %></p>
+  <div class="confirm-dialog__actions">
+    <button class="btn btn-primary"
+      hx-post="/api/sessions/<%= it.id %>/<%= it.action %>"
+      hx-target="#session-<%= it.id %>"
+      hx-swap="outerHTML"
+      hx-on::after-request='document.getElementById("confirm-slot-<%= it.id %>").innerHTML=""'>
+      <%= it.confirmLabel %>
+    </button>
+    <button class="btn btn-ghost"
+      onclick='document.getElementById("confirm-slot-<%= it.id %>").innerHTML=""'>
+      Cancel
+    </button>
+  </div>
+</div>

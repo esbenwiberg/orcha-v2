@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS presets (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  branch TEXT NOT NULL DEFAULT '',
+  prompt TEXT NOT NULL DEFAULT '',
+  base_path TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL
+);

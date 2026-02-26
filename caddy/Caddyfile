@@ -1,0 +1,33 @@
+{
+    # Certificate storage — share the /data volume with the app container.
+    # CADDY_DATA_DIR is not a Caddy built-in; the path below is explicit.
+    storage file_system {
+        root /data/caddy
+    }
+}
+
+# For local testing set ORCHA_DOMAIN=localhost; Caddy will use a self-signed
+# certificate via "tls internal" because the domain matches no public ACME
+# challenge.  In production supply a real FQDN and a valid ACME_EMAIL.
+{$ORCHA_DOMAIN} {
+    tls {$ACME_EMAIL}
+
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+
+    handle @websockets {
+        reverse_proxy localhost:3000 {
+            transport http {
+                # h1 (HTTP/1.1) is required for WebSocket upgrades; HTTP/2
+                # does not support the Upgrade mechanism used by WebSockets.
+                versions h1
+            }
+        }
+    }
+
+    reverse_proxy localhost:3000 {
+        header_up X-Forwarded-Proto https
+    }
+}
