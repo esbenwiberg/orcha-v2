@@ -42,7 +42,11 @@ export async function buildAuthMiddleware(config: AuthConfig): Promise<AuthResul
         secret: config.sessionSecret,
         resave: false,
         saveUninitialized: false,
-        cookie: { httpOnly: true, sameSite: 'lax' },
+        cookie: {
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: process.env['NODE_ENV'] === 'production',
+        },
       }) as express.RequestHandler;
 
       return {

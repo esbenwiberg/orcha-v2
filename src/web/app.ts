@@ -35,6 +35,9 @@ export interface AppDeps {
 export async function createApp(deps: AppDeps): Promise<express.Application> {
   const app = express();
 
+  // Trust the first proxy (Caddy) so express-session sets secure cookies correctly
+  app.set('trust proxy', 1);
+
   // Initialise ETA template engine pointing at src/web/views/
   const eta = new Eta({
     views: path.join(__dirname, 'views'),
