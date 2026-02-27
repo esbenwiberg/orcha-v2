@@ -303,19 +303,49 @@
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   padding: 0.5rem 0.75rem;
   color: var(--color-text-primary);
   font-family: var(--font-mono);
+  font-size: 13px;
+  width: 100%;
+  transition: border-color 0.15s;
 }
 
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-group select:focus {
   outline: none;
   border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+/* Custom select arrow */
+.form-group select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  cursor: pointer;
+}
+
+.form-group select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%232563eb' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.form-group select option {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.form-group select option:disabled {
+  color: var(--color-text-muted);
 }
 
 /* -----------------------------------------------------------------------
@@ -698,13 +728,30 @@
 .form-panel__header {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
   border-bottom: 1px solid var(--color-border);
 }
 
 .form-panel__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: transparent;
   color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s;
+  padding: 0;
+}
+
+.form-panel__close:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-raised);
+  border-color: var(--color-border);
 }
 
 /* -----------------------------------------------------------------------

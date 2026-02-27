@@ -36,13 +36,14 @@
             stroke-linejoin="round"
           />
         </svg>
-        Orcha
+        <span class="orcha-sidebar__logo-text">Orcha</span>
       </a>
 
       <nav class="orcha-sidebar__nav" aria-label="Main navigation">
         <a
           href="/"
           class="orcha-sidebar__nav-item<%= it.activeNav === 'sessions' ? ' orcha-sidebar__nav-item--active' : '' %>"
+          title="Sessions"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
@@ -50,22 +51,24 @@
             <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
             <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
           </svg>
-          Sessions
+          <span class="orcha-sidebar__nav-item-text">Sessions</span>
         </a>
 
         <a
           href="/presets"
           class="orcha-sidebar__nav-item<%= it.activeNav === 'presets' ? ' orcha-sidebar__nav-item--active' : '' %>"
+          title="Presets"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M2 4h12M2 8h8M2 12h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
           </svg>
-          Presets
+          <span class="orcha-sidebar__nav-item-text">Presets</span>
         </a>
 
         <a
           href="/repos"
           class="orcha-sidebar__nav-item<%= it.activeNav === 'repos' ? ' orcha-sidebar__nav-item--active' : '' %>"
+          title="Repos"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path
@@ -76,23 +79,25 @@
             />
             <path d="M9 2v4h4" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
           </svg>
-          Repos
+          <span class="orcha-sidebar__nav-item-text">Repos</span>
         </a>
 
         <a
           href="/credentials"
           class="orcha-sidebar__nav-item<%= it.activeNav === 'credentials' ? ' orcha-sidebar__nav-item--active' : '' %>"
+          title="Credentials"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <circle cx="6" cy="7" r="3.5" stroke="currentColor" stroke-width="1.5" />
             <path d="M8.5 9.5L13 14M10.5 12l1.5 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
           </svg>
-          Credentials
+          <span class="orcha-sidebar__nav-item-text">Credentials</span>
         </a>
 
         <a
           href="/settings"
           class="orcha-sidebar__nav-item<%= it.activeNav === 'settings' ? ' orcha-sidebar__nav-item--active' : '' %>"
+          title="Settings"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5" />
@@ -103,12 +108,13 @@
               stroke-linecap="round"
             />
           </svg>
-          Settings
+          <span class="orcha-sidebar__nav-item-text">Settings</span>
         </a>
 
         <a
           href="/system"
           class="orcha-sidebar__nav-item<%= it.activeNav === 'system' ? ' orcha-sidebar__nav-item--active' : '' %>"
+          title="System"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path
@@ -119,12 +125,20 @@
               stroke-linejoin="round"
             />
           </svg>
-          System
+          <span class="orcha-sidebar__nav-item-text">System</span>
         </a>
       </nav>
 
       <div class="orcha-sidebar__footer">
         <span class="version-badge">v<%= it.version ?? '0.1.0' %></span>
+        <button class="orcha-sidebar__toggle" id="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+          <svg class="toggle-icon-collapse" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M9 2L5 7l4 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg class="toggle-icon-expand" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M5 2l4 5-4 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
     </aside>
 
@@ -139,14 +153,29 @@
     <!-- Main content -->
     <main class="orcha-main" id="main-content"><%~ it.body %></main>
 
+    <script>
+      (function () {
+        if (localStorage.getItem('sidebar-collapsed') === '1') {
+          document.querySelector('.orcha-layout').classList.add('sidebar-collapsed');
+        }
+      })();
+      function toggleSidebar() {
+        var collapsed = document.querySelector('.orcha-layout').classList.toggle('sidebar-collapsed');
+        localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+      }
+    </script>
+
     <!-- Slide-in form panel -->
     <div id="form-panel" class="form-panel">
       <div class="form-panel__header">
         <button
-          class="btn btn-ghost btn-sm form-panel__close"
+          class="form-panel__close"
           onclick="document.getElementById('form-panel').classList.remove('is-open')"
+          aria-label="Close panel"
         >
-          ✕ Close
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
         </button>
       </div>
       <div id="form-panel-slot"></div>

@@ -3,13 +3,17 @@
   hx-target="#form-panel-slot"
   hx-swap="innerHTML"
   hx-on::after-request="if(event.detail.successful){ document.getElementById('form-panel').classList.remove('is-open'); }"
+  style="display:flex;flex-direction:column;gap:1.25rem;"
 >
-  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;">New Session</h2>
+  <div style="display:flex;flex-direction:column;gap:2px;">
+    <h2 style="font-size:15px;font-weight:700;color:var(--color-text-primary);margin:0;letter-spacing:-0.01em;">New Session</h2>
+    <p style="font-size:12px;color:var(--color-text-muted);margin:0;">Configure and launch a new agent session.</p>
+  </div>
 
   <div class="form-group">
     <label for="ns-repo">Repository</label>
     <select id="ns-repo" name="repoId" required>
-      <option value="">Select a repo...</option>
+      <option value="">Select a repository…</option>
       <% if (it.repos) { for (const r of it.repos) { %>
         <option
           value="<%= r.id %>"
@@ -38,13 +42,17 @@
     <textarea
       id="ns-prompt"
       name="prompt"
-      rows="4"
-      placeholder="Describe what you want the agent to do..."
+      rows="5"
+      placeholder="Describe what you want the agent to do…"
+      style="resize:vertical;min-height:100px;"
     ><%= it.prompt ?? '' %></textarea>
   </div>
 
   <div class="form-group">
-    <label for="ns-cred-profile">Credential Profile <span style="color:var(--color-text-muted)">(optional)</span></label>
+    <label for="ns-cred-profile">
+      Credential Profile
+      <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
+    </label>
     <select id="ns-cred-profile" name="credentialProfileId">
       <option value="">None — use ambient credentials</option>
       <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
@@ -53,8 +61,13 @@
     </select>
   </div>
 
-  <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
-    <button type="submit" class="btn btn-primary">Create</button>
+  <div style="display:flex;gap:0.5rem;padding-top:0.25rem;border-top:1px solid var(--color-border);margin-top:auto;">
+    <button type="submit" class="btn btn-primary" style="flex:1;">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Create Session
+    </button>
     <button
       type="button"
       class="btn btn-ghost"
