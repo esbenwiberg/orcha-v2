@@ -15,7 +15,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ── Defaults ─────────────────────────────────────────────────────────────────
 PARAMS_FILE="${REPO_ROOT}/infra/parameters.json"
 LOCATION="eastus"
-RESOURCE_GROUP="rg-orcha"
+RESOURCE_GROUP="orcha"
 
 # ── Arg parsing ───────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do

@@ -32,6 +32,7 @@ jobs:
           az containerapp update \
             --name ${{ secrets.CONTAINER_APP_NAME }} \
             --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+            --container-name orcha \
             --image ${{ secrets.ACR_NAME }}.azurecr.io/orcha:${{ env.IMAGE_TAG }}
 
       - name: Wait for revision to be provisioned

@@ -24,7 +24,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ── Defaults ──────────────────────────────────────────────────────────────────
 PARAMS_FILE="${REPO_ROOT}/infra/parameters.json"
 TAG=""
-RESOURCE_GROUP="rg-orcha"
+RESOURCE_GROUP="orcha"
 
 # ── Arg parsing ───────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -50,6 +50,9 @@ command -v az     >/dev/null 2>&1 || die "az CLI not found."
 USE_ACR_BUILD=false
 if ! command -v docker >/dev/null 2>&1; then
   info "Docker not found — will use ACR Tasks (az acr build) for remote builds."
+  USE_ACR_BUILD=true
+elif ! docker info >/dev/null 2>&1; then
+  info "Docker not reachable (socket permission?) — will use ACR Tasks for remote builds."
   USE_ACR_BUILD=true
 fi
 
@@ -145,6 +148,7 @@ info "Updating Container App '${CONTAINER_APP_NAME}' to image tag '${TAG}'..."
 az containerapp update \
   --name "${CONTAINER_APP_NAME}" \
   --resource-group "${RESOURCE_GROUP}" \
+  --container-name orcha \
   --image "${ACR_SERVER}/orcha:${TAG}" \
   --output none
 ok "Container App update triggered"
