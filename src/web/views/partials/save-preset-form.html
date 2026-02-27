@@ -21,6 +21,20 @@
   </div>
 
   <div class="form-group">
+    <label for="sp-repo">Repository</label>
+    <select id="sp-repo" name="repoId">
+      <option value="">None</option>
+      <% if (it.repos) { for (const r of it.repos) { %>
+        <option
+          value="<%= r.id %>"
+          <%= r.id === (it.repoId ?? '') ? 'selected' : '' %>
+          <%= r.status !== 'ready' ? 'disabled' : '' %>
+        ><%= r.displayName %><%= r.status !== 'ready' ? ' (' + r.status + ')' : '' %></option>
+      <% } } %>
+    </select>
+  </div>
+
+  <div class="form-group">
     <label for="sp-branch">Branch Name</label>
     <input
       id="sp-branch"
@@ -38,20 +52,8 @@
       id="sp-prompt"
       name="prompt"
       rows="4"
-      placeholder="Describe what you want the agent to do…"
+      placeholder="Describe what you want the agent to do..."
     ><%= it.prompt ?? '' %></textarea>
-  </div>
-
-  <div class="form-group">
-    <label for="sp-base-path">Worktree Base</label>
-    <input
-      id="sp-base-path"
-      type="text"
-      name="basePath"
-      placeholder="/workspace"
-      autocomplete="off"
-      value="<%= it.basePath ?? '' %>"
-    />
   </div>
 
   <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">

@@ -131,6 +131,22 @@
         </button>
       </div>
 
+      <div class="sidebar-section">
+        <p class="sidebar-section__title">Repos</p>
+        <div id="repo-list-slot"
+          hx-get="/api/repos"
+          hx-trigger="load"
+          hx-swap="innerHTML">
+        </div>
+        <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:0.5rem"
+          hx-get="/api/repos/add-form"
+          hx-target="#form-panel-slot"
+          hx-swap="innerHTML"
+          onclick="document.getElementById('form-panel').classList.add('is-open')">
+          + Add Repo
+        </button>
+      </div>
+
       <div class="orcha-sidebar__footer">
         <span class="version-badge">v<%= it.version ?? '0.1.0' %></span>
       </div>

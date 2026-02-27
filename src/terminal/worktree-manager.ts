@@ -76,11 +76,12 @@ export class WorktreeManager {
     });
   }
 
-  async addWorktree(sessionId: string, branch: string): Promise<WorktreeInfo> {
+  async addWorktree(sessionId: string, branch: string, repoRootOverride?: string): Promise<WorktreeInfo> {
     WorktreeManager.assertNoInjection(sessionId, 'sessionId');
     const safeBranch = WorktreeManager.sanitiseBranchName(branch);
     const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
-    await this.execGit(['worktree', 'add', '-b', safeBranch, worktreePath]);
+    const cwd = repoRootOverride ?? undefined;
+    await this.execGit(['worktree', 'add', '-b', safeBranch, worktreePath], cwd);
     const commitShaRaw = await this.execGit(['rev-parse', 'HEAD'], worktreePath);
     const commitSha = commitShaRaw.trim();
     return {
@@ -92,11 +93,12 @@ export class WorktreeManager {
     };
   }
 
-  async removeWorktree(sessionId: string): Promise<void> {
+  async removeWorktree(sessionId: string, repoRootOverride?: string): Promise<void> {
     WorktreeManager.assertNoInjection(sessionId, 'sessionId');
     const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
-    await this.execGit(['worktree', 'remove', '--force', worktreePath]);
-    await this.execGit(['worktree', 'prune']);
+    const cwd = repoRootOverride ?? undefined;
+    await this.execGit(['worktree', 'remove', '--force', worktreePath], cwd);
+    await this.execGit(['worktree', 'prune'], cwd);
   }
 
   async listWorktrees(): Promise<WorktreeInfo[]> {

@@ -81,7 +81,8 @@ export async function createTestServer(
     }),
   } as unknown as AppDeps['db'];
 
-  const deps: AppDeps = { sessionEngine, db, authConfig: mergedAuthConfig };
+  const worktreeManager = {} as AppDeps['worktreeManager'];
+  const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig: mergedAuthConfig };
 
   const app = await createApp(deps);
   const server = http.createServer(app);

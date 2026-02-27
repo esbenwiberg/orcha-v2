@@ -1,0 +1,27 @@
+<li class="preset-item" id="repo-<%= it.repo.id %>"
+  <% if (it.repo.status === 'cloning' || it.repo.status === 'pending') { %>
+    hx-get="/api/repos/<%= it.repo.id %>/status"
+    hx-trigger="every 3s"
+    hx-swap="outerHTML"
+  <% } %>
+>
+  <span class="preset-item__name" title="<%= it.repo.url %>"><%= it.repo.displayName %></span>
+  <div class="preset-item__actions">
+    <% if (it.repo.status === 'ready') { %>
+      <span class="badge badge--running">ready</span>
+    <% } else if (it.repo.status === 'cloning') { %>
+      <span class="badge badge--queued">cloning</span>
+    <% } else if (it.repo.status === 'error') { %>
+      <span class="badge badge--failed" title="<%= it.repo.error ?? '' %>">error</span>
+    <% } else { %>
+      <span class="badge">pending</span>
+    <% } %>
+    <button
+      class="btn btn-ghost btn-xs"
+      hx-delete="/api/repos/<%= it.repo.id %>"
+      hx-target="#repo-<%= it.repo.id %>"
+      hx-swap="outerHTML"
+      hx-confirm="Delete repo?"
+    >Del</button>
+  </div>
+</li>

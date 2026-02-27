@@ -1,0 +1,30 @@
+<form
+  hx-post="/api/repos"
+  hx-target="#repo-list-slot"
+  hx-swap="innerHTML"
+  hx-on::after-request="if(event.detail.successful){ document.getElementById('form-panel').classList.remove('is-open'); }"
+>
+  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;">Add Repository</h2>
+
+  <div class="form-group">
+    <label for="ar-url">Repository URL</label>
+    <input
+      id="ar-url"
+      type="text"
+      name="url"
+      required
+      placeholder="https://github.com/owner/repo.git"
+      autocomplete="off"
+      value="<%= it.url ?? '' %>"
+    />
+  </div>
+
+  <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+    <button type="submit" class="btn btn-primary">Add</button>
+    <button
+      type="button"
+      class="btn btn-ghost"
+      onclick="document.getElementById('form-panel').classList.remove('is-open')"
+    >Cancel</button>
+  </div>
+</form>

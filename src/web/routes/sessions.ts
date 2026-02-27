@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { randomUUID } from 'node:crypto';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
+import { RepoStore } from '../../db/repo-store.js';
 import type { Session } from '@orcha/domain';
 import { formatRelativeTime } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
@@ -31,11 +31,13 @@ function toViewModel(session: Session): SessionCardViewModel {
 export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new SessionStore(deps.db);
+  const repoStore = new RepoStore(deps.db);
 
   // GET /api/sessions/new-form — render the new-session form partial
   router.get('/sessions/new-form', (_req, res, next) => {
     try {
-      const html = eta.render('partials/new-session-form', {});
+      const repos = repoStore.listRepos();
+      const html = eta.render('partials/new-session-form', { repos });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -46,12 +48,24 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   // POST /api/sessions — create session from HTMX form submission
   router.post('/sessions', async (req, res, next) => {
     try {
+      const repoId = (typeof req.body['repoId'] === 'string' ? req.body['repoId'] : '').trim();
       const branch = (typeof req.body['branch'] === 'string' ? req.body['branch'] : '').trim();
       const prompt = (typeof req.body['prompt'] === 'string' ? req.body['prompt'] : '').trim();
-      const basePath = (typeof req.body['basePath'] === 'string' ? req.body['basePath'] : '').trim();
 
       // Validate
       const errors: string[] = [];
+      const repos = repoStore.listRepos();
+
+      if (repoId.length === 0) {
+        errors.push('A repository must be selected.');
+      } else {
+        const repo = repoStore.getRepo(repoId);
+        if (repo === undefined) {
+          errors.push('Selected repository not found.');
+        } else if (repo.status !== 'ready') {
+          errors.push('Selected repository is not ready yet.');
+        }
+      }
 
       if (branch.length === 0) {
         errors.push('Branch name is required.');
@@ -64,43 +78,53 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       if (errors.length > 0) {
-        const formHtml = eta.render('partials/new-session-form', {});
+        const formHtml = eta.render('partials/new-session-form', { repos, repoId, branch, prompt });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
         return;
       }
 
-      // Persist a lightweight DB-only session (no PTY/worktree for the web form path).
-      const instanceId = randomUUID();
-      const worktreePath = basePath.length > 0 ? basePath : '/tmp';
+      const repo = repoStore.getRepo(repoId)!;
 
-      const session = store.createSession(
-        {
-          instanceId,
-          repoRoot: worktreePath,
-          branch,
-          worktreePath,
-          prompt,
-          env: {},
-          maxRuntimeSeconds: 0,
-        },
-        {
-          worktreePath,
-          branch,
-          headSha: '',
-          repoRoot: worktreePath,
-          createdAt: new Date(),
-        },
-      );
+      // Create a real session with worktree + PTY via the session engine
+      const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
+        branch,
+        command: 'bash',
+        env: { ORCHA_PROMPT: prompt },
+      };
+      if (repo.barePath !== null) {
+        createOpts.repoRoot = repo.barePath;
+      }
+      const activeSession = await deps.sessionEngine.createSession(createOpts);
 
-      eventBus.publish({ sessionId: session.id, type: 'created' });
+      eventBus.publish({ sessionId: activeSession.sessionId, type: 'created' });
 
-      const html = eta.render('partials/session-card', toViewModel(session));
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.setHeader('HX-Retarget', '#session-grid');
-      res.setHeader('HX-Reswap', 'afterbegin');
-      res.status(201).send(html);
+      // Fetch the DB session for the card view model
+      const dbSession = activeSession.dbSessionId !== undefined
+        ? store.getSession(activeSession.dbSessionId)
+        : undefined;
+
+      if (dbSession !== undefined) {
+        const html = eta.render('partials/session-card', toViewModel(dbSession));
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('HX-Retarget', '#session-grid');
+        res.setHeader('HX-Reswap', 'afterbegin');
+        res.status(201).send(html);
+      } else {
+        // Fallback: render a minimal card
+        const html = eta.render('partials/session-card', {
+          id: activeSession.sessionId,
+          branch: activeSession.worktree.branch,
+          status: 'running',
+          createdAt: formatRelativeTime(activeSession.createdAt),
+          updatedAt: formatRelativeTime(activeSession.createdAt),
+        });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('HX-Retarget', '#session-grid');
+        res.setHeader('HX-Reswap', 'afterbegin');
+        res.status(201).send(html);
+      }
     } catch (err) {
       next(err);
     }

@@ -5,6 +5,7 @@ import compression from 'compression';
 import { Eta } from 'eta';
 import type Database from 'better-sqlite3';
 import type { SessionManager } from '../terminal/session-manager.js';
+import type { WorktreeManager } from '../terminal/worktree-manager.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { securityMiddleware } from './middleware/security.js';
 import { errorHandler } from './middleware/error-handler.js';
@@ -14,6 +15,7 @@ import { createHealthRouter } from './routes/health.js';
 import { createMobileRouter } from './routes/mobile.js';
 import { createSessionsRouter } from './routes/sessions.js';
 import { createPresetsRouter } from './routes/presets.js';
+import { createReposRouter } from './routes/repos.js';
 import { createEventsRouter } from './routes/events.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
@@ -22,6 +24,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export interface AppDeps {
   sessionEngine: SessionManager;
+  worktreeManager: WorktreeManager;
   db: Database.Database;
   authConfig: AuthConfig;
 }
@@ -92,6 +95,9 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // Presets HTMX partials router
   app.use('/api', createPresetsRouter(eta, deps));
+
+  // Repos HTMX partials router
+  app.use('/api', createReposRouter(eta, deps));
 
   // JSON API routes
   app.use('/api', createApiRouter(deps));

@@ -6,7 +6,7 @@ export interface Preset {
   name: string;
   branch: string;
   prompt: string;
-  basePath: string;
+  repoId: string;
   createdAt: Date;
 }
 
@@ -14,7 +14,7 @@ export interface CreatePresetInput {
   name: string;
   branch: string;
   prompt: string;
-  basePath: string;
+  repoId: string;
 }
 
 export class PresetStore {
@@ -30,7 +30,7 @@ export class PresetStore {
       name: row['name'] as string,
       branch: row['branch'] as string,
       prompt: row['prompt'] as string,
-      basePath: row['base_path'] as string,
+      repoId: (row['repo_id'] as string) ?? '',
       createdAt: new Date(row['created_at'] as string),
     };
   }
@@ -56,10 +56,10 @@ export class PresetStore {
 
     this.#db
       .prepare(
-        `INSERT INTO presets (id, name, branch, prompt, base_path, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO presets (id, name, branch, prompt, base_path, repo_id, created_at)
+         VALUES (?, ?, ?, ?, '', ?, ?)`,
       )
-      .run(id, input.name, input.branch, input.prompt, input.basePath, now);
+      .run(id, input.name, input.branch, input.prompt, input.repoId || null, now);
 
     return this.getPreset(id)!;
   }

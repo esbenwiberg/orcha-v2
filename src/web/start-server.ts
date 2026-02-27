@@ -29,7 +29,7 @@ const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionSto
 
 const authConfig = loadAuthConfig();
 
-const deps: AppDeps = { sessionEngine, db, authConfig };
+const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig };
 
 startServer(deps, port)
   .then(() => {

@@ -4,3 +4,5 @@ export { InstanceRegistry } from './instance-registry.js';
 export { SessionStore } from './session-store.js';
 export { PresetStore } from './preset-store.js';
 export type { Preset, CreatePresetInput } from './preset-store.js';
+export { RepoStore, detectProvider, extractDisplayName, validateRepoUrl } from './repo-store.js';
+export type { Repo, CreateRepoInput, RepoProvider, RepoStatus } from './repo-store.js';

@@ -14,6 +14,8 @@ export interface CreateSessionOptions {
   env?: Record<string, string>;
   cols?: number;
   rows?: number;
+  /** Override the repo root used for worktree creation (e.g. a bare repo path). */
+  repoRoot?: string;
 }
 
 export interface ActiveSession {
@@ -24,6 +26,8 @@ export interface ActiveSession {
   terminal: SessionTerminal;
   outputBuffer: OutputBuffer;
   createdAt: Date;
+  /** The repo root override used for this session's worktree, if any. */
+  repoRoot?: string;
 }
 
 export class SessionError extends Error {
@@ -64,7 +68,7 @@ export class SessionManager {
     // Step 1: Create worktree
     let worktree: WorktreeInfo;
     try {
-      worktree = await this._worktreeManager.addWorktree(sessionId, opts.branch);
+      worktree = await this._worktreeManager.addWorktree(sessionId, opts.branch, opts.repoRoot);
     } catch (err) {
       throw new SessionError(
         `Failed to create worktree for session '${sessionId}': ${String(err)}`,
@@ -149,6 +153,7 @@ export class SessionManager {
       terminal,
       outputBuffer,
       createdAt: new Date(),
+      ...(opts.repoRoot !== undefined ? { repoRoot: opts.repoRoot } : {}),
     };
 
     this._active.set(sessionId, activeSession);
@@ -176,7 +181,7 @@ export class SessionManager {
     }
 
     try {
-      await this._worktreeManager.removeWorktree(sessionId);
+      await this._worktreeManager.removeWorktree(sessionId, session?.repoRoot);
     } catch {
       // Best-effort cleanup
     }

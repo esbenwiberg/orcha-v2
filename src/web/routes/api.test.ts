@@ -28,6 +28,7 @@ function buildMockDeps(): AppDeps {
         all: vi.fn().mockReturnValue([]),
       }),
     } as unknown as AppDeps['db'],
+    worktreeManager: {} as AppDeps['worktreeManager'],
     authConfig: {
       mode: 'none',
       token: undefined,

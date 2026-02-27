@@ -2,10 +2,12 @@ import { Router } from 'express';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { PresetStore } from '../../db/preset-store.js';
+import { RepoStore } from '../../db/repo-store.js';
 
 export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new PresetStore(deps.db);
+  const repoStore = new RepoStore(deps.db);
 
   // GET /api/presets — render the full preset list partial
   router.get('/presets', (_req, res, next) => {
@@ -22,7 +24,8 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   // GET /api/presets/save-form — render the save-preset form partial
   router.get('/presets/save-form', (_req, res, next) => {
     try {
-      const html = eta.render('partials/save-preset-form', {});
+      const repos = repoStore.listRepos();
+      const html = eta.render('partials/save-preset-form', { repos });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -36,7 +39,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const name = (typeof req.body['name'] === 'string' ? req.body['name'] : '').trim();
       const branch = (typeof req.body['branch'] === 'string' ? req.body['branch'] : '').trim();
       const prompt = (typeof req.body['prompt'] === 'string' ? req.body['prompt'] : '').trim();
-      const basePath = (typeof req.body['basePath'] === 'string' ? req.body['basePath'] : '').trim();
+      const repoId = (typeof req.body['repoId'] === 'string' ? req.body['repoId'] : '').trim();
 
       const errors: string[] = [];
 
@@ -47,14 +50,15 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       if (errors.length > 0) {
-        const formHtml = eta.render('partials/save-preset-form', { name, branch, prompt, basePath });
+        const repos = repoStore.listRepos();
+        const formHtml = eta.render('partials/save-preset-form', { name, branch, prompt, repoId, repos });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
         return;
       }
 
-      store.createPreset({ name, branch, prompt, basePath });
+      store.createPreset({ name, branch, prompt, repoId });
 
       const presets = store.listPresets();
       const html = eta.render('partials/preset-list', { presets });
@@ -77,10 +81,12 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
+      const repos = repoStore.listRepos();
       const html = eta.render('partials/new-session-form', {
         branch: preset.branch,
         prompt: preset.prompt,
-        basePath: preset.basePath,
+        repoId: preset.repoId,
+        repos,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
