@@ -1,6 +1,16 @@
-<li class="preset-item" id="preset-<%= it.preset.id %>">
-  <span class="preset-item__name"><%= it.preset.name %></span>
-  <div class="preset-item__actions">
+<tr id="preset-<%= it.preset.id %>">
+  <td>
+    <span style="font-weight:500;color:var(--color-text-primary)"><%= it.preset.name %></span>
+  </td>
+  <td>
+    <span class="text-xs text-muted">
+      <%= it.preset.repoName ?? (it.preset.repoId ? it.preset.repoId.slice(0, 8) : '—') %>
+    </span>
+  </td>
+  <td>
+    <span class="font-mono text-xs text-muted"><%= it.preset.branch || '—' %></span>
+  </td>
+  <td class="data-table__actions">
     <button
       class="btn btn-ghost btn-xs"
       hx-get="/api/presets/<%= it.preset.id %>/load"
@@ -14,6 +24,6 @@
       hx-target="#preset-<%= it.preset.id %>"
       hx-swap="outerHTML"
       hx-confirm="Delete preset?"
-    >Del</button>
-  </div>
-</li>
+    >Delete</button>
+  </td>
+</tr>

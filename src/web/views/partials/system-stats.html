@@ -1,0 +1,101 @@
+<div id="system-stats">
+  <!-- Stat cards -->
+  <div class="stat-cards">
+    <div class="stat-card">
+      <div class="stat-card__label">Uptime</div>
+      <div class="stat-card__value"><%= it.uptime %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Database</div>
+      <div class="stat-card__value" style="color:<%= it.dbStatus === 'ok' ? 'var(--color-success)' : 'var(--color-error)' %>">
+        <%= it.dbStatus %>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Node</div>
+      <div class="stat-card__value"><%= it.nodeVersion %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Total disk</div>
+      <div class="stat-card__value"><%= it.disk.total.formatted %></div>
+    </div>
+  </div>
+
+  <!-- Disk usage -->
+  <div class="page-section" style="margin-top:1.5rem">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">Disk Usage</h2>
+        <p class="page-section__subtitle"><%= it.dataDir %></p>
+      </div>
+      <button
+        class="btn btn-ghost btn-sm"
+        hx-get="/api/system/stats"
+        hx-target="#system-stats"
+        hx-swap="outerHTML"
+      >Refresh</button>
+    </div>
+
+    <div class="disk-items">
+      <div class="disk-item">
+        <div class="disk-item__header">
+          <span class="disk-item__label">Worktrees</span>
+          <span class="disk-item__size"><%= it.disk.worktrees.formatted %></span>
+        </div>
+        <div class="disk-bar">
+          <div class="disk-bar__fill" style="width:<%= it.disk.total.bytes > 0 ? Math.round((it.disk.worktrees.bytes / it.disk.total.bytes) * 100) : 0 %>%"></div>
+        </div>
+        <div class="text-xs text-muted" style="margin-top:0.25rem"><%= it.disk.worktrees.path %></div>
+      </div>
+
+      <div class="disk-item">
+        <div class="disk-item__header">
+          <span class="disk-item__label">Bare repos</span>
+          <span class="disk-item__size"><%= it.disk.bareRepos.formatted %></span>
+        </div>
+        <div class="disk-bar">
+          <div class="disk-bar__fill" style="width:<%= it.disk.total.bytes > 0 ? Math.round((it.disk.bareRepos.bytes / it.disk.total.bytes) * 100) : 0 %>%"></div>
+        </div>
+        <div class="text-xs text-muted" style="margin-top:0.25rem"><%= it.disk.bareRepos.path %></div>
+      </div>
+
+      <div class="disk-item">
+        <div class="disk-item__header">
+          <span class="disk-item__label">Logs</span>
+          <span class="disk-item__size"><%= it.disk.logs.formatted %></span>
+        </div>
+        <div class="disk-bar">
+          <div class="disk-bar__fill" style="width:<%= it.disk.total.bytes > 0 ? Math.round((it.disk.logs.bytes / it.disk.total.bytes) * 100) : 0 %>%"></div>
+        </div>
+        <div class="text-xs text-muted" style="margin-top:0.25rem"><%= it.disk.logs.path %></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cleanup actions -->
+  <div class="page-section" style="margin-top:1.5rem">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">Disk Cleanup</h2>
+        <p class="page-section__subtitle">Free up space used by old logs and unused worktrees</p>
+      </div>
+    </div>
+    <div id="cleanup-result"></div>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+      <button
+        class="btn btn-ghost"
+        hx-post="/api/system/clean/logs"
+        hx-target="#system-stats"
+        hx-swap="outerHTML"
+        hx-confirm="Delete log files older than 7 days?"
+      >Clean old logs</button>
+      <button
+        class="btn btn-ghost"
+        hx-post="/api/system/clean/worktrees"
+        hx-target="#system-stats"
+        hx-swap="outerHTML"
+        hx-confirm="Remove worktrees for stopped/completed sessions?"
+      >Clean worktrees</button>
+    </div>
+  </div>
+</div>

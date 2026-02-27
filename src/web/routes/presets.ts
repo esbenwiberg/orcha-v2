@@ -9,11 +9,17 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   const store = new PresetStore(deps.db);
   const repoStore = new RepoStore(deps.db);
 
-  // GET /api/presets — render the full preset list partial
+  // GET /api/presets — render the full preset list partial (with repo names resolved)
   router.get('/presets', (_req, res, next) => {
     try {
       const presets = store.listPresets();
-      const html = eta.render('partials/preset-list', { presets });
+      const repos = repoStore.listRepos();
+      const repoMap = new Map(repos.map((r) => [r.id, r.displayName]));
+      const presetsWithRepoName = presets.map((p) => ({
+        ...p,
+        repoName: p.repoId ? (repoMap.get(p.repoId) ?? null) : null,
+      }));
+      const html = eta.render('partials/preset-list', { presets: presetsWithRepoName });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -55,15 +61,13 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
-        return;
+        return; // error rendered in form panel slot
       }
 
       store.createPreset({ name, branch, prompt, repoId });
 
-      const presets = store.listPresets();
-      const html = eta.render('partials/preset-list', { presets });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(200).send(html);
+      res.status(200).send('');
     } catch (err) {
       next(err);
     }

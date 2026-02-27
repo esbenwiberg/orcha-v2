@@ -1,0 +1,16 @@
+<div class="page-section">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Claude Permissions</h2>
+      <p class="page-section__subtitle">Tool allow/deny rules written to <code class="font-mono text-xs">.claude/settings.json</code></p>
+    </div>
+  </div>
+  <div
+    hx-get="/api/claude-permissions"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row" style="margin-top:0.5rem"></div>
+  </div>
+</div>

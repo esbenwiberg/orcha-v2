@@ -1,5 +1,22 @@
-<ul class="preset-list" id="preset-list">
-  <% for (const p of it.presets) { %>
-    <%~ include('partials/preset-item', { preset: p }) %>
-  <% } %>
-</ul>
+<% if (!it.presets || it.presets.length === 0) { %>
+  <div class="empty-state">
+    <p>No presets yet.</p>
+    <p class="text-sm text-muted" style="margin-top:0.25rem">Save a preset to reuse session configurations.</p>
+  </div>
+<% } else { %>
+  <table class="data-table" id="preset-list">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Repo</th>
+        <th>Branch</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% for (const p of it.presets) { %>
+        <%~ include('partials/preset-item', { preset: p }) %>
+      <% } %>
+    </tbody>
+  </table>
+<% } %>

@@ -19,6 +19,7 @@ import { createReposRouter } from './routes/repos.js';
 import { createEventsRouter } from './routes/events.js';
 import { createCredentialsRouter } from './routes/credentials.js';
 import { createClaudePermissionsRouter } from './routes/claude-permissions.js';
+import { createSystemRouter } from './routes/system.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 
@@ -106,6 +107,9 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // Claude permissions editor router
   app.use('/api', createClaudePermissionsRouter(eta));
+
+  // System stats + disk cleanup router
+  app.use('/api', createSystemRouter(eta, deps));
 
   // JSON API routes
   app.use('/api', createApiRouter(deps));

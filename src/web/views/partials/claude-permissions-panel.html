@@ -1,50 +1,72 @@
-<div class="panel" id="claude-permissions-panel">
-  <div class="sidebar-section__title" style="display:flex;align-items:center;justify-content:space-between">
-    <span>Claude Permissions</span>
-    <span class="text-xs" style="color:var(--color-text-muted);font-weight:normal">.claude/settings.json</span>
-  </div>
+<div id="claude-permissions-panel">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+    <!-- Allow rules -->
+    <div>
+      <div class="perm-section-title perm-section-title--allow">Allow</div>
+      <% if (it.allow && it.allow.length > 0) { for (const rule of it.allow) { %>
+        <div class="perm-rule perm-rule--allow">
+          <code class="text-xs font-mono"><%= rule %></code>
+          <button
+            class="btn btn-xs"
+            style="color:var(--color-error);flex-shrink:0"
+            hx-delete="/api/claude-permissions/allow/<%= encodeURIComponent(rule) %>"
+            hx-target="#claude-permissions-panel"
+            hx-swap="outerHTML"
+          >×</button>
+        </div>
+      <% } } else { %>
+        <p class="text-xs text-muted">None</p>
+      <% } %>
+      <form
+        hx-post="/api/claude-permissions/allow"
+        hx-target="#claude-permissions-panel"
+        hx-swap="outerHTML"
+        style="display:flex;gap:0.5rem;margin-top:0.75rem"
+      >
+        <input
+          name="rule"
+          placeholder="Bash(git *)"
+          class="input input--sm"
+          style="flex:1;min-width:0"
+        />
+        <button class="btn btn-xs btn-primary">Add</button>
+      </form>
+    </div>
 
-  <div style="margin-top:0.5rem">
-    <div class="text-xs" style="color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem">Allow</div>
-    <% if (it.allow && it.allow.length > 0) { for (const rule of it.allow) { %>
-      <div class="perm-rule perm-rule--allow">
-        <code class="text-xs"><%= rule %></code>
-        <button class="btn btn-xs" style="color:var(--color-error);flex-shrink:0"
-          hx-delete="/api/claude-permissions/allow/<%= encodeURIComponent(rule) %>"
-          hx-target="#claude-permissions-panel"
-          hx-swap="outerHTML">×</button>
-      </div>
-    <% } } else { %>
-      <p class="text-xs" style="color:var(--color-text-muted)">None</p>
-    <% } %>
-    <form hx-post="/api/claude-permissions/allow"
-          hx-target="#claude-permissions-panel"
-          hx-swap="outerHTML"
-          style="display:flex;gap:0.25rem;margin-top:0.25rem">
-      <input name="rule" placeholder="Bash(git *)" class="input input--sm" style="flex:1;min-width:0" />
-      <button class="btn btn-xs btn-primary">+</button>
-    </form>
-  </div>
-
-  <div style="margin-top:0.75rem">
-    <div class="text-xs" style="color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.25rem">Deny</div>
-    <% if (it.deny && it.deny.length > 0) { for (const rule of it.deny) { %>
-      <div class="perm-rule perm-rule--deny">
-        <code class="text-xs"><%= rule %></code>
-        <button class="btn btn-xs" style="color:var(--color-error);flex-shrink:0"
-          hx-delete="/api/claude-permissions/deny/<%= encodeURIComponent(rule) %>"
-          hx-target="#claude-permissions-panel"
-          hx-swap="outerHTML">×</button>
-      </div>
-    <% } } else { %>
-      <p class="text-xs" style="color:var(--color-text-muted)">None</p>
-    <% } %>
-    <form hx-post="/api/claude-permissions/deny"
-          hx-target="#claude-permissions-panel"
-          hx-swap="outerHTML"
-          style="display:flex;gap:0.25rem;margin-top:0.25rem">
-      <input name="rule" placeholder="Bash(rm -rf *)" class="input input--sm" style="flex:1;min-width:0" />
-      <button class="btn btn-xs" style="background:color-mix(in srgb,var(--color-error) 20%,transparent);color:var(--color-error)">+</button>
-    </form>
+    <!-- Deny rules -->
+    <div>
+      <div class="perm-section-title perm-section-title--deny">Deny</div>
+      <% if (it.deny && it.deny.length > 0) { for (const rule of it.deny) { %>
+        <div class="perm-rule perm-rule--deny">
+          <code class="text-xs font-mono"><%= rule %></code>
+          <button
+            class="btn btn-xs"
+            style="color:var(--color-error);flex-shrink:0"
+            hx-delete="/api/claude-permissions/deny/<%= encodeURIComponent(rule) %>"
+            hx-target="#claude-permissions-panel"
+            hx-swap="outerHTML"
+          >×</button>
+        </div>
+      <% } } else { %>
+        <p class="text-xs text-muted">None</p>
+      <% } %>
+      <form
+        hx-post="/api/claude-permissions/deny"
+        hx-target="#claude-permissions-panel"
+        hx-swap="outerHTML"
+        style="display:flex;gap:0.5rem;margin-top:0.75rem"
+      >
+        <input
+          name="rule"
+          placeholder="Bash(rm -rf *)"
+          class="input input--sm"
+          style="flex:1;min-width:0"
+        />
+        <button
+          class="btn btn-xs"
+          style="background:color-mix(in srgb,var(--color-error) 20%,transparent);color:var(--color-error)"
+        >Add</button>
+      </form>
+    </div>
   </div>
 </div>

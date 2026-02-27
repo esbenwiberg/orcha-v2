@@ -1,0 +1,11 @@
+<div class="page-section">
+  <div id="preset-list-slot"
+    hx-get="/api/presets"
+    hx-trigger="load, refresh"
+    hx-swap="innerHTML"
+  >
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row" style="margin-top:0.5rem"></div>
+    <div class="skeleton skeleton-row" style="margin-top:0.5rem"></div>
+  </div>
+</div>

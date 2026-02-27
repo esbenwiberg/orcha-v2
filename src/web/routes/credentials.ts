@@ -51,6 +51,18 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
 
   // ── Credential Profiles ──────────────────────────────────────────────────
 
+  // GET /api/credential-profiles — render profiles list partial (page view)
+  router.get('/credential-profiles', (_req, res, next) => {
+    try {
+      const profiles = store.listProfiles();
+      const html = eta.render('partials/credential-profiles-list', { profiles });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // GET /api/credential-profiles/form — render create form partial
   router.get('/credential-profiles/form', (_req, res, next) => {
     try {
@@ -144,6 +156,20 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
 
   // ── Active Credentials ───────────────────────────────────────────────────
 
+  // GET /api/credentials/active — render active credentials table (page view)
+  router.get('/credentials/active', (_req, res, next) => {
+    try {
+      const activeCreds = store.listAll().filter((c) => !c.revokedAt);
+      const html = eta.render('partials/active-credentials-table', {
+        activeCreds: activeCreds.map(toCredViewModel),
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // POST /api/credentials/:id/revoke — revoke a credential set
   router.post('/credentials/:id/revoke', async (req, res, next) => {
     try {
@@ -180,9 +206,9 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
         }),
       );
 
-      // Re-render the credentials panel
+      // Re-render the active credentials table
       const activeCreds = store.listAll().filter((c) => !c.revokedAt);
-      const html = eta.render('partials/credentials-panel', {
+      const html = eta.render('partials/active-credentials-table', {
         activeCreds: activeCreds.map(toCredViewModel),
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

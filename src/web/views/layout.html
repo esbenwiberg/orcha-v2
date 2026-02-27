@@ -44,50 +44,11 @@
           href="/"
           class="orcha-sidebar__nav-item<%= it.activeNav === 'sessions' ? ' orcha-sidebar__nav-item--active' : '' %>"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <rect
-              x="1"
-              y="1"
-              width="6"
-              height="6"
-              rx="1.5"
-              stroke="currentColor"
-              stroke-width="1.5"
-            />
-            <rect
-              x="9"
-              y="1"
-              width="6"
-              height="6"
-              rx="1.5"
-              stroke="currentColor"
-              stroke-width="1.5"
-            />
-            <rect
-              x="1"
-              y="9"
-              width="6"
-              height="6"
-              rx="1.5"
-              stroke="currentColor"
-              stroke-width="1.5"
-            />
-            <rect
-              x="9"
-              y="9"
-              width="6"
-              height="6"
-              rx="1.5"
-              stroke="currentColor"
-              stroke-width="1.5"
-            />
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
+            <rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
+            <rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
+            <rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5" />
           </svg>
           Sessions
         </a>
@@ -96,70 +57,71 @@
           href="/presets"
           class="orcha-sidebar__nav-item<%= it.activeNav === 'presets' ? ' orcha-sidebar__nav-item--active' : '' %>"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-          >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 4h12M2 8h8M2 12h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+          Presets
+        </a>
+
+        <a
+          href="/repos"
+          class="orcha-sidebar__nav-item<%= it.activeNav === 'repos' ? ' orcha-sidebar__nav-item--active' : '' %>"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path
-              d="M2 4h12M2 8h8M2 12h6"
+              d="M13 14H3a1 1 0 01-1-1V3a1 1 0 011-1h7l3 3v8a1 1 0 01-1 1z"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linejoin="round"
+            />
+            <path d="M9 2v4h4" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+          </svg>
+          Repos
+        </a>
+
+        <a
+          href="/credentials"
+          class="orcha-sidebar__nav-item<%= it.activeNav === 'credentials' ? ' orcha-sidebar__nav-item--active' : '' %>"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="6" cy="7" r="3.5" stroke="currentColor" stroke-width="1.5" />
+            <path d="M8.5 9.5L13 14M10.5 12l1.5 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+          Credentials
+        </a>
+
+        <a
+          href="/settings"
+          class="orcha-sidebar__nav-item<%= it.activeNav === 'settings' ? ' orcha-sidebar__nav-item--active' : '' %>"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5" />
+            <path
+              d="M8 1.5v1M8 13.5v1M1.5 8h1M13.5 8h1M3.4 3.4l.7.7M11.9 11.9l.7.7M3.4 12.6l.7-.7M11.9 4.1l.7-.7"
               stroke="currentColor"
               stroke-width="1.5"
               stroke-linecap="round"
             />
           </svg>
-          Presets
+          Settings
+        </a>
+
+        <a
+          href="/system"
+          class="orcha-sidebar__nav-item<%= it.activeNav === 'system' ? ' orcha-sidebar__nav-item--active' : '' %>"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M1 8s1.5-4.5 4-4.5S7.5 6.5 8 6.5 9.5 3.5 11 3.5 15 8 15 8"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          System
         </a>
       </nav>
-
-      <div class="sidebar-section">
-        <p class="sidebar-section__title">Presets</p>
-        <div id="preset-list-slot"
-          hx-get="/api/presets"
-          hx-trigger="load"
-          hx-swap="innerHTML">
-        </div>
-        <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:0.5rem"
-          hx-get="/api/presets/save-form"
-          hx-target="#form-panel-slot"
-          hx-swap="innerHTML"
-          onclick="document.getElementById('form-panel').classList.add('is-open')">
-          + Save Preset
-        </button>
-      </div>
-
-      <div class="sidebar-section">
-        <p class="sidebar-section__title">Repos</p>
-        <div id="repo-list-slot"
-          hx-get="/api/repos"
-          hx-trigger="load"
-          hx-swap="innerHTML">
-        </div>
-        <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:0.5rem"
-          hx-get="/api/repos/add-form"
-          hx-target="#form-panel-slot"
-          hx-swap="innerHTML"
-          onclick="document.getElementById('form-panel').classList.add('is-open')">
-          + Add Repo
-        </button>
-      </div>
-
-      <div id="credentials-panel-slot"
-        hx-get="/api/credentials/overview"
-        hx-trigger="load"
-        hx-swap="innerHTML">
-      </div>
-
-      <div class="sidebar-section">
-        <div id="claude-permissions-slot"
-          hx-get="/api/claude-permissions"
-          hx-trigger="load"
-          hx-swap="innerHTML">
-        </div>
-      </div>
 
       <div class="orcha-sidebar__footer">
         <span class="version-badge">v<%= it.version ?? '0.1.0' %></span>
@@ -171,13 +133,6 @@
       <span class="orcha-header__title"><%= it.pageTitle ?? 'Sessions' %></span>
       <div class="orcha-header__actions">
         <%~ it.headerActions ?? '' %>
-        <button
-          class="btn btn-primary"
-          hx-get="/api/sessions/new-form"
-          hx-target="#form-panel-slot"
-          hx-swap="innerHTML"
-          onclick="document.getElementById('form-panel').classList.add('is-open')"
-        >+ New Session</button>
       </div>
     </header>
 
@@ -186,6 +141,14 @@
 
     <!-- Slide-in form panel -->
     <div id="form-panel" class="form-panel">
+      <div class="form-panel__header">
+        <button
+          class="btn btn-ghost btn-sm form-panel__close"
+          onclick="document.getElementById('form-panel').classList.remove('is-open')"
+        >
+          ✕ Close
+        </button>
+      </div>
       <div id="form-panel-slot"></div>
     </div>
   </body>

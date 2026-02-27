@@ -65,11 +65,8 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
           store.updateStatus(repo.id, 'error', { error: String(err) });
         });
 
-      // Return updated list
-      const repos = store.listRepos();
-      const html = eta.render('partials/repo-list', { repos });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(200).send(html);
+      res.status(200).send('');
     } catch (err) {
       next(err);
     }
