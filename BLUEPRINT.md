@@ -729,7 +729,7 @@ npm run build && npm test -- src/web/__tests__/auth-integration.test.ts --report
 ---
 
 # Phase 7: Phase 7 – Hardening, Observability & CLI Compat
-**Milestones: 7**
+**Milestones: 8**
 
 ## Milestone 1: Structured logging with pino: request logs, session lifecycle events, auth events, error traces
 
@@ -796,7 +796,49 @@ npm run build && npm test -- src/web/__tests__/auth-integration.test.ts --report
 
 **Key files**: src/__tests__/e2e/rest-api.test.ts, src/__tests__/e2e/cli-verbs.test.ts, src/__tests__/helpers/test-server.ts
 
-## Milestone 7: README, GETTING-STARTED, and deployment guide covering all three auth modes
+## Milestone 7: Session sandboxing: bwrap filesystem isolation + cgroup resource limits per session
+
+Restrict each spawned Claude session to its own worktree using Linux user namespaces (bubblewrap) and cap its CPU/memory via cgroup v2 (systemd-run). Sandboxing is opt-in via environment variable so local dev remains frictionless.
+
+1. Add `bubblewrap` (`bwrap`) to the Dockerfile runtime apt install line alongside `git` and `fuse3`. Add `systemd` package for `systemd-run` cgroup support.
+
+2. Create `src/sandbox/sandbox-config.ts` exporting a `SandboxConfig` interface with fields: `enabled: boolean`, `mode: 'bwrap' | 'none'`, `memoryMax: string` (e.g. `'512M'`), `cpuQuota: string` (e.g. `'50%'`). Export `loadSandboxConfig(): SandboxConfig` reading from env vars: `SANDBOX_MODE` (default `'none'`), `SANDBOX_MEMORY_MAX` (default `'512M'`), `SANDBOX_CPU_QUOTA` (default `'100%'`).
+
+3. Create `src/sandbox/bwrap.ts` exporting `buildSandboxedCommand(worktreePath: string, command: string[], args: string[], config: SandboxConfig): { command: string; args: string[] }`. When `config.mode === 'bwrap'`, prefix the command with `systemd-run --scope --user -p MemoryMax=${config.memoryMax} -p CPUQuota=${config.cpuQuota} -- bwrap` and build the bwrap argument list:
+   - `--ro-bind /usr /usr` — read-only system dirs
+   - `--ro-bind /lib /lib` (and `/lib64` if it exists)
+   - `--ro-bind /bin /bin`
+   - `--ro-bind /etc/resolv.conf /etc/resolv.conf` — DNS resolution for Anthropic API
+   - `--ro-bind /etc/ssl /etc/ssl` — CA certificates for TLS
+   - `--bind <worktreePath> /workspace` — session worktree, read-write
+   - `--chdir /workspace`
+   - `--unshare-pid` — isolated PID namespace
+   - `--new-session` — new session ID, detached from terminal
+   - `--die-with-parent` — kill sandbox if Orcha dies
+   - `--` followed by the original command and args
+   When `config.mode === 'none'`, return `{ command, args }` unchanged.
+
+4. Update `src/terminal/pty-manager.ts` `spawn()` method to call `buildSandboxedCommand()` before passing command and args to `node-pty`. Import `loadSandboxConfig()` at module level and cache the result. Ensure the PTY `cwd` is set to `worktreePath` in both sandboxed and non-sandboxed modes.
+
+5. Update `src/diagnostics/startup.ts` `emitStartupDiagnostics()` to include a `sandbox_mode` field from `loadSandboxConfig().mode`, and a `bwrap_available` boolean (check by running `which bwrap` via `execSync`, catching on failure).
+
+6. Add a Vitest unit test in `src/sandbox/bwrap.test.ts` that: (a) with `mode: 'none'` asserts the returned command and args are unchanged; (b) with `mode: 'bwrap'` asserts the returned command starts with `systemd-run`, contains `bwrap`, contains `--bind <worktreePath> /workspace`, contains `--chdir /workspace`, and ends with the original command and args; (c) asserts `--ro-bind /usr /usr` is present in the bwrap args.
+
+7. Update the Dockerfile to add `bwrap` to the runtime apt packages. Add `SANDBOX_MODE`, `SANDBOX_MEMORY_MAX`, and `SANDBOX_CPU_QUOTA` to the `ENV` block with defaults `none`, `512M`, `100%` so the image works safely without sandboxing unless the operator enables it.
+
+8. Write `docs/sandboxing.md` documenting: the sandboxing model (what bwrap isolates and what it doesn't), how to enable it (`SANDBOX_MODE=bwrap`), network access policy (outbound allowed — needed for Anthropic API), cgroup resource limit defaults and how to tune them, and the known limitation that `systemd-run --user` requires a user session bus (may not be available in all container runtimes — document the fallback of running without cgroup limits using bwrap alone).
+
+**Key files**: src/sandbox/sandbox-config.ts, src/sandbox/bwrap.ts, src/sandbox/bwrap.test.ts, src/terminal/pty-manager.ts, src/diagnostics/startup.ts, Dockerfile, docs/sandboxing.md
+
+**Verification**:
+```bash
+npm run build && npm test -- src/sandbox/
+# With sandbox enabled (requires bwrap installed):
+SANDBOX_MODE=bwrap node dist/web/start-server.js &
+curl -s http://localhost:3000/health | jq .
+```
+
+## Milestone 8: README, GETTING-STARTED, and deployment guide covering all three auth modes
 
 1. Rewrite `README.md` with description, features, four-command quickstart, links to docs.
 2. Write `GETTING-STARTED.md` with prerequisites, install, config, local run, first session, CLI usage, troubleshooting.
