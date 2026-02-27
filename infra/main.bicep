@@ -37,25 +37,28 @@ param orchaDomain string
 @description('Email address passed to Let\'s Encrypt for renewal notifications.')
 param acmeEmail string
 
-// ---------------------------------------------------------------------------
-// User-assigned managed identity (used for ACR pull)
-// ---------------------------------------------------------------------------
-resource orchaIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'orcha-identity'
-  location: location
-}
+@description('Use ACR admin credentials instead of managed identity for image pull. Set to true when you lack Microsoft.Authorization/roleAssignments/write permission.')
+param useAcrAdmin bool = false
 
 // ---------------------------------------------------------------------------
-// Reference the existing ACR so we can scope the role assignment to it
+// Reference the existing ACR
 // ---------------------------------------------------------------------------
 resource acr 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' existing = {
   name: acrName
 }
 
+// ---------------------------------------------------------------------------
+// User-assigned managed identity (used for ACR pull — skipped when useAcrAdmin)
+// ---------------------------------------------------------------------------
+resource orchaIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (!useAcrAdmin) {
+  name: 'orcha-identity'
+  location: location
+}
+
 // AcrPull built-in role definition ID
 var acrPullRoleId = '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 
-resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useAcrAdmin) {
   // Role assignment name must be a stable GUID derived from the principal and
   // role to avoid duplicate assignments on re-deploy.
   name: guid(acr.id, orchaIdentity.id, acrPullRoleId)
@@ -90,7 +93,6 @@ module containerEnv 'modules/container-env.bicep' = {
     storageAccountKey: storage.outputs.storageAccountKey
     fileShareName: storage.outputs.fileShareName
   }
-  dependsOn: [storage]
 }
 
 // ---------------------------------------------------------------------------
@@ -108,10 +110,13 @@ module containerApp 'modules/container-app.bicep' = {
     orchaToken: orchaToken
     orchaDomain: orchaDomain
     acmeEmail: acmeEmail
-    managedIdentityId: orchaIdentity.id
-    managedIdentityClientId: orchaIdentity.properties.clientId
+    useAcrAdmin: useAcrAdmin
+    managedIdentityId: useAcrAdmin ? '' : orchaIdentity.id
+    managedIdentityClientId: useAcrAdmin ? '' : orchaIdentity.properties.clientId
+    acrAdminUsername: useAcrAdmin ? acr.listCredentials().username : ''
+    acrAdminPassword: useAcrAdmin ? acr.listCredentials().passwords[0].value : ''
   }
-  dependsOn: [containerEnv, acrPullAssignment]
+  dependsOn: useAcrAdmin ? [containerEnv] : [containerEnv, acrPullAssignment]
 }
 
 // ---------------------------------------------------------------------------

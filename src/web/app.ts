@@ -66,13 +66,18 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
     deps.authConfig,
   );
 
-  // Mount the OIDC auth router (login/callback/logout) before protected routes
+  // For OIDC: apply session/passport setup before the auth router,
+  // then mount the auth router, then apply the auth guard after.
+  // The last middleware in authMiddleware is ensureAuthenticated.
   if (authRouter !== undefined) {
+    const setupMiddleware = authMiddleware.slice(0, -1);
+    const guardMiddleware = authMiddleware.slice(-1);
+    app.use(...setupMiddleware);
     app.use('/', authRouter);
+    app.use(...guardMiddleware);
+  } else {
+    app.use(...authMiddleware);
   }
-
-  // Apply auth middleware to all subsequent routes
-  app.use(...authMiddleware);
 
   // Serve static assets from src/web/public
   app.use(express.static('src/web/public'));

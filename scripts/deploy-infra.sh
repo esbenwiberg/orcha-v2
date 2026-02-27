@@ -51,39 +51,61 @@ fi
 
 # ── Azure login check ─────────────────────────────────────────────────────────
 info "Checking Azure login..."
-ACCOUNT=$(az account show --query '{name:name,id:id}' -o json 2>/dev/null) \
+ACCOUNT_NAME=$(az account show --query 'name' -o tsv 2>/dev/null) \
   || die "Not logged in to Azure. Run: az login"
-ACCOUNT_NAME=$(echo "${ACCOUNT}" | grep -o '"name":"[^"]*"' | cut -d'"' -f4)
-SUBSCRIPTION_ID=$(echo "${ACCOUNT}" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+SUBSCRIPTION_ID=$(az account show --query 'id' -o tsv)
 ok "Logged in — subscription: ${ACCOUNT_NAME} (${SUBSCRIPTION_ID})"
 
 # ── Resource group ────────────────────────────────────────────────────────────
+# Some subscriptions require an Owner-Created-By tag.  Set OWNER_TAG to your
+# alias to include it, or leave unset to skip.
+OWNER_TAG="${OWNER_TAG:-}"
+
 info "Ensuring resource group '${RESOURCE_GROUP}' exists in ${LOCATION}..."
-az group create \
-  --name "${RESOURCE_GROUP}" \
-  --location "${LOCATION}" \
-  --output none
+RG_ARGS=(--name "${RESOURCE_GROUP}" --location "${LOCATION}" --output none)
+if [[ -n "${OWNER_TAG}" ]]; then
+  RG_ARGS+=(--tags "Owner-Created-By=${OWNER_TAG}")
+fi
+az group create "${RG_ARGS[@]}"
 ok "Resource group ready"
 
-# ── Ensure ACR exists (idempotent) ────────────────────────────────────────────
-ACR_NAME=$(python3 -c "
-import json, sys
+# ── Read a parameter from the params file ─────────────────────────────────────
+read_param() {
+  python3 -c "
+import json
 with open('${PARAMS_FILE}') as f:
     p = json.load(f)
-print(p['parameters']['acrName']['value'])
-" 2>/dev/null || echo "")
+print(p['parameters']['$1']['value'])
+"
+}
+
+# ── Ensure ACR exists (idempotent) ────────────────────────────────────────────
+ACR_NAME=$(read_param acrName 2>/dev/null || echo "")
+USE_ACR_ADMIN=$(read_param useAcrAdmin 2>/dev/null || echo "false")
+# Normalise boolean: Python prints True/False, params may use true/false
+USE_ACR_ADMIN=$(echo "${USE_ACR_ADMIN}" | tr '[:upper:]' '[:lower:]')
 
 if [[ -n "${ACR_NAME}" ]]; then
+  ADMIN_FLAG="false"
+  if [[ "${USE_ACR_ADMIN}" == "true" ]]; then
+    ADMIN_FLAG="true"
+  fi
+
   if ! az acr show --name "${ACR_NAME}" --resource-group "${RESOURCE_GROUP}" --output none 2>/dev/null; then
-    info "Creating Azure Container Registry '${ACR_NAME}'..."
+    info "Creating Azure Container Registry '${ACR_NAME}' (admin=${ADMIN_FLAG})..."
     az acr create \
       --name "${ACR_NAME}" \
       --resource-group "${RESOURCE_GROUP}" \
       --sku Basic \
-      --admin-enabled false \
+      --admin-enabled "${ADMIN_FLAG}" \
       --output none
     ok "ACR '${ACR_NAME}' created"
   else
+    # Ensure admin flag matches desired state on existing ACR
+    if [[ "${ADMIN_FLAG}" == "true" ]]; then
+      az acr update --name "${ACR_NAME}" --resource-group "${RESOURCE_GROUP}" \
+        --admin-enabled true --output none 2>/dev/null || true
+    fi
     ok "ACR '${ACR_NAME}' already exists"
   fi
 fi

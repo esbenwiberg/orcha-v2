@@ -14,7 +14,7 @@
 # DB migrations run automatically on startup via runMigrations() in start-server.ts —
 # no separate migration step is needed here.
 #
-# Requires: az CLI >= 2.50, Docker >= 24
+# Requires: az CLI >= 2.50, Docker >= 24 (or ACR Tasks if Docker is unavailable)
 
 set -euo pipefail
 
@@ -47,7 +47,11 @@ echo ""
 
 # ── Pre-flight checks ─────────────────────────────────────────────────────────
 command -v az     >/dev/null 2>&1 || die "az CLI not found."
-command -v docker >/dev/null 2>&1 || die "docker not found."
+USE_ACR_BUILD=false
+if ! command -v docker >/dev/null 2>&1; then
+  info "Docker not found — will use ACR Tasks (az acr build) for remote builds."
+  USE_ACR_BUILD=true
+fi
 
 [[ -f "${PARAMS_FILE}" ]] || die "Parameters file not found: ${PARAMS_FILE}
   Copy the example and fill in your values:
@@ -79,37 +83,61 @@ az account show --output none 2>/dev/null || die "Not logged in to Azure. Run: a
 ok "Azure login confirmed"
 
 # ── ACR login ─────────────────────────────────────────────────────────────────
-info "Logging in to ACR '${ACR_NAME}'..."
 ACR_SERVER=$(az acr show --name "${ACR_NAME}" --query loginServer -o tsv)
-az acr login --name "${ACR_NAME}"
-ok "ACR login: ${ACR_SERVER}"
+
+if [[ "${USE_ACR_BUILD}" == "false" ]]; then
+  info "Logging in to ACR '${ACR_NAME}'..."
+  az acr login --name "${ACR_NAME}"
+  ok "ACR login: ${ACR_SERVER}"
+fi
 
 # ── Build and push images ─────────────────────────────────────────────────────
 echo ""
-info "Building orcha image..."
-DOCKER_BUILDKIT=1 docker build \
-  -t "${ACR_SERVER}/orcha:${TAG}" \
-  -t "${ACR_SERVER}/orcha:latest" \
-  "${REPO_ROOT}"
-ok "orcha image built"
+if [[ "${USE_ACR_BUILD}" == "true" ]]; then
+  # Remote builds via ACR Tasks (no local Docker required)
+  info "Building orcha image via ACR Tasks..."
+  az acr build \
+    --registry "${ACR_NAME}" \
+    --image "orcha:${TAG}" \
+    --image "orcha:latest" \
+    "${REPO_ROOT}"
+  ok "orcha image built and pushed (${TAG})"
 
-info "Pushing orcha image..."
-docker push "${ACR_SERVER}/orcha:${TAG}"
-docker push "${ACR_SERVER}/orcha:latest"
-ok "orcha image pushed (${TAG})"
+  echo ""
+  info "Building orcha-caddy image via ACR Tasks..."
+  az acr build \
+    --registry "${ACR_NAME}" \
+    --image "orcha-caddy:${TAG}" \
+    --image "orcha-caddy:latest" \
+    "${REPO_ROOT}/caddy"
+  ok "orcha-caddy image built and pushed (${TAG})"
+else
+  # Local Docker build + push
+  info "Building orcha image..."
+  DOCKER_BUILDKIT=1 docker build \
+    -t "${ACR_SERVER}/orcha:${TAG}" \
+    -t "${ACR_SERVER}/orcha:latest" \
+    "${REPO_ROOT}"
+  ok "orcha image built"
 
-echo ""
-info "Building orcha-caddy image..."
-DOCKER_BUILDKIT=1 docker build \
-  -t "${ACR_SERVER}/orcha-caddy:${TAG}" \
-  -t "${ACR_SERVER}/orcha-caddy:latest" \
-  "${REPO_ROOT}/caddy"
-ok "orcha-caddy image built"
+  info "Pushing orcha image..."
+  docker push "${ACR_SERVER}/orcha:${TAG}"
+  docker push "${ACR_SERVER}/orcha:latest"
+  ok "orcha image pushed (${TAG})"
 
-info "Pushing orcha-caddy image..."
-docker push "${ACR_SERVER}/orcha-caddy:${TAG}"
-docker push "${ACR_SERVER}/orcha-caddy:latest"
-ok "orcha-caddy image pushed (${TAG})"
+  echo ""
+  info "Building orcha-caddy image..."
+  DOCKER_BUILDKIT=1 docker build \
+    -t "${ACR_SERVER}/orcha-caddy:${TAG}" \
+    -t "${ACR_SERVER}/orcha-caddy:latest" \
+    "${REPO_ROOT}/caddy"
+  ok "orcha-caddy image built"
+
+  info "Pushing orcha-caddy image..."
+  docker push "${ACR_SERVER}/orcha-caddy:${TAG}"
+  docker push "${ACR_SERVER}/orcha-caddy:latest"
+  ok "orcha-caddy image pushed (${TAG})"
+fi
 
 # ── Update Container App ──────────────────────────────────────────────────────
 echo ""

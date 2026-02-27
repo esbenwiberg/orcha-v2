@@ -33,7 +33,7 @@ export async function startServer(deps: AppDeps, port: number): Promise<http.Ser
 
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, '127.0.0.1', () => {
+    server.listen(port, '0.0.0.0', () => {
       server.removeListener('error', reject);
       resolve(server);
     });

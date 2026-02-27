@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /build
 
 COPY package.json package-lock.json ./
+COPY scripts/vendor-assets.js scripts/vendor-assets.js
 RUN npm ci
 
 COPY . .
@@ -27,6 +28,12 @@ WORKDIR /app
 COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json ./package.json
+# Static assets — express.static('src/web/public') is CWD-relative
+COPY --from=builder /build/src/web/public ./src/web/public
+# ETA views — resolved via path.join(__dirname, 'views') from dist/web/
+COPY --from=builder /build/src/web/views ./dist/web/views
+# DB migrations — resolved via path.resolve(__dirname, '../db/migrations') from dist/web/
+COPY --from=builder /build/src/db/migrations ./dist/db/migrations
 
 RUN mkdir -p /data && chown orcha:orcha /data
 
@@ -38,4 +45,4 @@ ENV NODE_ENV=production ORCHA_DATA_DIR=/data
 
 USER orcha
 
-CMD ["node", "dist/web/start-server.js"]
+CMD node dist/web/start-server.js 2>&1

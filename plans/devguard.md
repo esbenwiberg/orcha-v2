@@ -411,19 +411,274 @@ import '../dist/devguard/cli.js';
 
 ---
 
+## Phase 6: Claude Permissions Editor
+
+The orcha dashboard gets a UI for managing per-project `.claude/settings.json` — specifically the tool allow/deny lists. This removes the need to hand-edit JSON to configure what Claude can do in a given project.
+
+### What Claude permissions look like
+
+`.claude/settings.json` relevant fields:
+```json
+{
+  "permissions": {
+    "allow": ["Bash(git *)", "Bash(npm run *)"],
+    "deny":  ["Bash(rm -rf *)", "Bash(curl * | bash *)"]
+  }
+}
+```
+
+Each entry is `ToolName(glob-pattern)` or bare `ToolName`. The allow list is an allowlist for otherwise-blocked patterns; the deny list overrides allow.
+
+### New routes (`src/web/routes/claude-permissions.ts`)
+
+```
+GET    /api/claude-permissions          → render permissions panel partial
+POST   /api/claude-permissions/allow    → add an allow rule { tool, pattern? }
+DELETE /api/claude-permissions/allow/:encoded  → remove allow rule
+POST   /api/claude-permissions/deny     → add a deny rule
+DELETE /api/claude-permissions/deny/:encoded   → remove deny rule
+```
+
+All routes read/write `.claude/settings.json` in the project root. Use `fs.readFile` + `JSON.parse`, merge, `JSON.stringify` + `fs.writeFile` with an exclusive advisory lock (or single-writer queue — keep it simple).
+
+### New partials
+
+**`src/web/views/partials/claude-permissions-panel.html`**
+```html
+<div class="panel" id="claude-permissions-panel">
+  <div class="panel__header">
+    <h3>Claude Permissions</h3>
+    <span class="text-xs text-muted">project .claude/settings.json</span>
+  </div>
+
+  <div class="panel__section">
+    <h4 class="text-xs text-muted uppercase">Allow rules</h4>
+    <% for (const rule of it.allow) { %>
+      <div class="perm-rule perm-rule--allow">
+        <code class="text-xs"><%= rule %></code>
+        <button hx-delete="/api/claude-permissions/allow/<%= encodeURIComponent(rule) %>"
+                hx-target="#claude-permissions-panel" hx-swap="outerHTML">×</button>
+      </div>
+    <% } %>
+    <form hx-post="/api/claude-permissions/allow"
+          hx-target="#claude-permissions-panel" hx-swap="outerHTML">
+      <input name="rule" placeholder="Bash(git *)" class="input input--sm" />
+      <button class="btn btn-xs">Add allow</button>
+    </form>
+  </div>
+
+  <div class="panel__section">
+    <h4 class="text-xs text-muted uppercase">Deny rules</h4>
+    <% for (const rule of it.deny) { %>
+      <div class="perm-rule perm-rule--deny">
+        <code class="text-xs"><%= rule %></code>
+        <button hx-delete="/api/claude-permissions/deny/<%= encodeURIComponent(rule) %>"
+                hx-target="#claude-permissions-panel" hx-swap="outerHTML">×</button>
+      </div>
+    <% } %>
+    <form hx-post="/api/claude-permissions/deny"
+          hx-target="#claude-permissions-panel" hx-swap="outerHTML">
+      <input name="rule" placeholder="Bash(rm -rf *)" class="input input--sm" />
+      <button class="btn btn-xs btn--danger">Add deny</button>
+    </form>
+  </div>
+</div>
+```
+
+Add panel to `layout.html` sidebar below the credentials panel.
+
+### CSS additions
+
+```css
+.perm-rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.25rem;
+}
+.perm-rule--allow { background: color-mix(in srgb, var(--color-success) 10%, transparent); }
+.perm-rule--deny  { background: color-mix(in srgb, var(--color-error)   10%, transparent); }
+```
+
+### Key files
+
+| File | Action |
+|------|--------|
+| `src/web/routes/claude-permissions.ts` | New |
+| `src/web/views/partials/claude-permissions-panel.html` | New |
+| `src/web/app.ts` | Register router |
+| `src/web/views/layout.html` | Add panel to sidebar |
+
+---
+
+## Phase 7: Secret Redaction Hook
+
+Even with JIT credentials, a session can echo them to stdout (e.g. `env | grep TOKEN`), which lands in Claude's conversation history JSONL. The redaction hook intercepts every tool result before Claude sees it and scrubs secret-shaped strings.
+
+### How Claude hooks work
+
+Claude Code reads `hooks` from `.claude/settings.json`. A `PostToolUse` hook receives the tool result on stdin as JSON and must write (optionally modified) content to stdout. If the hook writes a `suppressOutput: true` field or modifies `output`, Claude sees the modified version.
+
+Hook stdin schema:
+```json
+{
+  "tool_name": "Bash",
+  "tool_input": { "command": "..." },
+  "tool_response": { "output": "...", "error": "..." }
+}
+```
+
+The hook writes modified JSON to stdout. If it exits non-zero, the original result is used unchanged (fail-open, to avoid blocking Claude).
+
+### `src/devguard/redact-hook.ts`
+
+Compiled to `bin/devguard-redact-hook.js` — a standalone script invoked by Claude.
+
+```typescript
+import { createInterface } from 'readline'
+
+// Patterns that look like secrets
+const SECRET_PATTERNS: Array<[RegExp, string]> = [
+  // Generic high-entropy tokens (40+ base64 chars)
+  [/(?<=[A-Za-z0-9_]+=)[A-Za-z0-9+/]{40,}={0,2}/g,           '[REDACTED]'],
+  // GitHub PATs — classic and fine-grained
+  [/ghp_[A-Za-z0-9]{36}/g,                                     '[REDACTED-GH-PAT]'],
+  [/github_pat_[A-Za-z0-9_]{82}/g,                             '[REDACTED-GH-PAT]'],
+  // Azure SP client secrets (GUIDs with hyphens, common format)
+  [/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '[REDACTED-UUID]'],
+  // Env-var assignments where value looks secret
+  [/((?:SECRET|TOKEN|PAT|PASSWORD|KEY|CREDENTIAL)s?\s*=\s*)\S+/gi, '$1[REDACTED]'],
+  // Azure DevOps PATs (52-char base64)
+  [/[A-Za-z0-9]{52}/g,                                          '[REDACTED]'],
+]
+
+function redact(text: string): string {
+  let out = text
+  for (const [pattern, replacement] of SECRET_PATTERNS) {
+    out = out.replace(pattern, replacement)
+  }
+  return out
+}
+
+async function main() {
+  const chunks: string[] = []
+  for await (const line of createInterface({ input: process.stdin })) {
+    chunks.push(line)
+  }
+  const raw = chunks.join('\n')
+
+  let payload: any
+  try {
+    payload = JSON.parse(raw)
+  } catch {
+    // Not JSON — pass through
+    process.stdout.write(raw)
+    process.exit(0)
+  }
+
+  if (payload?.tool_response?.output) {
+    payload.tool_response.output = redact(payload.tool_response.output)
+  }
+  if (payload?.tool_response?.error) {
+    payload.tool_response.error = redact(payload.tool_response.error)
+  }
+
+  process.stdout.write(JSON.stringify(payload))
+  process.exit(0)
+}
+
+main()
+```
+
+### Hook registration
+
+The devguard CLI's `init` command (and `scaffold`) writes/merges this into the project's `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "node /path/to/bin/devguard-redact-hook.js" }]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [{ "type": "command", "command": "node /path/to/bin/devguard-redact-hook.js" }]
+      }
+    ]
+  }
+}
+```
+
+Path is resolved at `devguard init` time to the absolute path of the installed binary (via `process.execPath` + relative resolution, or `which devguard-redact-hook`).
+
+Alternatively, the orcha dashboard's Phase 6 permissions panel includes a **"Enable secret redaction hook"** toggle that writes this config automatically.
+
+### History file scrubbing (`devguard scrub-history`)
+
+An additional subcommand for retroactive cleanup. Claude history lives at:
+```
+~/.claude/projects/<encoded-path>/*.jsonl
+```
+
+```typescript
+// src/devguard/scrub-history.ts
+export async function scrubHistory(projectPath: string): Promise<{ filesScanned: number; redactionsApplied: number }>
+```
+
+- Encodes `projectPath` to the Claude project dir name (replace `/` with `-`, prepend `~/.claude/projects/`)
+- Reads each `.jsonl` line, parses JSON, applies `redact()` to all string fields recursively
+- Writes back atomically (write to `.tmp`, rename)
+- Reports counts
+
+`devguard scrub-history [path]` — defaults to cwd. Confirms before writing.
+
+### What it does NOT do
+
+- Does not redact from the Claude server side (that's Anthropic's domain)
+- Does not prevent secrets appearing in the PTY terminal output visible to the user
+- UUID pattern will over-redact (subscription IDs etc.) — acceptable tradeoff, users can tune patterns via `.devguard.yaml`
+
+### Tunable patterns in `.devguard.yaml`
+
+```yaml
+redaction:
+  extra_patterns:
+    - pattern: "mysecretvalue"
+      replacement: "[REDACTED-CUSTOM]"
+  disable_patterns:
+    - "uuid"   # turn off UUID redaction if too aggressive
+```
+
+### Key files
+
+| File | Action |
+|------|--------|
+| `src/devguard/redact-hook.ts` | New |
+| `src/devguard/scrub-history.ts` | New |
+| `src/devguard/cli.ts` | Add `scrub-history` subcommand, hook registration in `init` |
+| `bin/devguard-redact-hook.js` | New entrypoint |
+| `package.json` | Add bin entry for `devguard-redact-hook` |
+
+---
+
 ## Critical Files to Modify
 
 | File | Change |
 |------|--------|
-| `package.json` | Add bin entry, add deps |
+| `package.json` | Add bin entries, add deps |
 | `src/db/index.ts` | Export `credentialStore` |
-| `src/web/app.ts` | Register credentials router |
+| `src/web/app.ts` | Register credentials + claude-permissions routers |
 | `src/web/routes/sessions.ts` | Pass profiles to new-form, provision on create, auto-revoke |
 | `src/terminal/session-manager.ts` | Revoke credentials on session exit |
 | `src/terminal/cleanup-service.ts` | Add expired credential cleanup phase |
 | `src/web/views/partials/session-card.html` | Add credential strip |
 | `src/web/views/partials/new-session-form.html` | Add profile dropdown |
-| `src/web/views/layout.html` | Add credentials panel to sidebar |
+| `src/web/views/layout.html` | Add credentials + permissions panels to sidebar |
 
 ---
 
@@ -439,6 +694,8 @@ import '../dist/devguard/cli.js';
 8. `src/devguard/config.ts` + `store.ts` + `cli.ts`
 9. `bin/devguard.js`
 10. Orcha web integration (routes, partials, session-manager hooks)
+11. `src/web/routes/claude-permissions.ts` + permissions panel partial
+12. `src/devguard/redact-hook.ts` + `scrub-history.ts` + `bin/devguard-redact-hook.js`
 
 ---
 
@@ -480,6 +737,9 @@ Add to `src/web/public/css/components.css` — no new tokens needed, reuse exist
 4. **CLI**: `devguard init` → picks profile → provisions → writes `session.env` → `devguard status` shows it → `devguard revoke` cleans up
 5. **Orcha integration**: Create session with credential profile → verify env vars injected into PTY → stop session → verify auto-revoke fires
 6. **Dashboard**: Credential strip appears on session card, expiry shown, revoke button works, overview panel lists all active credentials
+7. **Permissions editor**: Add an allow rule via dashboard → `.claude/settings.json` updated → add deny rule → deny overrides allow. Remove rules. File round-trips cleanly.
+8. **Redaction hook**: Run `echo "GH_TOKEN=ghp_abc123abc123abc123abc123abc123abc123"` in a Claude session → history JSONL contains `[REDACTED-GH-PAT]` not the token. UUID redaction fires on `az` output containing subscription IDs.
+9. **Scrub history**: `devguard scrub-history` on a history dir containing known test secrets → reports redaction count → re-running reports 0 (idempotent).
 
 ---
 
@@ -500,3 +760,6 @@ cp /home/ewi/.claude/plans/floofy-strolling-snowglobe.md \
 - Credentials are injected via `SessionConfig.env` — no changes to PTY infrastructure needed
 - Bootstrap auth (the full-permission credentials used to create JIT creds) never enters the session env — only the scoped JIT tokens do
 - `.devguard/session.env` and `~/.devguard/sessions.json` must be gitignored
+- Redaction hook is fail-open (exit non-zero = original output used) to avoid blocking Claude on hook bugs
+- UUID redaction is intentionally aggressive; subscription IDs etc. will be redacted — acceptable for security-first contexts, tunable via `.devguard.yaml`
+- The permissions editor writes `.claude/settings.json` in the orcha project root (where orcha itself runs), not in individual session worktrees

@@ -28,6 +28,7 @@ export async function buildOidcAuth(config: AuthConfig): Promise<OidcAuthHandler
 
   // Register passport strategy using openid-client/passport
   passport.use(
+    'oidc',
     new Strategy(
       {
         config: oidcConfig,
@@ -69,11 +70,11 @@ export async function buildOidcAuth(config: AuthConfig): Promise<OidcAuthHandler
   // Auth router: login, callback, logout
   const router = Router();
 
-  router.get('/auth/login', passport.authenticate('openidconnect', { scope: ['openid', 'profile', 'email'] }));
+  router.get('/auth/login', passport.authenticate('oidc', { scope: ['openid', 'profile', 'email'] }));
 
   router.get(
     '/auth/callback',
-    passport.authenticate('openidconnect', { failureRedirect: '/auth/login' }),
+    passport.authenticate('oidc', { failureRedirect: '/auth/login' }),
     (_req, res) => {
       res.redirect('/');
     },

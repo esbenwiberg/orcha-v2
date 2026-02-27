@@ -26,11 +26,21 @@ param orchaDomain string
 @description('Email address passed to Let\'s Encrypt for renewal notifications.')
 param acmeEmail string
 
+@description('Use ACR admin credentials instead of managed identity for image pull.')
+param useAcrAdmin bool = false
+
 @description('Resource ID of the user-assigned managed identity used for ACR pull.')
-param managedIdentityId string
+param managedIdentityId string = ''
 
 @description('Client ID of the user-assigned managed identity.')
-param managedIdentityClientId string
+param managedIdentityClientId string = ''
+
+@description('ACR admin username (only used when useAcrAdmin is true).')
+param acrAdminUsername string = ''
+
+@description('ACR admin password (only used when useAcrAdmin is true).')
+@secure()
+param acrAdminPassword string = ''
 
 // ---------------------------------------------------------------------------
 // Container App
@@ -38,7 +48,7 @@ param managedIdentityClientId string
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: containerAppName
   location: location
-  identity: {
+  identity: useAcrAdmin ? { type: 'None' } : {
     type: 'UserAssigned'
     userAssignedIdentities: {
       '${managedIdentityId}': {}
@@ -47,8 +57,13 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
   properties: {
     environmentId: environmentId
     configuration: {
-      // ACR registry — authenticate with managed identity (no password secret needed)
-      registries: [
+      registries: useAcrAdmin ? [
+        {
+          server: acrLoginServer
+          username: acrAdminUsername
+          passwordSecretRef: 'acr-password'
+        }
+      ] : [
         {
           server: acrLoginServer
           identity: managedIdentityId
@@ -60,12 +75,17 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
         targetPort: 443
         transport: 'http'
       }
-      secrets: [
+      secrets: concat([
         {
           name: 'orcha-token'
           value: orchaToken
         }
-      ]
+      ], useAcrAdmin ? [
+        {
+          name: 'acr-password'
+          value: acrAdminPassword
+        }
+      ] : [])
     }
     template: {
       // Persistent volume backed by the Azure File Share
@@ -93,11 +113,17 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
               value: '/data'
             }
             {
+              // SQLite requires POSIX file locking which Azure File Share (SMB)
+              // does not support. Store the database on local ephemeral disk.
+              name: 'ORCHA_DB_DIR'
+              value: '/tmp/orcha-db'
+            }
+            {
               name: 'AUTH_MODE'
               value: 'token'
             }
             {
-              name: 'ORCHA_TOKEN'
+              name: 'AUTH_TOKEN'
               secretRef: 'orcha-token'
             }
           ]
@@ -116,7 +142,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
           image: '${acrLoginServer}/orcha-caddy:${imageTag}'
           resources: {
             cpu: json('0.25')
-            memory: '256Mi'
+            memory: '0.5Gi'
           }
           env: [
             {

@@ -18,8 +18,8 @@ const port = parseInt(process.env['PORT'] ?? '3000', 10);
 const repoRoot = process.env['REPO_ROOT'] ?? process.cwd();
 const migrationsDir = path.resolve(__dirname, '../db/migrations');
 
-const { dataDir } = getStoragePaths();
-const db = openDatabase(dataDir);
+const { dataDir, dbPath } = getStoragePaths();
+const db = openDatabase(path.dirname(dbPath));
 runMigrations(db, migrationsDir);
 
 const sessionStore = new SessionStore(db);
