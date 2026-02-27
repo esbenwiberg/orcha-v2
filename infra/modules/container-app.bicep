@@ -20,6 +20,10 @@ param imageTag string = 'latest'
 @secure()
 param orchaToken string
 
+@description('Secret used to sign Express session cookies. Must be stable across restarts.')
+@secure()
+param sessionSecret string
+
 @description('Public FQDN that Caddy will serve and obtain a Let\'s Encrypt certificate for.')
 param orchaDomain string
 
@@ -80,6 +84,10 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
           name: 'orcha-token'
           value: orchaToken
         }
+        {
+          name: 'session-secret'
+          value: sessionSecret
+        }
       ], useAcrAdmin ? [
         {
           name: 'acr-password'
@@ -125,6 +133,10 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             {
               name: 'AUTH_TOKEN'
               secretRef: 'orcha-token'
+            }
+            {
+              name: 'SESSION_SECRET'
+              secretRef: 'session-secret'
             }
           ]
           volumeMounts: [

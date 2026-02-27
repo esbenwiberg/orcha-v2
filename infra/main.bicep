@@ -37,6 +37,10 @@ param orchaDomain string
 @description('Email address passed to Let\'s Encrypt for renewal notifications.')
 param acmeEmail string
 
+@description('Secret used to sign Express session cookies. Must be stable across restarts.')
+@secure()
+param sessionSecret string
+
 @description('Use ACR admin credentials instead of managed identity for image pull. Set to true when you lack Microsoft.Authorization/roleAssignments/write permission.')
 param useAcrAdmin bool = false
 
@@ -108,6 +112,7 @@ module containerApp 'modules/container-app.bicep' = {
     acrLoginServer: '${acrName}.azurecr.io'
     imageTag: imageTag
     orchaToken: orchaToken
+    sessionSecret: sessionSecret
     orchaDomain: orchaDomain
     acmeEmail: acmeEmail
     useAcrAdmin: useAcrAdmin

@@ -20,6 +20,9 @@
     "orchaToken": {
       "value": "REPLACE_ME"
     },
+    "sessionSecret": {
+      "value": "REPLACE_ME"
+    },
     "orchaDomain": {
       "value": "orcha.example.com"
     },
