@@ -35,25 +35,19 @@
   </div>
 
   <div class="form-group">
-    <label for="sp-branch">Branch Name</label>
-    <input
-      id="sp-branch"
-      type="text"
-      name="branch"
-      placeholder="feature/my-branch"
-      autocomplete="off"
-      value="<%= it.branch ?? '' %>"
-    />
-  </div>
-
-  <div class="form-group">
-    <label for="sp-prompt">Initial Prompt</label>
-    <textarea
-      id="sp-prompt"
-      name="prompt"
-      rows="4"
-      placeholder="Describe what you want the agent to do..."
-    ><%= it.prompt ?? '' %></textarea>
+    <label for="sp-cred-profile">
+      Credential Profile
+      <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
+    </label>
+    <select id="sp-cred-profile" name="credentialProfileId">
+      <option value="">None</option>
+      <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
+        <option
+          value="<%= p.id %>"
+          <%= p.id === (it.credentialProfileId ?? '') ? 'selected' : '' %>
+        ><%= p.name %> (<%= p.durationHours %>h)</option>
+      <% } } %>
+    </select>
   </div>
 
   <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">

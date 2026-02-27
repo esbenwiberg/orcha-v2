@@ -8,7 +8,9 @@
     </span>
   </td>
   <td>
-    <span class="font-mono text-xs text-muted"><%= it.preset.branch || '—' %></span>
+    <span class="text-xs text-muted">
+      <%= it.preset.credentialProfileName ?? (it.preset.credentialProfileId ? it.preset.credentialProfileId.slice(0, 8) : '—') %>
+    </span>
   </td>
   <td class="data-table__actions">
     <button

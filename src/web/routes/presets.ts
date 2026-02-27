@@ -3,23 +3,30 @@ import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { PresetStore } from '../../db/preset-store.js';
 import { RepoStore } from '../../db/repo-store.js';
+import { CredentialStore } from '../../db/credential-store.js';
 
 export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new PresetStore(deps.db);
   const repoStore = new RepoStore(deps.db);
+  const credStore = new CredentialStore(deps.db);
 
-  // GET /api/presets — render the full preset list partial (with repo names resolved)
+  // GET /api/presets — render the full preset list partial
   router.get('/presets', (_req, res, next) => {
     try {
       const presets = store.listPresets();
       const repos = repoStore.listRepos();
+      const profiles = credStore.listProfiles();
       const repoMap = new Map(repos.map((r) => [r.id, r.displayName]));
-      const presetsWithRepoName = presets.map((p) => ({
+      const profileMap = new Map(profiles.map((p) => [p.id, p.name]));
+      const presetsEnriched = presets.map((p) => ({
         ...p,
         repoName: p.repoId ? (repoMap.get(p.repoId) ?? null) : null,
+        credentialProfileName: p.credentialProfileId
+          ? (profileMap.get(p.credentialProfileId) ?? null)
+          : null,
       }));
-      const html = eta.render('partials/preset-list', { presets: presetsWithRepoName });
+      const html = eta.render('partials/preset-list', { presets: presetsEnriched });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -31,7 +38,8 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   router.get('/presets/save-form', (_req, res, next) => {
     try {
       const repos = repoStore.listRepos();
-      const html = eta.render('partials/save-preset-form', { repos });
+      const credentialProfiles = credStore.listProfiles();
+      const html = eta.render('partials/save-preset-form', { repos, credentialProfiles });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -43,9 +51,10 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   router.post('/presets', (req, res, next) => {
     try {
       const name = (typeof req.body['name'] === 'string' ? req.body['name'] : '').trim();
-      const branch = (typeof req.body['branch'] === 'string' ? req.body['branch'] : '').trim();
-      const prompt = (typeof req.body['prompt'] === 'string' ? req.body['prompt'] : '').trim();
       const repoId = (typeof req.body['repoId'] === 'string' ? req.body['repoId'] : '').trim();
+      const credentialProfileId = (
+        typeof req.body['credentialProfileId'] === 'string' ? req.body['credentialProfileId'] : ''
+      ).trim();
 
       const errors: string[] = [];
 
@@ -57,14 +66,21 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
 
       if (errors.length > 0) {
         const repos = repoStore.listRepos();
-        const formHtml = eta.render('partials/save-preset-form', { name, branch, prompt, repoId, repos });
+        const credentialProfiles = credStore.listProfiles();
+        const formHtml = eta.render('partials/save-preset-form', {
+          name,
+          repoId,
+          credentialProfileId,
+          repos,
+          credentialProfiles,
+        });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
-        return; // error rendered in form panel slot
+        return;
       }
 
-      store.createPreset({ name, branch, prompt, repoId });
+      store.createPreset({ name, repoId, credentialProfileId });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send('');
@@ -86,11 +102,12 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const repos = repoStore.listRepos();
+      const credentialProfiles = credStore.listProfiles();
       const html = eta.render('partials/new-session-form', {
-        branch: preset.branch,
-        prompt: preset.prompt,
         repoId: preset.repoId,
+        credentialProfileId: preset.credentialProfileId,
         repos,
+        credentialProfiles,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
