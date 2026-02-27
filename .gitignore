@@ -5,3 +5,5 @@ dist/
 *.db-wal
 .env
 coverage/
+infra/parameters.json
+data-dev/
