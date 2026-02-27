@@ -49,12 +49,154 @@ bin/
 
 ---
 
+## Bootstrap Auth Model
+
+Devguard operates in two environments with different bootstrap mechanisms:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Azure Container App (orcha server)                  │
+│                                                      │
+│  Bootstrap layer (shared, server-side):              │
+│  ├── Azure:  Managed Identity (implicit, no login)   │
+│  ├── GitHub: GITHUB_BOOTSTRAP_TOKEN (env/secret)     │
+│  └── DevOps: DEVOPS_BOOTSTRAP_PAT (env/secret)       │
+│                                                      │
+│  Session layer (per-session, injected into PTY env): │
+│  ├── AZURE_CLIENT_ID / AZURE_CLIENT_SECRET (SP)      │
+│  ├── GH_TOKEN (fine-grained PAT)                     │
+│  └── AZURE_DEVOPS_EXT_PAT (scoped PAT)               │
+└─────────────────────────────────────────────────────┘
+
+Developer machine (standalone devguard CLI):
+├── Azure:  DefaultAzureCredential picks up az CLI session
+├── GitHub: gh auth token or GH_TOKEN env var
+└── DevOps: AZURE_DEVOPS_EXT_PAT env var
+```
+
+**Key invariant**: Bootstrap credentials are used briefly to provision, then
+discarded. They never enter a session's env. Sessions only receive scoped JIT tokens.
+
+### `DefaultAzureCredential` chain
+
+`@azure/identity`'s `DefaultAzureCredential` is used for all Azure operations.
+It tries in order:
+
+1. `ManagedIdentityCredential` — succeeds in container (no login needed)
+2. `AzureCliCredential` — succeeds on dev machine (`az login` already done)
+3. `EnvironmentCredential` — `AZURE_CLIENT_ID` + `AZURE_CLIENT_SECRET` env vars (CI fallback)
+
+Same code, zero config difference between environments.
+
+### Azure permissions required
+
+Two separate permission layers, both must be granted to the managed identity
+(or the credential in the chain that resolves):
+
+| Permission | Scope | Purpose |
+|---|---|---|
+| `Application.ReadWrite.OwnedBy` (AAD) | Tenant | Create/delete service principals |
+| `User Access Administrator` or `Owner` (RBAC) | Subscription or RG | Assign roles to the provisioned SP |
+
+These are granted by a subscription Owner once at setup time in Bicep:
+
+```bicep
+// Grant managed identity the ability to create SPs (AAD Graph)
+resource graphPermission 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  // Application.ReadWrite.OwnedBy — must be done via az cli or portal, not Bicep
+  // az ad app permission add --id <managed-identity-client-id> \
+  //   --api 00000003-0000-0000-c000-000000000000 \
+  //   --api-permissions 18a4783c-866b-4cc7-a460-3d5e5662c884=Role
+}
+
+// Grant role assignment rights on the target resource group(s)
+resource roleAssignAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(resourceGroup().id, managedIdentity.id, 'UserAccessAdmin')
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '18d7d88d-d35e-4fb5-a5c3-7773c20a72d6') // User Access Administrator
+    principalId: managedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+```
+
+### When role assignment creation is blocked
+
+Many enterprise tenants lock down `User Access Administrator` — you can't grant
+it without escalation. The Azure SP provider handles this gracefully:
+
+**Preflight check** (runs before any provisioning):
+```typescript
+async preflight(profile: AzureProfile): Promise<PreflightResult> {
+  // 1. Can we get a token? (managed identity / az login working)
+  // 2. Can we read the target subscription? (basic access)
+  // 3. Can we create role assignments? (test with a no-op check-access call)
+  //    → if no: return { ok: false, reason: 'role-assignment-blocked', degraded: true }
+}
+```
+
+If role assignment creation is blocked, the provider returns `degraded: true`
+and the credential-manager skips Azure SP provisioning with a clear message:
+
+```
+⚠ Azure SP provisioning unavailable: managed identity lacks role assignment
+  rights on subscription <id>. Options:
+  • Ask a subscription Owner to grant "User Access Administrator" on the
+    target resource groups to managed identity <principal-id>
+  • Or: use a pre-provisioned SP pool (see below)
+  GitHub and DevOps credentials will still be provisioned.
+```
+
+**Alternative: pre-provisioned SP pool**
+
+If you can never get role assignment rights, an admin can pre-create SPs with
+the desired roles, store their credentials in Key Vault, and devguard rotates
+the client secret instead of creating a new SP:
+
+```yaml
+# .devguard.yaml — pool mode
+azure:
+  mode: pool   # vs default 'jit'
+  keyVaultUrl: https://myapp-kv.vault.azure.net
+  poolPrefix: devguard-pool-  # reads devguard-pool-0, devguard-pool-1, ...
+```
+
+Pool mode: fetch SP credentials from Key Vault, rotate secret, inject, return
+secret to pool on revoke. Admin sets up pool once; devguard doesn't need role
+assignment rights at runtime. This is opt-in and not implemented in the initial
+phases.
+
+### GitHub and DevOps bootstrap tokens
+
+Set as Container App secrets in Bicep (same pattern as `SESSION_SECRET`):
+
+```bicep
+secrets: [
+  { name: 'github-bootstrap-token', value: githubBootstrapToken }
+  { name: 'devops-bootstrap-pat',   value: devopsBootstrapPat }
+]
+env: [
+  { name: 'GITHUB_BOOTSTRAP_TOKEN', secretRef: 'github-bootstrap-token' }
+  { name: 'DEVOPS_BOOTSTRAP_PAT',   secretRef: 'devops-bootstrap-pat' }
+]
+```
+
+Required scopes:
+- GitHub bootstrap token: classic PAT with `manage:personal_access_tokens` scope
+- DevOps bootstrap PAT: PAT with "Token Administration" scope enabled
+
+On dev machine: falls back to `GH_TOKEN`/`GITHUB_TOKEN` env var or `gh auth token`,
+and `AZURE_DEVOPS_EXT_PAT` env var.
+
+---
+
 ## Phase 1: Core Credential Providers
 
 ### New deps to add
 ```json
 "@azure/identity": "^4.x",
 "@azure/arm-authorization": "^9.x",
+"@microsoft/microsoft-graph-client": "^3.x",
 "@clack/prompts": "^0.x",
 "js-yaml": "^4.x"
 ```
@@ -85,20 +227,37 @@ interface ActiveCredentials {
 ```
 
 ### `src/credentials/providers/azure.ts`
-- `provision(profile)` → `az ad sp create-for-rbac` via child_process (uses existing az CLI auth) — scoped to specified resource groups + role, with explicit `--years 0 --only-show-errors`
-- `revoke(spName)` → `az ad sp delete --id`
-- Returns `{ spName, clientId, clientSecret, tenantId }` as env vars
+Uses `DefaultAzureCredential` from `@azure/identity` — no `az` CLI shell-out.
+Works in container (managed identity) and dev machine (az CLI session) with the
+same code path.
+
+- `preflight(profile)` → verifies token acquisition, subscription access, and
+  role assignment rights via a check-access call. Returns `PreflightResult`
+  with `ok`, `reason`, and `degraded` fields.
+- `provision(profile)` →
+  1. `GraphServiceClient` (via managed identity credential): create App registration + SP
+  2. Generate a client secret with TTL matching `profile.durationHours`
+  3. `AuthorizationManagementClient`: assign `profile.azure.role` on each resource group
+  4. Store `spName` + `appId` for cleanup
+- `revoke(appId)` → delete App registration via Graph (cascades SP deletion)
+- Returns `{ AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID }` as env vars
+- On preflight `degraded: true`: skips provisioning, returns empty env, logs warning
 
 ### `src/credentials/providers/github.ts`
-- `provision(profile)` → POST `https://api.github.com/user/personal-access-tokens` with fine-grained scopes
+- `preflight()` → GET `/user` with bootstrap token, check `X-OAuth-Scopes` header
+  for `manage:personal_access_tokens`. Returns warning if scope missing.
+- `provision(profile)` → POST `https://api.github.com/user/personal-access-tokens`
+  with fine-grained scopes and expiry matching `profile.durationHours`
 - `revoke(patId)` → DELETE the PAT via API
-- Uses `GH_TOKEN` or `GITHUB_TOKEN` from env for bootstrap auth
+- Bootstrap token resolution: `process.env.GITHUB_BOOTSTRAP_TOKEN ?? process.env.GH_TOKEN ?? execSync('gh auth token').toString().trim()`
 - Returns `{ GH_TOKEN: "<new-scoped-token>" }`
 
 ### `src/credentials/providers/devops.ts`
+- `preflight()` → GET profile via VSSPS API to verify bootstrap PAT is valid and
+  has token management scope
 - `provision(profile)` → POST `https://vssps.dev.azure.com/{org}/_apis/tokens/pats`
 - `revoke(patId)` → DELETE via same API
-- Uses `AZURE_DEVOPS_EXT_PAT` from env for bootstrap auth
+- Bootstrap token resolution: `process.env.DEVOPS_BOOTSTRAP_PAT ?? process.env.AZURE_DEVOPS_EXT_PAT`
 - Returns `{ AZURE_DEVOPS_EXT_PAT: "<new-scoped-token>" }`
 
 ### `src/credentials/credential-manager.ts`
@@ -670,7 +829,7 @@ redaction:
 
 | File | Change |
 |------|--------|
-| `package.json` | Add bin entries, add deps |
+| `package.json` | Add bin entries, add deps (`@azure/identity`, `@azure/arm-authorization`, `@microsoft/microsoft-graph-client`) |
 | `src/db/index.ts` | Export `credentialStore` |
 | `src/web/app.ts` | Register credentials + claude-permissions routers |
 | `src/web/routes/sessions.ts` | Pass profiles to new-form, provision on create, auto-revoke |
@@ -758,7 +917,14 @@ cp /home/ewi/.claude/plans/floofy-strolling-snowglobe.md \
 
 - Plan lives at: `/home/ewi/repos/orcha-clones/orcha-v2/plans/devguard.md`
 - Credentials are injected via `SessionConfig.env` — no changes to PTY infrastructure needed
-- Bootstrap auth (the full-permission credentials used to create JIT creds) never enters the session env — only the scoped JIT tokens do
+- Bootstrap auth never enters the session env — only the scoped JIT tokens do
+- In the container, `az login` is NOT used — managed identity is the bootstrap for Azure
+- `DefaultAzureCredential` makes azure.ts work identically on dev machine (az CLI) and in container (managed identity)
+- Azure SP provisioning requires the managed identity to have role assignment rights. If blocked by tenant policy, the azure provider degrades gracefully and GitHub/DevOps still work
+- The `Application.ReadWrite.OwnedBy` AAD Graph permission cannot be set via Bicep — must be done once via `az ad app permission add` or the portal by a Global Admin / Application Admin
+- `User Access Administrator` at the resource group scope is the minimum RBAC grant needed for role assignment; `Owner` also works
+- GitHub bootstrap token needs `manage:personal_access_tokens` scope (not present on all classic PATs — must be explicitly granted when creating the token)
+- DevOps bootstrap PAT needs "Token Administration" scope enabled
 - `.devguard/session.env` and `~/.devguard/sessions.json` must be gitignored
 - Redaction hook is fail-open (exit non-zero = original output used) to avoid blocking Claude on hook bugs
 - UUID redaction is intentionally aggressive; subscription IDs etc. will be redacted — acceptable for security-first contexts, tunable via `.devguard.yaml`

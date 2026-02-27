@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDatabase, runMigrations, SessionStore } from '@orcha/db';
+import { CredentialStore } from '../db/credential-store.js';
 import { WorktreeManager } from '../terminal/worktree-manager.js';
 import { PtyManager } from '../terminal/pty-manager.js';
 import { SessionManager } from '../terminal/session-manager.js';
@@ -23,9 +24,10 @@ const db = openDatabase(path.dirname(dbPath));
 runMigrations(db, migrationsDir);
 
 const sessionStore = new SessionStore(db);
+const credentialStore = new CredentialStore(db);
 const worktreeManager = new WorktreeManager({ repoRoot });
 const ptyManager = new PtyManager();
-const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionStore);
+const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionStore, credentialStore);
 
 const authConfig = loadAuthConfig();
 

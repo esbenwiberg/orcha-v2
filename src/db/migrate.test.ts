@@ -42,7 +42,7 @@ describe('runMigrations', () => {
       .all() as Array<{
       version: number;
     }>;
-    expect(rows).toHaveLength(2);
+    expect(rows.length).toBeGreaterThanOrEqual(4);
     expect(rows[0]?.version).toBe(1);
     expect(rows[1]?.version).toBe(2);
   });

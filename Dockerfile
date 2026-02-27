@@ -18,7 +18,7 @@ RUN npm run build
 FROM node:22-bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git fuse3 ca-certificates \
+    git fuse3 ca-certificates bubblewrap \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r orcha && useradd -r -g orcha -d /app orcha
@@ -41,7 +41,11 @@ VOLUME ["/data"]
 
 EXPOSE 3000
 
-ENV NODE_ENV=production ORCHA_DATA_DIR=/data
+ENV NODE_ENV=production \
+    ORCHA_DATA_DIR=/data \
+    SANDBOX_MODE=none \
+    SANDBOX_MEMORY_MAX=512M \
+    SANDBOX_CPU_QUOTA=100%
 
 USER orcha
 

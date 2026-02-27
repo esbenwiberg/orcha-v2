@@ -7,8 +7,12 @@
     "node": ">=20.0.0"
   },
   "main": "dist/index.js",
+  "bin": {
+    "devguard": "./bin/devguard.js",
+    "devguard-redact-hook": "./bin/devguard-redact-hook.js"
+  },
   "scripts": {
-    "build": "tsup src/index.ts src/web/start-server.ts --format esm --dts --out-dir dist --external better-sqlite3 --external node-pty --external passport --external openid-client",
+    "build": "tsup src/index.ts src/web/start-server.ts src/devguard/cli.ts src/devguard/redact-hook.ts --format esm --dts --out-dir dist --external better-sqlite3 --external node-pty --external passport --external openid-client",
     "build:check": "tsc -p tsconfig.build.json --noEmit",
     "lint": "eslint 'src/**/*.ts' --max-warnings 0",
     "format": "prettier --write 'src/**/*.ts'",
@@ -28,6 +32,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/express-session": "^1.18.2",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.3.1",
     "@types/passport": "^1.0.17",
     "@types/ws": "^8.18.1",
@@ -46,6 +51,10 @@
     "xterm": "^5.3.0"
   },
   "dependencies": {
+    "@azure/arm-authorization": "^9.0.0",
+    "@azure/identity": "^4.13.0",
+    "@clack/prompts": "^1.0.1",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
     "@types/supertest": "^7.2.0",
     "better-sqlite3": "^12.6.2",
     "compression": "^1.8.1",
@@ -55,6 +64,7 @@
     "express-session": "^1.19.0",
     "helmet": "^8.1.0",
     "htmx.org": "2.0.8",
+    "js-yaml": "^4.1.1",
     "node-pty": "^1.1.0",
     "openid-client": "^6.8.2",
     "passport": "^0.7.0",

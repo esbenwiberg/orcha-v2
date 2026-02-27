@@ -5,6 +5,8 @@ import { PtyManager } from './pty-manager.js';
 import type { SessionTerminal, PtySpawnOptions } from './session-terminal.js';
 import { OutputBuffer } from './output-buffer.js';
 import { SessionStore } from '@orcha/db';
+import { CredentialStore } from '../db/credential-store.js';
+import { credentialManager } from '../credentials/credential-manager.js';
 
 export interface CreateSessionOptions {
   sessionId?: string;
@@ -53,6 +55,7 @@ export class SessionManager {
     private readonly _worktreeManager: WorktreeManager,
     private readonly _ptyManager: PtyManager,
     private readonly _sessionStore: SessionStore,
+    private readonly _credentialStore?: CredentialStore,
   ) {}
 
   async createSession(opts: CreateSessionOptions): Promise<ActiveSession> {
@@ -177,6 +180,15 @@ export class SessionManager {
         this._sessionStore.updateSession(dbId, { exitCode });
       } catch {
         // Best-effort: session may not exist in DB or transition may be invalid
+      }
+
+      // Auto-revoke credentials tied to this session (best-effort)
+      if (this._credentialStore) {
+        const activeCreds = this._credentialStore.getBySessionId(dbId);
+        if (activeCreds && !activeCreds.revokedAt) {
+          credentialManager.revoke(activeCreds).catch(() => {});
+          this._credentialStore.markRevoked(activeCreds.id);
+        }
       }
     }
 

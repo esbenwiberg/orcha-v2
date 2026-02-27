@@ -2,6 +2,8 @@ import { EventEmitter } from 'node:events';
 import { WorktreeManager } from './worktree-manager.js';
 import { SessionManager } from './session-manager.js';
 import { SessionStore } from '../db/session-store.js';
+import { CredentialStore } from '../db/credential-store.js';
+import { credentialManager } from '../credentials/credential-manager.js';
 
 export interface CleanupResult {
   scannedAt: Date;
@@ -18,6 +20,7 @@ export class CleanupService extends EventEmitter {
     private readonly _worktreeManager: WorktreeManager,
     private readonly _sessionStore: SessionStore,
     private readonly _intervalMs: number = 60_000,
+    private readonly _credentialStore?: CredentialStore,
   ) {
     super();
   }
@@ -92,6 +95,22 @@ export class CleanupService extends EventEmitter {
           result.errors.push({
             sessionId: worktree.id,
             error: String(err),
+          });
+        }
+      }
+    }
+
+    // --- Step 3: Revoke expired credentials ---
+    if (this._credentialStore) {
+      const expired = this._credentialStore.listExpired();
+      for (const creds of expired) {
+        try {
+          await credentialManager.revoke(creds);
+          this._credentialStore.markRevoked(creds.id);
+        } catch (err) {
+          result.errors.push({
+            sessionId: creds.sessionId ?? creds.id,
+            error: `credential revoke: ${String(err)}`,
           });
         }
       }

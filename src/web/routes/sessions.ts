@@ -3,6 +3,8 @@ import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
 import { RepoStore } from '../../db/repo-store.js';
+import { CredentialStore } from '../../db/credential-store.js';
+import { credentialManager } from '../../credentials/credential-manager.js';
 import type { Session } from '@orcha/domain';
 import { formatRelativeTime } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
@@ -10,21 +12,54 @@ import { eventBus } from '../services/event-bus.js';
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_-]+$/;
 
+interface CredStripViewModel {
+  id: string;
+  profileName: string;
+  expiresAt: string;
+  expiresInFormatted: string;
+  isExpired: boolean;
+  isExpiringSoon: boolean;
+}
+
+function formatExpiresIn(expiresAt: Date): string {
+  const ms = expiresAt.getTime() - Date.now();
+  if (ms <= 0) return 'expired';
+  const totalMinutes = Math.floor(ms / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
 interface SessionCardViewModel {
   id: string;
   branch: string;
   status: string;
   createdAt: string;
   updatedAt: string;
+  credentials?: CredStripViewModel;
 }
 
-function toViewModel(session: Session): SessionCardViewModel {
+function toViewModel(session: Session, creds?: import('../../credentials/types.js').ActiveCredentials): SessionCardViewModel {
+  let credentials: CredStripViewModel | undefined;
+  if (creds && !creds.revokedAt) {
+    const remainingMs = creds.expiresAt.getTime() - Date.now();
+    credentials = {
+      id: creds.id,
+      profileName: creds.profileName,
+      expiresAt: creds.expiresAt.toISOString(),
+      expiresInFormatted: formatExpiresIn(creds.expiresAt),
+      isExpired: remainingMs <= 0,
+      isExpiringSoon: remainingMs > 0 && remainingMs < 30 * 60_000,
+    };
+  }
   return {
     id: session.id,
     branch: session.worktree.branch,
     status: session.status,
     createdAt: formatRelativeTime(session.createdAt),
     updatedAt: formatRelativeTime(session.updatedAt),
+    ...(credentials !== undefined ? { credentials } : {}),
   };
 }
 
@@ -32,12 +67,14 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new SessionStore(deps.db);
   const repoStore = new RepoStore(deps.db);
+  const credStore = new CredentialStore(deps.db);
 
   // GET /api/sessions/new-form — render the new-session form partial
   router.get('/sessions/new-form', (_req, res, next) => {
     try {
       const repos = repoStore.listRepos();
-      const html = eta.render('partials/new-session-form', { repos });
+      const credentialProfiles = credStore.listProfiles();
+      const html = eta.render('partials/new-session-form', { repos, credentialProfiles });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -51,10 +88,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const repoId = (typeof req.body['repoId'] === 'string' ? req.body['repoId'] : '').trim();
       const branch = (typeof req.body['branch'] === 'string' ? req.body['branch'] : '').trim();
       const prompt = (typeof req.body['prompt'] === 'string' ? req.body['prompt'] : '').trim();
+      const credentialProfileId = (typeof req.body['credentialProfileId'] === 'string' ? req.body['credentialProfileId'] : '').trim();
 
       // Validate
       const errors: string[] = [];
       const repos = repoStore.listRepos();
+      const credentialProfiles = credStore.listProfiles();
 
       if (repoId.length === 0) {
         errors.push('A repository must be selected.');
@@ -78,7 +117,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       if (errors.length > 0) {
-        const formHtml = eta.render('partials/new-session-form', { repos, repoId, branch, prompt });
+        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, repoId, branch, prompt });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
@@ -87,16 +126,51 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       const repo = repoStore.getRepo(repoId)!;
 
+      // Provision credentials if a profile was selected
+      const env: Record<string, string> = { ORCHA_PROMPT: prompt };
+      let provisionedCreds: import('../../credentials/credential-manager.js').ProvisionResult | undefined;
+
+      if (credentialProfileId) {
+        const profile = credStore.getProfile(credentialProfileId);
+        if (profile) {
+          try {
+            provisionedCreds = await credentialManager.provision(profile);
+            Object.assign(env, provisionedCreds.env);
+          } catch (err) {
+            console.warn('Credential provisioning failed, continuing with ambient credentials:', err);
+          }
+        }
+      }
+
       // Create a real session with worktree + PTY via the session engine
       const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
         branch,
         command: 'bash',
-        env: { ORCHA_PROMPT: prompt },
+        env,
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;
       }
       const activeSession = await deps.sessionEngine.createSession(createOpts);
+
+      // Persist provisioned credentials with the session ID now that we have it
+      if (provisionedCreds && activeSession.dbSessionId) {
+        try {
+          const { activeCreds } = provisionedCreds;
+          credStore.createSessionCredentials({
+            sessionId: activeSession.dbSessionId,
+            profileId: activeCreds.profileId,
+            profileName: activeCreds.profileName,
+            expiresAt: activeCreds.expiresAt,
+            ...(activeCreds.azureSpName !== undefined ? { azureSpName: activeCreds.azureSpName } : {}),
+            ...(activeCreds.azureAppId !== undefined ? { azureAppId: activeCreds.azureAppId } : {}),
+            ...(activeCreds.githubPatId !== undefined ? { githubPatId: activeCreds.githubPatId } : {}),
+            ...(activeCreds.devopsPatId !== undefined ? { devopsPatId: activeCreds.devopsPatId } : {}),
+          });
+        } catch (err) {
+          console.warn('Failed to persist credential record to DB:', err);
+        }
+      }
 
       eventBus.publish({ sessionId: activeSession.sessionId, type: 'created' });
 
@@ -231,7 +305,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   router.get('/sessions/cards', (_req, res, next) => {
     try {
       const sessions = store.listSessions();
-      const viewModels = sessions.map(toViewModel);
+      const viewModels = sessions.map((s) => toViewModel(s, credStore.getBySessionId(s.id)));
       const html = eta.render('partials/session-grid', { sessions: viewModels });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -252,7 +326,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      const html = eta.render('partials/session-card', toViewModel(session));
+      const creds = credStore.getBySessionId(id);
+      const html = eta.render('partials/session-card', toViewModel(session, creds));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {

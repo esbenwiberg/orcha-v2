@@ -456,3 +456,62 @@
   padding: 0.125rem 0.375rem;
   font-size: 0.625rem;
 }
+
+/* -----------------------------------------------------------------------
+   Credential strip on session card
+   ----------------------------------------------------------------------- */
+.cred-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: 0.75rem;
+}
+.cred-strip .cred-expiry { color: var(--color-text-muted); margin-left: auto; }
+.cred-strip.is-expiring-soon .cred-expiry { color: var(--color-warning); }
+.cred-strip.is-expired .cred-expiry { color: var(--color-error); }
+
+/* -----------------------------------------------------------------------
+   Expiry progress bar in credentials panel
+   ----------------------------------------------------------------------- */
+.cred-bar { height: 4px; background: var(--color-border); border-radius: 2px; }
+.cred-bar__fill { height: 100%; background: var(--color-success); border-radius: 2px; transition: width 1s linear; }
+.cred-bar__fill.is-low { background: var(--color-warning); }
+.cred-bar__fill.is-critical { background: var(--color-error); }
+
+/* -----------------------------------------------------------------------
+   Credential panel item
+   ----------------------------------------------------------------------- */
+.cred-panel-item {
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.5rem;
+  background: var(--color-surface);
+}
+.cred-panel-item.is-expiring-soon { border-color: var(--color-warning); }
+.cred-panel-item.is-expired { opacity: 0.6; border-color: var(--color-error); }
+
+/* -----------------------------------------------------------------------
+   Claude permissions rules
+   ----------------------------------------------------------------------- */
+.perm-rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.25rem;
+}
+.perm-rule--allow { background: color-mix(in srgb, var(--color-success) 10%, transparent); }
+.perm-rule--deny  { background: color-mix(in srgb, var(--color-error) 10%, transparent); }
+
+/* Small text input modifier */
+.input--sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  height: 1.75rem;
+}

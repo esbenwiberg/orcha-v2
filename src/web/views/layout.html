@@ -147,6 +147,20 @@
         </button>
       </div>
 
+      <div id="credentials-panel-slot"
+        hx-get="/api/credentials/overview"
+        hx-trigger="load"
+        hx-swap="innerHTML">
+      </div>
+
+      <div class="sidebar-section">
+        <div id="claude-permissions-slot"
+          hx-get="/api/claude-permissions"
+          hx-trigger="load"
+          hx-swap="innerHTML">
+        </div>
+      </div>
+
       <div class="orcha-sidebar__footer">
         <span class="version-badge">v<%= it.version ?? '0.1.0' %></span>
       </div>

@@ -43,6 +43,16 @@
     ><%= it.prompt ?? '' %></textarea>
   </div>
 
+  <div class="form-group">
+    <label for="ns-cred-profile">Credential Profile <span style="color:var(--color-text-muted)">(optional)</span></label>
+    <select id="ns-cred-profile" name="credentialProfileId">
+      <option value="">None — use ambient credentials</option>
+      <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
+        <option value="<%= p.id %>"><%= p.name %> (<%= p.durationHours %>h)</option>
+      <% } } %>
+    </select>
+  </div>
+
   <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
     <button type="submit" class="btn btn-primary">Create</button>
     <button

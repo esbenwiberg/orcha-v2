@@ -3,6 +3,8 @@ import type { IPty } from 'node-pty';
 import { Readable } from 'node:stream';
 import { EventEmitter } from 'node:events';
 import type { SessionTerminal, TerminalSize, PtySpawnOptions } from './session-terminal.js';
+import { loadSandboxConfig } from '../sandbox/sandbox-config.js';
+import { buildSandboxedCommand } from '../sandbox/bwrap.js';
 
 export class PtyError extends Error {
   code: 'ALREADY_EXISTS' | 'SPAWN_FAILED' | 'NOT_FOUND';
@@ -70,6 +72,7 @@ class PtySessionTerminal extends EventEmitter implements SessionTerminal {
 
 export class PtyManager {
   private _sessions: Map<string, PtySessionTerminal> = new Map();
+  private readonly _sandboxConfig = loadSandboxConfig();
 
   spawn(opts: PtySpawnOptions): SessionTerminal {
     if (this._sessions.has(opts.sessionId)) {
@@ -79,7 +82,16 @@ export class PtyManager {
       );
     }
 
-    const pty = spawn(opts.command, opts.args ?? [], {
+    // Apply sandbox wrapping if enabled
+    const baseArgs = opts.args ?? [];
+    const sandboxed = buildSandboxedCommand(
+      opts.cwd,
+      [opts.command, ...baseArgs],
+      this._sandboxConfig,
+    );
+    const [command = opts.command, ...args] = sandboxed;
+
+    const pty = spawn(command, args, {
       name: 'xterm-256color',
       cols: opts.size?.cols ?? 80,
       rows: opts.size?.rows ?? 24,

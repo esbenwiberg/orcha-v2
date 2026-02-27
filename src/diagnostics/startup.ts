@@ -4,12 +4,22 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { getStoragePaths } from '../storage/paths.js';
 import { checkVolumeMount } from '../storage/volume-check.js';
+import { loadSandboxConfig } from '../sandbox/sandbox-config.js';
 
 function getGitVersion(): string {
   try {
     return execSync('git --version', { encoding: 'utf8' }).trim();
   } catch {
     return 'git not found';
+  }
+}
+
+function isBwrapAvailable(): boolean {
+  try {
+    execSync('which bwrap', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -31,6 +41,7 @@ export async function emitStartupDiagnostics(): Promise<void> {
     paths.dataDir,
   );
 
+  const sandboxConfig = loadSandboxConfig();
   const diagnostics = {
     event: 'startup_diagnostics',
     auth_mode: process.env['AUTH_MODE'] ?? 'none',
@@ -40,6 +51,8 @@ export async function emitStartupDiagnostics(): Promise<void> {
     node_version: process.version,
     git_version: getGitVersion(),
     node_pty_version: getNodePtyVersion(),
+    sandbox_mode: sandboxConfig.mode,
+    bwrap_available: isBwrapAvailable(),
     data_persistent,
     data_warning,
   };
