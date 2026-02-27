@@ -96,6 +96,12 @@ body {
   background-color: var(--color-accent-dim);
 }
 
+.orcha-sidebar__divider {
+  height: 1px;
+  background-color: var(--color-border);
+  margin: 6px 16px;
+}
+
 .orcha-sidebar__footer {
   padding: 12px 16px;
   border-top: 1px solid var(--color-border);

@@ -127,6 +127,32 @@
           </svg>
           <span class="orcha-sidebar__nav-item-text">System</span>
         </a>
+
+        <div class="orcha-sidebar__divider"></div>
+
+        <a
+          href="/guide"
+          class="orcha-sidebar__nav-item<%= it.activeNav === 'guide' ? ' orcha-sidebar__nav-item--active' : '' %>"
+          title="Guide"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M2 2h8l4 4v8a1 1 0 01-1 1H3a1 1 0 01-1-1V2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M5 9h6M5 12h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span class="orcha-sidebar__nav-item-text">Guide</span>
+        </a>
+
+        <a
+          href="/about"
+          class="orcha-sidebar__nav-item<%= it.activeNav === 'about' ? ' orcha-sidebar__nav-item--active' : '' %>"
+          title="About"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M8 7v4M8 5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span class="orcha-sidebar__nav-item-text">About</span>
+        </a>
       </nav>
 
       <div class="orcha-sidebar__footer">

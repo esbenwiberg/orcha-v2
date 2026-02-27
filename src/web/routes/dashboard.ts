@@ -150,5 +150,39 @@ export function createDashboardRouter(eta: Eta): Router {
     }
   });
 
+  // GET /guide — how to use Orcha
+  router.get('/guide', (_req, res, next) => {
+    try {
+      const body = eta.render('guide-page', {});
+      const html = eta.render('layout', {
+        title: 'Orcha – Guide',
+        pageTitle: 'Guide',
+        activeNav: 'guide',
+        body,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /about — design & tech stack
+  router.get('/about', (_req, res, next) => {
+    try {
+      const body = eta.render('about-page', {});
+      const html = eta.render('layout', {
+        title: 'Orcha – About',
+        pageTitle: 'About',
+        activeNav: 'about',
+        body,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }

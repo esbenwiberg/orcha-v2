@@ -1,0 +1,165 @@
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">What is Orcha?</h2>
+      <p class="page-section__subtitle">A terminal session manager for AI-assisted development</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Orcha is a self-hosted dashboard for orchestrating multiple Claude Code terminal sessions. It lets teams run parallel AI coding sessions across repositories, each with scoped credentials and isolated worktrees.</p>
+    <p>The name comes from <strong>orch</strong>estrat<strong>a</strong> — coordinating many agents working together.</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Architecture</h2>
+      <p class="page-section__subtitle">Server-rendered, no SPA framework</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Orcha uses a deliberately simple architecture — server-rendered HTML enhanced with HTMX for interactivity. There's no React, no Vue, no build-time JS bundling for the frontend.</p>
+    <h3>Request flow</h3>
+    <ol>
+      <li>Browser requests a page (e.g. <code>/presets</code>)</li>
+      <li>Express route renders an ETA template into the layout shell</li>
+      <li>Page loads with skeleton placeholders</li>
+      <li>HTMX fires <code>hx-trigger="load"</code> requests to <code>/api/*</code> endpoints</li>
+      <li>API routes return HTML partials that swap into the page</li>
+      <li>User actions (create, edit, delete) POST via HTMX, response triggers a list refresh</li>
+    </ol>
+    <h3>Terminal sessions</h3>
+    <p>Each session spawns a PTY process via <code>node-pty</code>. The terminal is streamed to the browser over WebSocket using <code>xterm.js</code>. Sessions run in isolated git worktrees so multiple sessions can target the same repo without conflicts.</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Tech Stack</h2>
+    </div>
+  </div>
+  <div class="prose">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Layer</th>
+          <th>Technology</th>
+          <th>Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Runtime</td>
+          <td><code>Node.js ≥ 20</code></td>
+          <td>Server runtime</td>
+        </tr>
+        <tr>
+          <td>Language</td>
+          <td><code>TypeScript</code></td>
+          <td>Type-safe source, compiled with tsup</td>
+        </tr>
+        <tr>
+          <td>Server</td>
+          <td><code>Express 5</code></td>
+          <td>HTTP routing, middleware, static files</td>
+        </tr>
+        <tr>
+          <td>Templates</td>
+          <td><code>Eta</code></td>
+          <td>Server-side HTML rendering</td>
+        </tr>
+        <tr>
+          <td>Interactivity</td>
+          <td><code>HTMX</code></td>
+          <td>Declarative AJAX — no custom JS for data fetching</td>
+        </tr>
+        <tr>
+          <td>Terminal</td>
+          <td><code>xterm.js</code> + <code>node-pty</code></td>
+          <td>In-browser terminal over WebSocket</td>
+        </tr>
+        <tr>
+          <td>Database</td>
+          <td><code>better-sqlite3</code></td>
+          <td>Embedded SQLite, synchronous API, zero config</td>
+        </tr>
+        <tr>
+          <td>Real-time</td>
+          <td><code>ws</code></td>
+          <td>WebSocket server for terminal I/O</td>
+        </tr>
+        <tr>
+          <td>Auth</td>
+          <td><code>Passport</code> + <code>openid-client</code></td>
+          <td>OIDC authentication (optional)</td>
+        </tr>
+        <tr>
+          <td>Validation</td>
+          <td><code>Zod</code></td>
+          <td>Runtime schema validation for API inputs</td>
+        </tr>
+        <tr>
+          <td>Security</td>
+          <td><code>Helmet</code></td>
+          <td>HTTP security headers</td>
+        </tr>
+        <tr>
+          <td>Testing</td>
+          <td><code>Vitest</code></td>
+          <td>Unit and integration tests</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Design Decisions</h2>
+    </div>
+  </div>
+  <div class="prose">
+    <h3>Why no SPA?</h3>
+    <p>HTMX provides the interactivity of a single-page app without shipping a JS framework to the browser. Pages load fast, the server is the source of truth, and there's no client-side state to synchronize.</p>
+
+    <h3>Why SQLite?</h3>
+    <p>Orcha is designed for single-machine deployment. SQLite via <code>better-sqlite3</code> gives us a fully synchronous, zero-config, embedded database with no separate process to manage. WAL mode handles concurrent reads.</p>
+
+    <h3>Why git worktrees?</h3>
+    <p>Each session gets an isolated checkout via <code>git worktree add</code>. This lets multiple sessions work on the same repo on different branches without filesystem conflicts — and cleanup is a single <code>git worktree remove</code>.</p>
+
+    <h3>Why scoped credentials?</h3>
+    <p>AI agents shouldn't have permanent access to cloud resources. Orcha provisions credentials when a session starts and revokes them when it ends. If a session fails or is cancelled, cleanup runs automatically.</p>
+  </div>
+</div>
+
+<div class="page-section">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Project Structure</h2>
+    </div>
+  </div>
+  <div class="prose">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Directory</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>src/db/</code></td><td>SQLite migrations, stores (session, preset, repo, credential)</td></tr>
+        <tr><td><code>src/terminal/</code></td><td>PTY management, session lifecycle engine</td></tr>
+        <tr><td><code>src/web/</code></td><td>Express app, routes, ETA views, static assets</td></tr>
+        <tr><td><code>src/web/routes/</code></td><td>Page routes (dashboard) and API routes (HTMX partials + JSON)</td></tr>
+        <tr><td><code>src/web/views/</code></td><td>ETA templates — layouts, pages, partials</td></tr>
+        <tr><td><code>src/credentials/</code></td><td>Credential providers (Azure, GitHub, DevOps) and manager</td></tr>
+        <tr><td><code>src/sandbox/</code></td><td>bwrap sandboxing for session isolation</td></tr>
+        <tr><td><code>src/devguard/</code></td><td>Standalone CLI for credential management and secret redaction</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>

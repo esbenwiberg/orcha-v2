@@ -772,3 +772,58 @@
 .perm-section-title--deny {
   color: var(--color-error);
 }
+
+/* -----------------------------------------------------------------------
+   Prose (documentation / guide pages)
+   ----------------------------------------------------------------------- */
+.prose {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-text-primary);
+}
+
+.prose p {
+  margin-bottom: 0.75rem;
+}
+
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+.prose h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 1.25rem 0 0.5rem;
+}
+
+.prose h3:first-child {
+  margin-top: 0;
+}
+
+.prose ul,
+.prose ol {
+  margin: 0.5rem 0 0.75rem 1.25rem;
+}
+
+.prose li {
+  margin-bottom: 0.25rem;
+}
+
+.prose code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--color-surface-raised);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--color-accent);
+}
+
+.prose strong {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.prose .data-table {
+  margin: 0.75rem 0;
+}

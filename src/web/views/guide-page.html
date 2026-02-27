@@ -1,0 +1,146 @@
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Getting Started</h2>
+      <p class="page-section__subtitle">Orcha is a terminal session manager for orchestrating Claude Code sessions across repositories</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Orcha lets you spin up isolated Claude Code sessions, each with its own terminal, repository checkout, and optional credentials. You manage everything from this dashboard — no need to juggle multiple terminal windows.</p>
+    <p>The typical workflow is: <strong>add a repo</strong>, <strong>create a preset</strong> (optional), then <strong>launch a session</strong>.</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Sessions</h2>
+      <p class="page-section__subtitle">The core unit of work</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>A session is a terminal process running Claude Code against a specific repository. Each session gets its own PTY, worktree, and lifecycle.</p>
+    <h3>Creating a session</h3>
+    <ol>
+      <li>Click <strong>+ New Session</strong> in the header</li>
+      <li>Select a <strong>repository</strong> from the dropdown</li>
+      <li>Optionally pick a <strong>preset</strong> to pre-fill the prompt and branch</li>
+      <li>Optionally attach a <strong>credential profile</strong> for cloud access</li>
+      <li>Hit <strong>Create</strong></li>
+    </ol>
+    <h3>Session lifecycle</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="badge badge--pending">Pending</span></td><td>Queued, waiting to start</td></tr>
+        <tr><td><span class="badge badge--starting">Starting</span></td><td>Terminal is spawning</td></tr>
+        <tr><td><span class="badge badge--running">Running</span></td><td>Active — click the card to open the terminal</td></tr>
+        <tr><td><span class="badge badge--paused">Paused</span></td><td>Process suspended, can be resumed</td></tr>
+        <tr><td><span class="badge badge--completed">Completed</span></td><td>Finished successfully</td></tr>
+        <tr><td><span class="badge badge--failed">Failed</span></td><td>Exited with an error</td></tr>
+        <tr><td><span class="badge badge--cancelled">Cancelled</span></td><td>Stopped by user</td></tr>
+      </tbody>
+    </table>
+    <h3>Terminal</h3>
+    <p>Click a running session card to expand the inline terminal. The terminal is a full xterm.js instance — you can type, scroll, and resize. Click the card header again to collapse it.</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Presets</h2>
+      <p class="page-section__subtitle">Reusable session templates</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Presets save a combination of settings so you don't have to re-enter them every time you create a session.</p>
+    <h3>What a preset stores</h3>
+    <ul>
+      <li><strong>Name</strong> — a label for the preset</li>
+      <li><strong>Repository</strong> — which repo to check out</li>
+      <li><strong>Credential profile</strong> — optional cloud credential template</li>
+      <li><strong>Allowed tools</strong> — Claude Code tool permissions</li>
+    </ul>
+    <p>To use a preset, select it from the dropdown when creating a new session. All fields are pre-filled but can be overridden.</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Repositories</h2>
+      <p class="page-section__subtitle">Git repos available for sessions</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Before you can launch a session, you need to register at least one repository.</p>
+    <ol>
+      <li>Go to the <strong>Repos</strong> page</li>
+      <li>Click <strong>+ Add Repo</strong></li>
+      <li>Enter the local path or clone URL</li>
+    </ol>
+    <p>Each session checks out the repo into an isolated git worktree, so multiple sessions can work on the same repo simultaneously without conflicts.</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Credentials</h2>
+      <p class="page-section__subtitle">Scoped cloud access for sessions</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Credential profiles define what cloud access a session gets. When a session starts, credentials are provisioned; when it ends, they're automatically revoked.</p>
+    <h3>Supported providers</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Provider</th>
+          <th>Mechanism</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Azure</td><td>Service principal via DefaultAzureCredential + Graph API</td></tr>
+        <tr><td>GitHub</td><td>Fine-grained personal access token via REST API</td></tr>
+        <tr><td>Azure DevOps</td><td>PAT via VSSPS API</td></tr>
+      </tbody>
+    </table>
+    <p>Create profiles on the <strong>Credentials</strong> page, then attach them when creating sessions or presets.</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Settings</h2>
+      <p class="page-section__subtitle">Claude Code permissions</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>The Settings page lets you edit the shared <code>.claude/settings.json</code> file that controls which tools Claude Code is allowed to use. Rules are split into <strong>allow</strong> and <strong>deny</strong> lists.</p>
+    <p>Changes here apply to all sessions that read from this config.</p>
+  </div>
+</div>
+
+<div class="page-section">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">System</h2>
+      <p class="page-section__subtitle">Health monitoring and cleanup</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>The System page shows uptime, disk usage, and resource stats. You can also trigger cleanup actions:</p>
+    <ul>
+      <li><strong>Clean logs</strong> — remove old session log files</li>
+      <li><strong>Clean worktrees</strong> — prune orphaned git worktrees from finished sessions</li>
+    </ul>
+  </div>
+</div>
