@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# deploy-app.sh — Build images, push to ACR, run DB migrations, deploy to Azure Container Apps.
+#
+# Usage:
+#   ./scripts/deploy-app.sh [--params infra/parameters.json] [--tag <git-sha|version>]
+#
+# What it does:
+#   1. Builds the orcha and orcha-caddy Docker images
+#   2. Pushes both to Azure Container Registry
+#   3. Updates the Container App to the new image tag
+#   4. Polls until the new revision is provisioned
+#   5. Runs a health check (which verifies DB connectivity)
+#
+# DB migrations run automatically on startup via runMigrations() in start-server.ts —
+# no separate migration step is needed here.
+#
+# Requires: az CLI >= 2.50, Docker >= 24
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# ── Defaults ──────────────────────────────────────────────────────────────────
+PARAMS_FILE="${REPO_ROOT}/infra/parameters.json"
+TAG=""
+RESOURCE_GROUP="rg-orcha"
+
+# ── Arg parsing ───────────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --params) PARAMS_FILE="$2"; shift 2 ;;
+    --tag)    TAG="$2";         shift 2 ;;
+    --rg)     RESOURCE_GROUP="$2"; shift 2 ;;
+    *) echo "Unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+info()  { echo "  $*"; }
+ok()    { echo "✓ $*"; }
+die()   { echo "✗ $*" >&2; exit 1; }
+
+echo ""
+echo "=== Orcha app deployment ==="
+echo ""
+
+# ── Pre-flight checks ─────────────────────────────────────────────────────────
+command -v az     >/dev/null 2>&1 || die "az CLI not found."
+command -v docker >/dev/null 2>&1 || die "docker not found."
+
+[[ -f "${PARAMS_FILE}" ]] || die "Parameters file not found: ${PARAMS_FILE}
+  Copy the example and fill in your values:
+    cp infra/parameters.example.json infra/parameters.json"
+
+# ── Read params ───────────────────────────────────────────────────────────────
+read_param() {
+  python3 -c "
+import json
+with open('${PARAMS_FILE}') as f:
+    p = json.load(f)
+print(p['parameters']['$1']['value'])
+"
+}
+
+ACR_NAME=$(read_param acrName)
+CONTAINER_APP_NAME=$(read_param containerAppName)
+ORCHA_DOMAIN=$(read_param orchaDomain 2>/dev/null || echo "")
+
+# ── Image tag: default to short git SHA ───────────────────────────────────────
+if [[ -z "${TAG}" ]]; then
+  TAG=$(git -C "${REPO_ROOT}" rev-parse --short=8 HEAD 2>/dev/null || echo "latest")
+fi
+info "Image tag: ${TAG}"
+
+# ── Azure login check ─────────────────────────────────────────────────────────
+info "Checking Azure login..."
+az account show --output none 2>/dev/null || die "Not logged in to Azure. Run: az login"
+ok "Azure login confirmed"
+
+# ── ACR login ─────────────────────────────────────────────────────────────────
+info "Logging in to ACR '${ACR_NAME}'..."
+ACR_SERVER=$(az acr show --name "${ACR_NAME}" --query loginServer -o tsv)
+az acr login --name "${ACR_NAME}"
+ok "ACR login: ${ACR_SERVER}"
+
+# ── Build and push images ─────────────────────────────────────────────────────
+echo ""
+info "Building orcha image..."
+DOCKER_BUILDKIT=1 docker build \
+  -t "${ACR_SERVER}/orcha:${TAG}" \
+  -t "${ACR_SERVER}/orcha:latest" \
+  "${REPO_ROOT}"
+ok "orcha image built"
+
+info "Pushing orcha image..."
+docker push "${ACR_SERVER}/orcha:${TAG}"
+docker push "${ACR_SERVER}/orcha:latest"
+ok "orcha image pushed (${TAG})"
+
+echo ""
+info "Building orcha-caddy image..."
+DOCKER_BUILDKIT=1 docker build \
+  -t "${ACR_SERVER}/orcha-caddy:${TAG}" \
+  -t "${ACR_SERVER}/orcha-caddy:latest" \
+  "${REPO_ROOT}/caddy"
+ok "orcha-caddy image built"
+
+info "Pushing orcha-caddy image..."
+docker push "${ACR_SERVER}/orcha-caddy:${TAG}"
+docker push "${ACR_SERVER}/orcha-caddy:latest"
+ok "orcha-caddy image pushed (${TAG})"
+
+# ── Update Container App ──────────────────────────────────────────────────────
+echo ""
+info "Updating Container App '${CONTAINER_APP_NAME}' to image tag '${TAG}'..."
+az containerapp update \
+  --name "${CONTAINER_APP_NAME}" \
+  --resource-group "${RESOURCE_GROUP}" \
+  --image "${ACR_SERVER}/orcha:${TAG}" \
+  --output none
+ok "Container App update triggered"
+
+# ── Poll revision state ───────────────────────────────────────────────────────
+info "Waiting for new revision to become active..."
+ATTEMPTS=0
+MAX_ATTEMPTS=20
+while [[ ${ATTEMPTS} -lt ${MAX_ATTEMPTS} ]]; do
+  STATE=$(az containerapp revision list \
+    --name "${CONTAINER_APP_NAME}" \
+    --resource-group "${RESOURCE_GROUP}" \
+    --query "[0].properties.provisioningState" \
+    -o tsv 2>/dev/null || echo "unknown")
+
+  if [[ "${STATE}" == "Provisioned" ]]; then
+    ok "Revision provisioned"
+    break
+  elif [[ "${STATE}" == "Failed" ]]; then
+    die "Revision provisioning failed. Check Container Apps logs in the Azure portal."
+  fi
+
+  ATTEMPTS=$((ATTEMPTS + 1))
+  info "State: ${STATE} — waiting 15s... (${ATTEMPTS}/${MAX_ATTEMPTS})"
+  sleep 15
+done
+
+if [[ ${ATTEMPTS} -ge ${MAX_ATTEMPTS} ]]; then
+  die "Timed out waiting for revision to provision."
+fi
+
+# ── Health check ──────────────────────────────────────────────────────────────
+# DB migrations run automatically on startup, so a successful /health response
+# confirms both the app is up and the database is reachable.
+echo ""
+if [[ -n "${ORCHA_DOMAIN}" && "${ORCHA_DOMAIN}" != "orcha.example.com" ]]; then
+  HEALTH_URL="https://${ORCHA_DOMAIN}/health"
+  info "Running health check: ${HEALTH_URL}"
+  RESPONSE=$(curl --silent --retry 6 --retry-delay 5 --retry-connrefused \
+    --max-time 10 --fail "${HEALTH_URL}" 2>/dev/null || echo "")
+
+  if [[ -n "${RESPONSE}" ]]; then
+    STATUS=$(echo "${RESPONSE}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+    if [[ "${STATUS}" == "ok" ]]; then
+      ok "Health check passed — app is live and DB is reachable"
+    else
+      die "Health check returned unexpected status: ${RESPONSE}"
+    fi
+  else
+    die "Health check failed — app did not respond at ${HEALTH_URL}"
+  fi
+else
+  info "Skipping health check (orchaDomain not set or is placeholder)"
+fi
+
+# ── Done ──────────────────────────────────────────────────────────────────────
+echo ""
+ok "Deployment complete — tag: ${TAG}"
+if [[ -n "${ORCHA_DOMAIN}" && "${ORCHA_DOMAIN}" != "orcha.example.com" ]]; then
+  echo "  https://${ORCHA_DOMAIN}"
+fi
+echo ""
