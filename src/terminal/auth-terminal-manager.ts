@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { spawn } from 'node-pty';
 import type { IPty } from 'node-pty';
 import { Readable } from 'node:stream';
@@ -53,7 +54,9 @@ export class AuthTerminalManager {
       cols: 120,
       rows: 24,
       cwd,
-      env: { ...process.env },
+      // os.homedir() reads /etc/passwd for the real home dir.
+      // process.env.HOME may be /root in Docker when USER is switched.
+      env: { ...process.env, HOME: homedir() },
     });
 
     // Once claude's REPL is ready, automatically trigger the login flow.
