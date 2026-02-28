@@ -59,18 +59,29 @@ export class AuthTerminalManager {
     // Once claude's REPL is ready, automatically trigger the login flow.
     // 1.5 s gives the process time to render its startup UI.
     setTimeout(() => {
-      try { pty.write('/login\r'); } catch { /* process may have exited */ }
+      try {
+        pty.write('/login\r');
+        console.log(`[auth-pty] sent /login token=${token.slice(0, 8)} bytesReceivedSoFar=${bytesReceived}`);
+      } catch { /* process may have exited */ }
     }, 1500);
 
     const outputBuffer = new OutputBuffer();
     const outputStream = new Readable({ read() {} });
 
+    let bytesReceived = 0;
+    console.log(`[auth-pty] spawned pid=${pty.pid} configId=${configId} token=${token.slice(0, 8)}`);
+
     pty.onData((data) => {
+      bytesReceived += data.length;
+      if (bytesReceived <= data.length) {
+        console.log(`[auth-pty] first data token=${token.slice(0, 8)} bytes=${data.length} preview=${JSON.stringify(data.slice(0, 80))}`);
+      }
       outputBuffer.push(data);
       outputStream.push(data);
     });
 
     pty.onExit(({ exitCode }) => {
+      console.log(`[auth-pty] exit token=${token.slice(0, 8)} exitCode=${exitCode} totalBytes=${bytesReceived}`);
       const entry = this._sessions.get(token);
       if (entry !== undefined) {
         entry.exitCode = exitCode;
