@@ -186,7 +186,7 @@ export class WorktreeManager {
     await new Promise<void>((resolve, reject) => {
       execFile(
         'git',
-        ['clone', '--bare', repoUrl, bareRepoPath],
+        ['clone', '--bare', '-c', 'core.fileMode=false', repoUrl, bareRepoPath],
         {
           env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
           timeout: 5 * 60 * 1000,
