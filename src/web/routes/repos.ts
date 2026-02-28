@@ -108,6 +108,44 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // POST /api/repos/:id/retry — re-trigger clone for repos in error state
+  router.post('/repos/:id/retry', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const repo = store.getRepo(id);
+
+      if (repo === undefined) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(404).send('<span class="badge badge--failed">Not found</span>');
+        return;
+      }
+
+      if (repo.status !== 'error') {
+        const html = eta.render('partials/repo-item', { repo });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(200).send(html);
+        return;
+      }
+
+      store.updateStatus(repo.id, 'cloning');
+      deps.worktreeManager
+        .ensureBareRepo(repo.url)
+        .then((barePath) => {
+          store.updateStatus(repo.id, 'ready', { barePath });
+        })
+        .catch((err: unknown) => {
+          store.updateStatus(repo.id, 'error', { error: String(err) });
+        });
+
+      const updatedRepo = store.getRepo(id)!;
+      const html = eta.render('partials/repo-item', { repo: updatedRepo });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // DELETE /api/repos/:id — delete repo
   router.delete('/repos/:id', (req, res, next) => {
     try {

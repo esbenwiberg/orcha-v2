@@ -176,6 +176,11 @@ export class WorktreeManager {
       return bareRepoPath;
     }
 
+    // Clean up any partial clone before (re-)cloning
+    if (fs.existsSync(bareRepoPath)) {
+      fs.rmSync(bareRepoPath, { recursive: true, force: true });
+    }
+
     fs.mkdirSync(bareRepoPath, { recursive: true });
 
     await new Promise<void>((resolve, reject) => {

@@ -23,6 +23,14 @@
     <% } %>
   </td>
   <td class="data-table__actions">
+    <% if (it.repo.status === 'error') { %>
+      <button
+        class="btn btn-ghost btn-xs"
+        hx-post="/api/repos/<%= it.repo.id %>/retry"
+        hx-target="#repo-<%= it.repo.id %>"
+        hx-swap="outerHTML"
+      >Retry</button>
+    <% } %>
     <button
       class="btn btn-ghost btn-xs"
       hx-delete="/api/repos/<%= it.repo.id %>"

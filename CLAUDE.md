@@ -18,7 +18,7 @@ npm run build         # tsup compile → dist/
 npm test              # vitest run
 npm run lint          # eslint
 npm run format        # prettier write
-bash scripts/deploy-app.sh   # build ACR image, push, update Container App
+bash scripts/deploy-app.sh   # build ACR image, push, update Container App (~5-8 min, run in background)
 ```
 
 ## Project Structure
