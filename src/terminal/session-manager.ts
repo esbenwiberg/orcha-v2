@@ -116,8 +116,14 @@ export class SessionManager {
 
     // Step 3: Set up output buffer
     const outputBuffer = new OutputBuffer();
+    let firstChunkLogged = false;
     terminal.output.on('data', (chunk: Buffer | string) => {
       outputBuffer.push(chunk);
+      if (!firstChunkLogged) {
+        firstChunkLogged = true;
+        const bytes = typeof chunk === 'string' ? chunk.length : chunk.byteLength;
+        console.log(`[session] first output chunk sessionId=${sessionId} bytes=${bytes}`);
+      }
     });
 
     // Step 4: Persist to DB
