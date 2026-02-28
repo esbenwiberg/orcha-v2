@@ -6,6 +6,7 @@ import { handleTerminalConnection } from './terminal-ws.js';
 import { consumeTicket } from './ws-tickets.js';
 
 const WS_TERMINAL_PREFIX = '/ws/terminal/';
+const WS_AUTH_PREFIX = '/ws/auth/';
 
 /**
  * Attach a WebSocket server to an existing HTTP server.
@@ -24,7 +25,9 @@ export function attachWebSocketServer(
     const pathname = url.pathname;
 
     // Only handle known WS paths — destroy anything else.
-    if (!pathname.startsWith(WS_TERMINAL_PREFIX)) {
+    const isTerminal = pathname.startsWith(WS_TERMINAL_PREFIX);
+    const isAuth = pathname.startsWith(WS_AUTH_PREFIX);
+    if (!isTerminal && !isAuth) {
       socket.destroy();
       return;
     }
@@ -80,6 +83,57 @@ export function attachWebSocketServer(
   wss.on('connection', (ws, req) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const pathname = url.pathname;
+
+    if (pathname.startsWith(WS_AUTH_PREFIX)) {
+      const token = pathname.slice(WS_AUTH_PREFIX.length);
+      const authSession = deps.authTerminalManager.getSession(token);
+
+      if (authSession === undefined) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Auth session not found' }));
+        ws.close(4004);
+        return;
+      }
+
+      const onData = (chunk: Buffer | string): void => {
+        if (ws.readyState === WebSocket.OPEN) {
+          const data = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+          ws.send(JSON.stringify({ type: 'output', data }));
+        }
+      };
+      authSession.terminal.output.on('data', onData);
+
+      const sendExitMessage = (): void => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'output', data: '\r\n\x1b[33m[process exited]\x1b[0m\r\n' }));
+        }
+      };
+      authSession.terminal.output.once('end', sendExitMessage);
+
+      // Replay buffered output so content shown before WS connected isn't lost
+      const snapshot = authSession.outputBuffer.snapshot();
+      if (snapshot.length > 0 && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'output', data: snapshot.toString('utf8') }));
+      }
+      if (authSession.terminal.exitCode !== undefined) sendExitMessage();
+
+      ws.on('message', (raw: Buffer) => {
+        let msg: unknown;
+        try { msg = JSON.parse(raw.toString()); } catch { return; }
+        if (typeof msg !== 'object' || msg === null) return;
+        const r = msg as Record<string, unknown>;
+        if (r['type'] === 'input' && typeof r['data'] === 'string') {
+          authSession.terminal.write(r['data']);
+        } else if (r['type'] === 'resize' && typeof r['cols'] === 'number' && typeof r['rows'] === 'number') {
+          authSession.terminal.resize({ cols: r['cols'] as number, rows: r['rows'] as number });
+        }
+      });
+
+      ws.on('close', () => {
+        authSession.terminal.output.removeListener('data', onData);
+        authSession.terminal.output.removeListener('end', sendExitMessage);
+      });
+      return;
+    }
 
     // Regular session terminal
     const sessionId = pathname.slice(WS_TERMINAL_PREFIX.length);

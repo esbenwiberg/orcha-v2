@@ -48,13 +48,19 @@ export class AuthTerminalManager {
     const cwd = `/tmp/orcha-auth-${configId}`;
     mkdirSync(cwd, { recursive: true });
 
-    const pty = spawn('claude', ['auth', 'login'], {
+    const pty = spawn('claude', [], {
       name: 'xterm-256color',
-      cols: 80,
+      cols: 120,
       rows: 24,
       cwd,
       env: { ...process.env },
     });
+
+    // Once claude's REPL is ready, automatically trigger the login flow.
+    // 1.5 s gives the process time to render its startup UI.
+    setTimeout(() => {
+      try { pty.write('/login\r'); } catch { /* process may have exited */ }
+    }, 1500);
 
     const outputBuffer = new OutputBuffer();
     const outputStream = new Readable({ read() {} });
