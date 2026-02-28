@@ -132,6 +132,8 @@ int main(int argc, char *argv[]) {
         "/usr", "/lib", "/lib64", "/bin", "/sbin",
         "/etc", "/proc", "/run",
         "/var/lib/dpkg",   /* dpkg db — some tools query it */
+        "/dev",            /* /dev/null, /dev/tty, /dev/urandom etc */
+        "/sys",            /* sysfs — some Node.js internals read it */
         NULL,
     };
     for (int i = 0; ro_paths[i]; i++) {

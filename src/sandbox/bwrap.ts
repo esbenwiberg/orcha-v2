@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import type { SandboxConfig } from './sandbox-config.js';
 
 /**
@@ -26,7 +27,11 @@ export function buildSandboxedCommand(
 ): string[] {
   if (!config.enabled) return command;
 
-  const home = homeDir ?? process.env['HOME'] ?? '/root';
+  // Use os.homedir() (reads /etc/passwd for the current uid) rather than
+  // process.env.HOME — Docker doesn't update HOME when switching users, so
+  // process.env.HOME may be /root even when the process runs as a different
+  // user whose actual home (and ~/.claude dir) is elsewhere.
+  const home = homeDir ?? homedir();
 
   if (config.mode === 'landlock') {
     // landlock-exec <worktree> <home-dir> [extra-rw...] -- <command...>

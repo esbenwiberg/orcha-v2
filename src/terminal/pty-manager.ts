@@ -45,7 +45,12 @@ class PtySessionTerminal extends EventEmitter implements SessionTerminal {
   get output(): NodeJS.ReadableStream {
     if (this._outputStream === undefined) {
       const readable = new Readable({ read() {} });
+      let firstDataLogged = false;
       this._pty.onData((data) => {
+        if (!firstDataLogged) {
+          firstDataLogged = true;
+          console.log(`[pty] first raw data sessionId=${this.sessionId} bytes=${data.length}`);
+        }
         readable.push(data);
       });
       this._outputStream = readable;
@@ -97,6 +102,7 @@ export class PtyManager {
     );
     const [command = opts.command, ...args] = sandboxed;
 
+    console.log(`[pty] spawn sessionId=${opts.sessionId} command=${command} args=${JSON.stringify(args)} cwd=${opts.cwd}`);
     const pty = spawn(command, args, {
       name: 'xterm-256color',
       cols: opts.size?.cols ?? 80,
@@ -104,6 +110,7 @@ export class PtyManager {
       cwd: opts.cwd,
       env: { ...process.env, ...opts.env },
     });
+    console.log(`[pty] spawned pid=${pty.pid}`);
 
     const session = new PtySessionTerminal(opts.sessionId, pty);
 
