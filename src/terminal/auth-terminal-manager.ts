@@ -8,6 +8,20 @@ import type { IPty } from 'node-pty';
 import { Readable } from 'node:stream';
 import { OutputBuffer } from './output-buffer.js';
 
+// Strip ANSI escape sequences from a string so URL extraction works on raw PTY output.
+function stripAnsi(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
+}
+
+export function extractAuthUrl(snapshot: Buffer): string | undefined {
+  const text = stripAnsi(snapshot.toString('utf8'));
+  const match = /https:\/\/claude\.ai\/oauth\/authorize\S+/.exec(text)
+    ?? /https:\/\/[^\s\r\n"'<>]+auth[^\s\r\n"'<>]*/i.exec(text)
+    ?? /https:\/\/[^\s\r\n"'<>]{40,}/.exec(text);
+  return match?.[0];
+}
+
 export interface AuthSession {
   token: string;
   configId: string;
@@ -53,18 +67,21 @@ export class AuthTerminalManager {
     const claudeDir = join(home, '.claude');
     mkdirSync(claudeDir, { recursive: true });
 
-    // Seed settings.json — copy shared settings if they exist, else write empty.
+    // Seed settings.json — merge shared settings (if any) with a pre-set theme
+    // so claude doesn't show the first-run theme picker in the auth terminal.
     const sharedSettings = join(homedir(), '.claude', 'settings.json');
     const sessionSettings = join(claudeDir, 'settings.json');
+    let baseSettings: Record<string, unknown> = {};
     if (existsSync(sharedSettings)) {
       try {
-        writeFileSync(sessionSettings, readFileSync(sharedSettings));
-      } catch {
-        writeFileSync(sessionSettings, '{}', 'utf8');
-      }
-    } else {
-      writeFileSync(sessionSettings, '{}', 'utf8');
+        baseSettings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>;
+      } catch { /* ignore parse errors */ }
     }
+    // Pre-set theme=dark so the theme picker is skipped on first run.
+    if (!('theme' in baseSettings)) {
+      baseSettings['theme'] = 'dark';
+    }
+    writeFileSync(sessionSettings, JSON.stringify(baseSettings), 'utf8');
 
     // Build env: inherit ambient vars but strip ANTHROPIC_API_KEY so claude
     // uses OAuth/Max-plan auth rather than API key auth.
@@ -96,31 +113,42 @@ export class AuthTerminalManager {
       bytesReceived += data.length;
       if (bytesReceived <= data.length) {
         console.log(`[auth-pty] first data token=${token.slice(0, 8)} bytes=${data.length}`);
-        // Claude is rendering — send /login after a short delay to let the UI settle.
+        // Claude is rendering — press Enter first (dismisses any first-run
+        // prompt, e.g. theme picker), then send /login after the UI settles.
         if (!loginSent) {
           loginSent = true;
+          // Step 1: dismiss any prompt (theme picker, etc.)
+          setTimeout(() => {
+            try { pty.write('\r'); } catch { /* may have exited */ }
+          }, 600);
+          // Step 2: send /login once the main REPL is ready
           setTimeout(() => {
             try {
               pty.write('/login\r');
               console.log(`[auth-pty] sent /login token=${token.slice(0, 8)}`);
             } catch { /* process may have exited */ }
-          }, 800);
+          }, 1800);
         }
       }
       outputBuffer.push(data);
       outputStream.push(data);
     });
 
-    // Fallback: if claude hasn't produced output in 4s, send /login anyway.
+    // Fallback: if claude hasn't produced output in 5s, send /login anyway.
     setTimeout(() => {
       if (!loginSent) {
         loginSent = true;
         try {
-          pty.write('/login\r');
-          console.log(`[auth-pty] sent /login (fallback) token=${token.slice(0, 8)} bytesReceived=${bytesReceived}`);
-        } catch { /* process may have exited */ }
+          pty.write('\r');
+        } catch { /* may have exited */ }
+        setTimeout(() => {
+          try {
+            pty.write('/login\r');
+            console.log(`[auth-pty] sent /login (fallback) token=${token.slice(0, 8)} bytesReceived=${bytesReceived}`);
+          } catch { /* process may have exited */ }
+        }, 1200);
       }
-    }, 4000);
+    }, 5000);
 
     pty.onExit(({ exitCode }) => {
       console.log(`[auth-pty] exit token=${token.slice(0, 8)} exitCode=${exitCode} totalBytes=${bytesReceived}`);

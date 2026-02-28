@@ -5,6 +5,7 @@ import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import type { ModelProvider } from '../../model-config/types.js';
+import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
 
 const VALID_PROVIDERS = new Set<string>(['max', 'anthropic', 'foundry', 'local', 'custom']);
 
@@ -179,13 +180,26 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      // Still waiting — re-render a polling indicator
+      // Check if we can extract a login URL from the terminal output so far.
+      const loginUrl = authSession !== undefined
+        ? extractAuthUrl(authSession.outputBuffer.snapshot())
+        : undefined;
+
+      // Still waiting — re-render a polling indicator, with URL button if found.
+      const urlHtml = loginUrl !== undefined
+        ? `<div style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">` +
+          `<a href="${loginUrl}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">Open login URL</a>` +
+          `<button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(${JSON.stringify(loginUrl)}).then(()=>{this.textContent='Copied!';setTimeout(()=>{this.textContent='Copy URL'},2000)})">Copy URL</button>` +
+          `</div>`
+        : '';
+
       const html =
         `<div id="auth-status-indicator"` +
         ` hx-get="/api/model-configs/${id}/auth/status?token=${token}"` +
         ` hx-trigger="every 2s" hx-swap="outerHTML">` +
-        '<span class="badge badge--paused">Waiting for login…</span>' +
-        '</div>';
+        `<span class="badge badge--paused">Waiting for login…</span>` +
+        urlHtml +
+        `</div>`;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
