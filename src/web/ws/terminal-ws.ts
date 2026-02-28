@@ -35,17 +35,25 @@ export function handleTerminalConnection(
 
   // When the PTY exits, notify the client so the terminal shows a close message
   // instead of sitting silently black forever.
-  const onEnd = (): void => {
+  const sendExitMessage = (): void => {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'output', data: '\r\n\x1b[33m[process exited]\x1b[0m\r\n' }));
+      const code = session.terminal.exitCode;
+      ws.send(JSON.stringify({ type: 'output', data: `\r\n\x1b[33m[process exited${code !== undefined ? ` (code ${code})` : ''}]\x1b[0m\r\n` }));
     }
   };
+  const onEnd = (): void => sendExitMessage();
   session.terminal.output.once('end', onEnd);
 
   // Replay buffered output so the client sees everything emitted before it connected.
   const snapshot = session.outputBuffer.snapshot();
   if (snapshot.length > 0 && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'output', data: snapshot.toString('utf8') }));
+  }
+
+  // If the PTY already exited before the WS connected, the 'end' event was
+  // already emitted and we missed it. Send the exit message immediately.
+  if (session.terminal.exitCode !== undefined) {
+    sendExitMessage();
   }
 
   // Route browser messages to the PTY.

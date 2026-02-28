@@ -175,6 +175,7 @@ export class SessionManager {
   }
 
   private async _handleExit(sessionId: string, exitCode: number): Promise<void> {
+    console.log(`[session] exit sessionId=${sessionId} exitCode=${exitCode}`);
     const session = this._active.get(sessionId);
     // Keep session accessible for 5 min after exit so a WS that connects late
     // can still read the output buffer (e.g. bwrap failing immediately).
