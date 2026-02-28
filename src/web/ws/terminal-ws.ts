@@ -29,7 +29,15 @@ export function handleTerminalConnection(
     }
   };
 
+  // Subscribe first, then replay the buffer — Node's single-threaded event
+  // loop ensures no data is missed between snapshot and subscription.
   session.terminal.output.on('data', onData);
+
+  // Replay buffered output so the client sees everything emitted before it connected.
+  const snapshot = session.outputBuffer.snapshot();
+  if (snapshot.length > 0 && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'output', data: snapshot.toString('utf8') }));
+  }
 
   // Route browser messages to the PTY.
   ws.on('message', (raw: Buffer) => {

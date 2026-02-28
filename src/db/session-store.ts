@@ -185,6 +185,7 @@ export class SessionStore {
     }
 
     this.#db.transaction(() => {
+      this.#db.prepare('DELETE FROM session_credentials WHERE session_id = ?').run(id);
       this.#db.prepare('DELETE FROM status_events WHERE session_id = ?').run(id);
       this.#db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
     })();
