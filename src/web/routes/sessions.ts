@@ -182,6 +182,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       if (dbSession !== undefined) {
         const html = eta.render('partials/session-card', toViewModel(dbSession));
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('HX-Trigger', 'close-panel');
         res.setHeader('HX-Retarget', '#session-grid');
         res.setHeader('HX-Reswap', 'afterbegin');
         res.status(201).send(html);
@@ -195,6 +196,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           updatedAt: formatRelativeTime(activeSession.createdAt),
         });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('HX-Trigger', 'close-panel');
         res.setHeader('HX-Retarget', '#session-grid');
         res.setHeader('HX-Reswap', 'afterbegin');
         res.status(201).send(html);
