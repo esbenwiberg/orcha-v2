@@ -18,6 +18,18 @@
     />
   </div>
 
+  <div class="form-group">
+    <label for="ar-token">Git Token <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--color-text-muted)">(optional — for private repos)</span></label>
+    <input
+      id="ar-token"
+      type="password"
+      name="gitToken"
+      placeholder="ghp_… or Azure DevOps PAT"
+      autocomplete="off"
+    />
+    <span style="font-size:11px;color:var(--color-text-muted);margin-top:2px">Token is used only for cloning and is not stored.</span>
+  </div>
+
   <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
     <button type="submit" class="btn btn-primary">Add</button>
     <button

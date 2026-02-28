@@ -34,6 +34,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
   router.post('/repos', (req, res, next) => {
     try {
       const url = (typeof req.body['url'] === 'string' ? req.body['url'] : '').trim();
+      const gitToken = (typeof req.body['gitToken'] === 'string' ? req.body['gitToken'] : '').trim();
 
       const errors: string[] = [];
       const urlError = validateRepoUrl(url);
@@ -54,10 +55,23 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
 
       const repo = store.createRepo({ url });
 
+      // Build clone URL: inject token into URL if provided (not stored in DB)
+      let cloneUrl = url;
+      if (gitToken.length > 0) {
+        try {
+          const u = new URL(url);
+          u.username = 'token';
+          u.password = gitToken;
+          cloneUrl = u.toString();
+        } catch {
+          cloneUrl = url;
+        }
+      }
+
       // Fire-and-forget: clone bare repo in background
       store.updateStatus(repo.id, 'cloning');
       deps.worktreeManager
-        .ensureBareRepo(url)
+        .ensureBareRepo(cloneUrl)
         .then((barePath) => {
           store.updateStatus(repo.id, 'ready', { barePath });
         })

@@ -191,10 +191,27 @@
         var collapsed = document.querySelector('.orcha-layout').classList.toggle('sidebar-collapsed');
         localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
       }
+      // HX-Trigger: close-panel fires on the form (before swap, still in DOM) and bubbles to body
+      document.body.addEventListener('close-panel', function () {
+        document.getElementById('form-panel').classList.remove('is-open');
+      });
+      // HX-Trigger-After-Swap: refresh-* fires on body (form is detached after swap)
+      document.body.addEventListener('refresh-repo-list', function () {
+        var el = document.getElementById('repo-list-slot');
+        if (el) htmx.trigger(el, 'refresh');
+      });
+      document.body.addEventListener('refresh-preset-list', function () {
+        var el = document.getElementById('preset-list-slot');
+        if (el) htmx.trigger(el, 'refresh');
+      });
+      document.body.addEventListener('refresh-cred-list', function () {
+        var el = document.getElementById('credential-profiles-slot');
+        if (el) htmx.trigger(el, 'refresh');
+      });
     </script>
 
     <!-- Slide-in form panel -->
-    <div id="form-panel" class="form-panel" hx-on:close-panel="this.classList.remove('is-open')">
+    <div id="form-panel" class="form-panel">
       <div class="form-panel__header">
         <button
           class="form-panel__close"
