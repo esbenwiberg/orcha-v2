@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { Router } from 'express';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
@@ -8,9 +5,6 @@ import { ModelConfigStore } from '../../db/model-config-store.js';
 import type { ModelProvider } from '../../model-config/types.js';
 
 const VALID_PROVIDERS = new Set<string>(['max', 'anthropic', 'foundry', 'local', 'custom']);
-
-/** Path to the Claude OAuth credentials file on the host filesystem. */
-const CLAUDE_CREDENTIALS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
 
 export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
@@ -117,11 +111,11 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
   });
 
   // ---------------------------------------------------------------------------
-  // Auth wizard routes (max provider OAuth flow)
+  // Auth wizard routes (max provider credentials paste flow)
   // ---------------------------------------------------------------------------
 
   // POST /api/model-configs/:id/auth/start
-  // Spawns a `claude` PTY session and returns the auth panel partial.
+  // Renders the auth instruction panel.
   router.post('/model-configs/:id/auth/start', (req, res, next) => {
     try {
       const id = req.params['id'] ?? '';
@@ -131,8 +125,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      const token = deps.authTerminalManager.startSession(id);
-      const html = eta.render('partials/model-config-auth-panel', { id, token });
+      const html = eta.render('partials/model-config-auth-panel', { id });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -140,63 +133,43 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
-  // GET /api/model-configs/:id/auth/status?token=<token>
-  // Polls for credentials. If found, saves to config and returns success element.
-  router.get('/model-configs/:id/auth/status', (req, res, next) => {
+  // POST /api/model-configs/:id/auth/save
+  // Accepts pasted credentials JSON and saves it to the model config.
+  router.post('/model-configs/:id/auth/save', (req, res, next) => {
     try {
       const id = req.params['id'] ?? '';
-      const token = typeof req.query['token'] === 'string' ? req.query['token'] : '';
+      const body = req.body as Record<string, unknown>;
+      const credentialsJson = typeof body['credentialsJson'] === 'string' ? body['credentialsJson'].trim() : '';
 
-      let credentialsJson: string | undefined;
-      try {
-        const raw = readFileSync(CLAUDE_CREDENTIALS_PATH, 'utf8');
-        // Validate it looks like a credentials file
-        const parsed = JSON.parse(raw) as unknown;
-        if (typeof parsed === 'object' && parsed !== null && 'claudeAiOauth' in parsed) {
-          credentialsJson = raw;
-        }
-      } catch {
-        // File doesn't exist or isn't readable yet — still waiting
-      }
-
-      if (credentialsJson !== undefined) {
-        // Save to config and stop the auth session
-        store.updateConfig(id, { credentialsJson });
-        deps.authTerminalManager.stopSession(token);
-
-        // Return a non-polling success element
-        const html =
-          '<div id="auth-status-indicator" class="auth-status auth-status--success">' +
-          '<span class="badge badge--running">Authenticated</span>' +
-          '<p class="text-xs text-muted" style="margin-top:0.5rem">Credentials saved to config. You can close this panel.</p>' +
-          '</div>';
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(200).send(html);
+      if (!credentialsJson) {
+        res.status(422).send('<div class="badge badge--failed">Credentials JSON is required</div>');
         return;
       }
 
-      // Still waiting — return a polling indicator
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(credentialsJson);
+      } catch {
+        res.status(422).send('<div class="badge badge--failed">Invalid JSON</div>');
+        return;
+      }
+      if (typeof parsed !== 'object' || parsed === null || !('claudeAiOauth' in parsed)) {
+        res.status(422).send('<div class="badge badge--failed">JSON must contain a "claudeAiOauth" key</div>');
+        return;
+      }
+
+      store.updateConfig(id, { credentialsJson });
+
       const html =
-        `<div id="auth-status-indicator" class="auth-status"` +
-        ` hx-get="/api/model-configs/${id}/auth/status?token=${token}"` +
-        ` hx-trigger="every 2s"` +
-        ` hx-swap="outerHTML">` +
-        '<span class="badge badge--paused">Waiting for login…</span>' +
+        `<div id="model-config-auth-panel-${id}" style="padding:1rem 0;">` +
+        '<span class="badge badge--running">Authenticated</span>' +
+        '<p class="text-xs text-muted" style="margin-top:0.75rem">Credentials saved. You can close this panel.</p>' +
+        '<button class="btn btn-ghost btn-sm" style="margin-top:0.75rem" ' +
+        "onclick=\"document.getElementById('form-panel').classList.remove('is-open')\">" +
+        'Close</button>' +
         '</div>';
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  // DELETE /api/model-configs/:id/auth/stop?token=<token>
-  // Kills the auth PTY session.
-  router.delete('/model-configs/:id/auth/stop', (req, res, next) => {
-    try {
-      const token = typeof req.query['token'] === 'string' ? req.query['token'] : '';
-      deps.authTerminalManager.stopSession(token);
-      res.status(200).send('');
     } catch (err) {
       next(err);
     }

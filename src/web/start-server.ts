@@ -6,7 +6,6 @@ import { CredentialStore } from '../db/credential-store.js';
 import { WorktreeManager } from '../terminal/worktree-manager.js';
 import { PtyManager } from '../terminal/pty-manager.js';
 import { SessionManager } from '../terminal/session-manager.js';
-import { AuthTerminalManager } from '../terminal/auth-terminal-manager.js';
 import { startServer } from './server.js';
 import type { AppDeps } from './app.js';
 import { loadAuthConfig } from './auth/index.js';
@@ -81,9 +80,8 @@ instanceRegistry.upsertInstance({ id: instanceId, repoRoot, registeredAt: now, l
 const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionStore, credentialStore, instanceId);
 
 const authConfig = loadAuthConfig();
-const authTerminalManager = new AuthTerminalManager();
 
-const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig, authTerminalManager };
+const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig };
 
 startServer(deps, port)
   .then(() => {

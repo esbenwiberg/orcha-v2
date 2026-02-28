@@ -6,7 +6,6 @@ import { Eta } from 'eta';
 import type Database from 'better-sqlite3';
 import type { SessionManager } from '../terminal/session-manager.js';
 import type { WorktreeManager } from '../terminal/worktree-manager.js';
-import type { AuthTerminalManager } from '../terminal/auth-terminal-manager.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { securityMiddleware } from './middleware/security.js';
 import { errorHandler } from './middleware/error-handler.js';
@@ -32,7 +31,6 @@ export interface AppDeps {
   worktreeManager: WorktreeManager;
   db: Database.Database;
   authConfig: AuthConfig;
-  authTerminalManager: AuthTerminalManager;
 }
 
 export async function createApp(deps: AppDeps): Promise<express.Application> {
