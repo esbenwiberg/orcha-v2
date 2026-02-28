@@ -165,8 +165,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const claudeArgs = skipPermissions ? ['--dangerously-skip-permissions'] : [];
       const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
         branch,
-        command: 'claude',
-        args: claudeArgs,
+        command: '/bin/sh',
+        args: [],
         env,
         sandbox,
       };
