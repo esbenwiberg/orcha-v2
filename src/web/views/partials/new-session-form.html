@@ -61,6 +61,27 @@
     </select>
   </div>
 
+  <label style="display:flex;align-items:center;gap:0.625rem;cursor:pointer;user-select:none;">
+    <span style="position:relative;display:inline-block;width:34px;height:20px;flex-shrink:0;">
+      <input
+        type="checkbox"
+        name="sandbox"
+        value="1"
+        id="ns-sandbox"
+        style="opacity:0;width:0;height:0;position:absolute;"
+        <%= (it.sandbox === false) ? '' : 'checked' %>
+        onchange="var t=this.parentElement.querySelector('span');t.style.background=this.checked?'var(--color-accent)':'var(--color-bg-3)';t.querySelector('span').style.transform=this.checked?'translateX(14px)':'';"
+      />
+      <span style="position:absolute;inset:0;border-radius:10px;background:<%= (it.sandbox === false) ? 'var(--color-bg-3)' : 'var(--color-accent)' %>;transition:background 0.15s;">
+        <span style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform 0.15s;<%= (it.sandbox === false) ? '' : 'transform:translateX(14px);' %>"></span>
+      </span>
+    </span>
+    <span style="font-size:12px;color:var(--color-text-secondary);">
+      Isolate filesystem
+      <span style="color:var(--color-text-muted);margin-left:2px;">(bwrap sandbox)</span>
+    </span>
+  </label>
+
   <div style="display:flex;gap:0.5rem;padding-top:0.25rem;border-top:1px solid var(--color-border);margin-top:auto;">
     <button type="submit" class="btn btn-primary" style="flex:1;" aria-busy="false"
       hx-on::before-request="this.setAttribute('aria-busy','true'); this.disabled=true;"

@@ -22,4 +22,6 @@ export type PtySpawnOptions = {
   args?: string[];
   env?: Record<string, string>;
   size?: TerminalSize;
+  /** Per-session sandbox override. Defaults to true (isolated). Only takes effect when SANDBOX_MODE=bwrap. */
+  sandbox?: boolean;
 };

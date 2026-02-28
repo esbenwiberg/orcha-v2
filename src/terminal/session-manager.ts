@@ -18,6 +18,8 @@ export interface CreateSessionOptions {
   rows?: number;
   /** Override the repo root used for worktree creation (e.g. a bare repo path). */
   repoRoot?: string;
+  /** Whether to enable bwrap filesystem isolation for this session. Defaults to true. Only takes effect when SANDBOX_MODE=bwrap. */
+  sandbox?: boolean;
 }
 
 export interface ActiveSession {
@@ -93,6 +95,7 @@ export class SessionManager {
         cols: opts.cols ?? 220,
         rows: opts.rows ?? 50,
       },
+      ...(opts.sandbox !== undefined ? { sandbox: opts.sandbox } : {}),
     };
 
     try {

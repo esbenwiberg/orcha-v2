@@ -89,6 +89,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const branch = (typeof req.body['branch'] === 'string' ? req.body['branch'] : '').trim();
       const prompt = (typeof req.body['prompt'] === 'string' ? req.body['prompt'] : '').trim();
       const credentialProfileId = (typeof req.body['credentialProfileId'] === 'string' ? req.body['credentialProfileId'] : '').trim();
+      // Checkbox: present = "1" (isolated), absent = not isolated
+      const sandbox = req.body['sandbox'] === '1';
 
       // Validate
       const errors: string[] = [];
@@ -117,7 +119,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       if (errors.length > 0) {
-        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, repoId, branch, prompt });
+        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, repoId, branch, prompt, credentialProfileId, sandbox });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
@@ -147,6 +149,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         branch,
         command: 'bash',
         env,
+        sandbox,
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;

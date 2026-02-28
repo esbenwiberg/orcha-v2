@@ -43,9 +43,7 @@ EXPOSE 3000
 
 ENV NODE_ENV=production \
     ORCHA_DATA_DIR=/data \
-    SANDBOX_MODE=none \
-    SANDBOX_MEMORY_MAX=512M \
-    SANDBOX_CPU_QUOTA=100%
+    SANDBOX_MODE=bwrap
 
 USER orcha
 

@@ -5,15 +5,11 @@ import type { SandboxConfig } from './sandbox-config.js';
 const disabledConfig: SandboxConfig = {
   enabled: false,
   mode: 'none',
-  memoryMax: '512M',
-  cpuQuota: '100%',
 };
 
 const bwrapConfig: SandboxConfig = {
   enabled: true,
   mode: 'bwrap',
-  memoryMax: '512M',
-  cpuQuota: '50%',
 };
 
 describe('buildSandboxedCommand', () => {
@@ -23,16 +19,15 @@ describe('buildSandboxedCommand', () => {
     expect(result).toEqual(cmd);
   });
 
-  it('wraps command with systemd-run and bwrap when mode is bwrap', () => {
+  it('wraps command with bwrap when mode is bwrap', () => {
     const cmd = ['claude', '--dangerously-skip-permissions'];
-    const result = buildSandboxedCommand('/workspace/foo', cmd, bwrapConfig);
+    const result = buildSandboxedCommand('/workspace/foo', cmd, bwrapConfig, '/home/orcha');
 
-    expect(result[0]).toBe('systemd-run');
-    expect(result).toContain('bwrap');
+    expect(result[0]).toBe('bwrap');
     expect(result).toContain('--bind');
     expect(result).toContain('/workspace/foo');
-    expect(result).toContain('MemoryMax=512M');
-    expect(result).toContain('CPUQuota=50%');
+    expect(result).toContain('--tmpfs');
+    expect(result).toContain('/tmp');
 
     // The original command must appear at the end
     const claudeIdx = result.lastIndexOf('claude');
@@ -41,10 +36,15 @@ describe('buildSandboxedCommand', () => {
   });
 
   it('includes /workspace as the mount target', () => {
-    const result = buildSandboxedCommand('/my/worktree', ['bash'], bwrapConfig);
+    const result = buildSandboxedCommand('/my/worktree', ['bash'], bwrapConfig, '/home/orcha');
     const bindIdx = result.indexOf('--bind');
     expect(bindIdx).toBeGreaterThan(0);
     expect(result[bindIdx + 1]).toBe('/my/worktree');
     expect(result[bindIdx + 2]).toBe('/workspace');
+  });
+
+  it('mounts the .claude config dir at its real path', () => {
+    const result = buildSandboxedCommand('/my/worktree', ['bash'], bwrapConfig, '/home/orcha');
+    expect(result).toContain('/home/orcha/.claude');
   });
 });

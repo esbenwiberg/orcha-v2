@@ -82,12 +82,16 @@ export class PtyManager {
       );
     }
 
-    // Apply sandbox wrapping if enabled
+    // Apply sandbox wrapping if enabled globally and not opted out per-session
     const baseArgs = opts.args ?? [];
+    const sandboxActive = this._sandboxConfig.enabled && (opts.sandbox !== false);
+    const effectiveConfig = sandboxActive
+      ? this._sandboxConfig
+      : { ...this._sandboxConfig, enabled: false };
     const sandboxed = buildSandboxedCommand(
       opts.cwd,
       [opts.command, ...baseArgs],
-      this._sandboxConfig,
+      effectiveConfig,
     );
     const [command = opts.command, ...args] = sandboxed;
 
