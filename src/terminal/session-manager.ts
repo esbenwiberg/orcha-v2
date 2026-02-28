@@ -116,6 +116,9 @@ export class SessionManager {
 
     // Step 3: Set up output buffer
     const outputBuffer = new OutputBuffer();
+    // Pre-fill with a startup notice so the terminal isn't blank while the
+    // process initialises (claude takes several seconds to load its bundle).
+    outputBuffer.push('\r\n\x1b[33mStarting claude...\x1b[0m\r\n');
     let firstChunkLogged = false;
     terminal.output.on('data', (chunk: Buffer | string) => {
       outputBuffer.push(chunk);

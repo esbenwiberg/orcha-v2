@@ -161,12 +161,18 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
+      // If no model config injected an API key, fall back to the container's
+      // ambient ANTHROPIC_API_KEY (if set) so claude doesn't hang on auth.
+      if (!env['ANTHROPIC_API_KEY'] && process.env['ANTHROPIC_API_KEY']) {
+        env['ANTHROPIC_API_KEY'] = process.env['ANTHROPIC_API_KEY'];
+      }
+
       // Create a real session with worktree + PTY via the session engine
       const claudeArgs = skipPermissions ? ['--dangerously-skip-permissions'] : [];
       const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
         branch,
-        command: '/bin/sh',
-        args: [],
+        command: 'claude',
+        args: claudeArgs,
         env,
         sandbox,
       };
