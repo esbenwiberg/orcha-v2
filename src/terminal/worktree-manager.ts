@@ -4,6 +4,23 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { getStoragePaths } from '../storage/paths.js';
 
+/**
+ * Recursively copies directory contents using plain read/write (no chmod).
+ * Azure File Share (SMB) doesn't support chmod so fs.promises.cp can't be used.
+ */
+function copyDirContents(src: string, dest: string): void {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirContents(srcPath, destPath);
+    } else {
+      fs.writeFileSync(destPath, fs.readFileSync(srcPath));
+    }
+  }
+}
+
 export interface WorktreeInfo {
   id: string;
   path: string;
@@ -207,8 +224,9 @@ export class WorktreeManager {
         );
       });
 
-      fs.mkdirSync(bareRepoPath, { recursive: true });
-      await fs.promises.cp(stagingPath, bareRepoPath, { recursive: true });
+      // fs.promises.cp calls chmod internally which fails on Azure File Share.
+      // Use a plain read/write recursive copy instead.
+      copyDirContents(stagingPath, bareRepoPath);
     } finally {
       fs.rmSync(stagingPath, { recursive: true, force: true });
     }
