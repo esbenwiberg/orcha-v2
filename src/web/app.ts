@@ -73,7 +73,6 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
   // Build and mount auth middleware
   const { middleware: authMiddleware, router: authRouter } = await buildAuthMiddleware(
     deps.authConfig,
-    deps.db,
   );
 
   // For OIDC: apply session/passport setup before the auth router,

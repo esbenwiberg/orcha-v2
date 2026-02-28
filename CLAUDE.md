@@ -99,3 +99,19 @@ src/
 | `SANDBOX_MODE` | `none` | `none` / `bwrap` |
 | `SANDBOX_MEMORY_MAX` | `512M` | bwrap memory limit |
 | `NODE_ENV` | `production` | |
+
+## Local Development
+
+Orcha v1 runs on port 3000 on this dev machine. **Orcha v2 uses port 3001** to avoid conflicts.
+
+```bash
+# Start v2 locally
+npm run build
+PORT=3001 ORCHA_DATA_DIR=./data node dist/web/start-server.js
+
+# Manual testing — always use port 3001, NOT 3000
+curl http://localhost:3001/api/presets/save-form
+open http://localhost:3001
+```
+
+When curling or browser-testing, always verify you're hitting **port 3001**. Port 3000 is Orcha v1 and will return different (wrong) responses.

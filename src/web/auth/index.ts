@@ -1,11 +1,9 @@
-import session from 'express-session';
+import cookieSession from 'cookie-session';
 import type express from 'express';
-import type Database from 'better-sqlite3';
 import type { AuthConfig } from './types.js';
 import { noAuthMiddleware } from './no-auth.js';
 import { tokenAuthMiddleware } from './token-auth.js';
 import { buildOidcAuth } from './oidc-auth.js';
-import { SqliteSessionStore } from './session-store.js';
 
 export type { AuthConfig, AuthMode, AuthenticatedUser } from './types.js';
 export { loadAuthConfig } from './types.js';
@@ -15,10 +13,30 @@ export interface AuthResult {
   router: express.Router | undefined;
 }
 
-export async function buildAuthMiddleware(
-  config: AuthConfig,
-  db: Database.Database,
-): Promise<AuthResult> {
+/**
+ * Passport v0.6+ calls req.session.regenerate() and req.session.save() which
+ * are express-session methods. cookie-session doesn't provide them, so we add
+ * no-op shims immediately after the cookie-session middleware.
+ */
+const passportSessionCompat: express.RequestHandler = (req, _res, next) => {
+  if (req.session != null) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const s = req.session as any;
+    if (s.regenerate === undefined) {
+      s.regenerate = (cb: () => void) => {
+        cb();
+      };
+    }
+    if (s.save === undefined) {
+      s.save = (cb: () => void) => {
+        cb();
+      };
+    }
+  }
+  next();
+};
+
+export async function buildAuthMiddleware(config: AuthConfig): Promise<AuthResult> {
   switch (config.mode) {
     case 'none':
       return { middleware: [noAuthMiddleware()], router: undefined };
@@ -42,25 +60,24 @@ export async function buildAuthMiddleware(
       }
 
       const oidcHandlers = await buildOidcAuth(config);
-      const store = new SqliteSessionStore(db);
 
-      const sessionMiddleware = session({
-        store,
+      // Cookie-session stores all session data (OIDC state during login + authenticated
+      // user after login) in a signed cookie. This is fully stateless — no server-side
+      // store needed. Survives container restarts, scale-to-zero, and multi-replica ACA
+      // deployments without any session affinity requirement.
+      const sessionMiddleware = cookieSession({
         name: 'orcha.sid',
-        secret: config.sessionSecret,
-        resave: false,
-        saveUninitialized: false,
-        cookie: {
-          httpOnly: true,
-          sameSite: 'lax',
-          secure: process.env['NODE_ENV'] === 'production',
-          maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        },
-      }) as express.RequestHandler;
+        keys: [config.sessionSecret],
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env['NODE_ENV'] === 'production',
+      }) as unknown as express.RequestHandler;
 
       return {
         middleware: [
           sessionMiddleware,
+          passportSessionCompat,
           oidcHandlers.initialize,
           oidcHandlers.session,
           oidcHandlers.ensureAuthenticated,
