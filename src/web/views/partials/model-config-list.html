@@ -26,6 +26,15 @@
             <span class="text-xs text-muted"><%= c.modelId ?? '—' %></span>
           </td>
           <td class="data-table__actions">
+            <% if (c.provider === 'max') { %>
+            <button
+              class="btn btn-ghost btn-xs"
+              hx-post="/api/model-configs/<%= c.id %>/auth/start"
+              hx-target="#form-panel-slot"
+              hx-swap="innerHTML"
+              onclick="document.getElementById('form-panel').classList.add('is-open')"
+            >Authenticate</button>
+            <% } %>
             <button
               class="btn btn-ghost btn-xs"
               hx-delete="/api/model-configs/<%= c.id %>"

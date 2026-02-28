@@ -68,6 +68,40 @@ export class ModelConfigStore {
     return this.getConfig(id)!;
   }
 
+  /**
+   * Update the config_json blob for an existing model config.
+   * Only the supplied fields are merged in; others are left unchanged.
+   */
+  updateConfig(
+    id: string,
+    updates: Partial<{
+      apiKey: string;
+      baseUrl: string;
+      modelId: string;
+      foundryResource: string;
+      extraEnv: Record<string, string>;
+      credentialsJson: string;
+    }>,
+  ): ModelConfig | undefined {
+    const existing = this.getConfig(id);
+    if (existing === undefined) return undefined;
+
+    const configJson: Record<string, unknown> = {};
+    const merged = { ...existing, ...updates };
+    if (merged.apiKey !== undefined) configJson['apiKey'] = merged.apiKey;
+    if (merged.baseUrl !== undefined) configJson['baseUrl'] = merged.baseUrl;
+    if (merged.modelId !== undefined) configJson['modelId'] = merged.modelId;
+    if (merged.foundryResource !== undefined) configJson['foundryResource'] = merged.foundryResource;
+    if (merged.extraEnv !== undefined) configJson['extraEnv'] = merged.extraEnv;
+    if (merged.credentialsJson !== undefined) configJson['credentialsJson'] = merged.credentialsJson;
+
+    this.#db
+      .prepare('UPDATE model_configs SET config_json = ? WHERE id = ?')
+      .run(JSON.stringify(configJson), id);
+
+    return this.getConfig(id);
+  }
+
   deleteConfig(id: string): void {
     this.#db.prepare('DELETE FROM model_configs WHERE id = ?').run(id);
   }

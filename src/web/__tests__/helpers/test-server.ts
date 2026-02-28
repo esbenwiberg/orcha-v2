@@ -82,7 +82,12 @@ export async function createTestServer(
   } as unknown as AppDeps['db'];
 
   const worktreeManager = {} as AppDeps['worktreeManager'];
-  const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig: mergedAuthConfig };
+  const authTerminalManager = {
+    startSession: vi.fn().mockReturnValue('test-auth-token'),
+    getSession: vi.fn().mockReturnValue(undefined),
+    stopSession: vi.fn(),
+  } as unknown as AppDeps['authTerminalManager'];
+  const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig: mergedAuthConfig, authTerminalManager };
 
   const app = await createApp(deps);
   const server = http.createServer(app);
