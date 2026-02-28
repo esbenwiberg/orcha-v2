@@ -119,6 +119,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         errors.push('Branch name may only contain letters, numbers, /, _ and -.');
       }
 
+      if (modelConfigId.length === 0) {
+        errors.push('A model configuration must be selected.');
+      } else if (!modelConfigStore.getConfig(modelConfigId)) {
+        errors.push('Selected model configuration not found.');
+      }
+
       if (errors.length > 0) {
         const modelConfigs = modelConfigStore.listConfigs();
         const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, repoId, branch, credentialProfileId, modelConfigId, sandbox, skipPermissions });
@@ -159,12 +165,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             }
           }
         }
-      }
-
-      // If no model config injected an API key, fall back to the container's
-      // ambient ANTHROPIC_API_KEY (if set) so claude doesn't hang on auth.
-      if (!env['ANTHROPIC_API_KEY'] && process.env['ANTHROPIC_API_KEY']) {
-        env['ANTHROPIC_API_KEY'] = process.env['ANTHROPIC_API_KEY'];
       }
 
       // Create a real session with worktree + PTY via the session engine
