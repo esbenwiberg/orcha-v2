@@ -135,9 +135,10 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
         ...(devops !== undefined ? { devops } : {}),
       });
 
-      // Return empty (panel slot cleared, form panel closes)
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(201).send('');
+      res.setHeader('HX-Trigger', 'close-panel');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-cred-list');
+      res.status(200).send('');
     } catch (err) {
       next(err);
     }

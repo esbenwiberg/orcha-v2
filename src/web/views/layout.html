@@ -194,7 +194,7 @@
     </script>
 
     <!-- Slide-in form panel -->
-    <div id="form-panel" class="form-panel">
+    <div id="form-panel" class="form-panel" hx-on:close-panel="this.classList.remove('is-open')">
       <div class="form-panel__header">
         <button
           class="form-panel__close"

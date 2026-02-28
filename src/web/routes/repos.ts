@@ -66,6 +66,8 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('HX-Trigger', 'close-panel');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-repo-list');
       res.status(200).send('');
     } catch (err) {
       next(err);

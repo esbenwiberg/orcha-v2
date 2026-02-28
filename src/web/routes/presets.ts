@@ -83,6 +83,8 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       store.createPreset({ name, repoId, credentialProfileId });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('HX-Trigger', 'close-panel');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-preset-list');
       res.status(200).send('');
     } catch (err) {
       next(err);

@@ -179,15 +179,21 @@ export class WorktreeManager {
     fs.mkdirSync(bareRepoPath, { recursive: true });
 
     await new Promise<void>((resolve, reject) => {
-      execFile('git', ['clone', '--bare', repoUrl, bareRepoPath], {}, (err, _stdout, stderr) => {
-        if (err !== null) {
-          reject(
-            new WorktreeError(`git clone --bare failed: ${stderr}`, 'GIT_ERROR', err),
-          );
-        } else {
-          resolve();
-        }
-      });
+      execFile(
+        'git',
+        ['clone', '--bare', repoUrl, bareRepoPath],
+        {
+          env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+          timeout: 5 * 60 * 1000,
+        },
+        (err, _stdout, stderr) => {
+          if (err !== null) {
+            reject(new WorktreeError(`git clone --bare failed: ${stderr}`, 'GIT_ERROR', err));
+          } else {
+            resolve();
+          }
+        },
+      );
     });
 
     return bareRepoPath;
