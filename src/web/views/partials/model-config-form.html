@@ -21,9 +21,16 @@
     </select>
   </div>
 
-  <!-- max: no extra fields -->
+  <!-- max: credentials JSON -->
   <div id="mc-fields-max" class="mc-provider-fields" style="display:none">
-    <p class="text-xs text-muted" style="margin:0.5rem 0;">No configuration needed — Claude Code will use ambient OAuth login. Any existing ANTHROPIC_API_KEY will be unset.</p>
+    <p class="text-xs text-muted" style="margin:0.5rem 0 0.75rem;">Claude Code will use OAuth / Max plan. Any existing ANTHROPIC_API_KEY will be unset.</p>
+    <div class="form-group">
+      <label for="mc-credentials-json">Credentials JSON (<code>~/.claude/.credentials.json</code>)</label>
+      <textarea id="mc-credentials-json" name="credentialsJson" rows="6"
+        placeholder='{"claudeAiOauth":{"accessToken":"…","refreshToken":"…","expiresAt":…,"scopes":["user:inference"]}}'
+        style="resize:vertical;min-height:100px;font-family:var(--font-mono);font-size:11px;"></textarea>
+      <p class="text-xs text-muted" style="margin-top:0.25rem;">Paste the contents of <code>~/.claude/.credentials.json</code> from your local machine after running <code>claude</code> there once.</p>
+    </div>
   </div>
 
   <!-- anthropic -->

@@ -9,6 +9,7 @@ export interface ModelConfig {
   modelId?: string;
   foundryResource?: string;
   extraEnv?: Record<string, string>;
+  credentialsJson?: string;
   createdAt: Date;
 }
 
@@ -20,4 +21,5 @@ export interface CreateModelConfigInput {
   modelId?: string;
   foundryResource?: string;
   extraEnv?: Record<string, string>;
+  credentialsJson?: string;
 }

@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import { homedir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
@@ -162,6 +165,18 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
               delete env[key];
             } else {
               env[key] = value;
+            }
+          }
+
+          // Write credentials file for max provider so Claude Code can use OAuth
+          // without an interactive browser flow in a headless container.
+          if (modelConfig.credentialsJson) {
+            try {
+              const claudeDir = join(homedir(), '.claude');
+              mkdirSync(claudeDir, { recursive: true });
+              writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
+            } catch (err) {
+              console.warn('Failed to write ~/.claude/.credentials.json for max provider:', err);
             }
           }
         }

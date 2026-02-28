@@ -16,6 +16,7 @@ export class ModelConfigStore {
     const modelId = config['modelId'] as string | undefined;
     const foundryResource = config['foundryResource'] as string | undefined;
     const extraEnv = config['extraEnv'] as Record<string, string> | undefined;
+    const credentialsJson = config['credentialsJson'] as string | undefined;
     return {
       id: row['id'] as string,
       name: row['name'] as string,
@@ -26,6 +27,7 @@ export class ModelConfigStore {
       ...(modelId !== undefined ? { modelId } : {}),
       ...(foundryResource !== undefined ? { foundryResource } : {}),
       ...(extraEnv !== undefined ? { extraEnv } : {}),
+      ...(credentialsJson !== undefined ? { credentialsJson } : {}),
     };
   }
 
@@ -54,6 +56,7 @@ export class ModelConfigStore {
     if (input.modelId !== undefined) configJson['modelId'] = input.modelId;
     if (input.foundryResource !== undefined) configJson['foundryResource'] = input.foundryResource;
     if (input.extraEnv !== undefined) configJson['extraEnv'] = input.extraEnv;
+    if (input.credentialsJson !== undefined) configJson['credentialsJson'] = input.credentialsJson;
 
     this.#db
       .prepare(

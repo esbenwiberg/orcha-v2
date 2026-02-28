@@ -76,6 +76,9 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
+      // Parse credentials JSON for the max provider
+      const credentialsJson = provider === 'max' ? (getField('credentialsJson').trim() || undefined) : undefined;
+
       store.createConfig({
         name,
         provider: provider as ModelProvider,
@@ -84,6 +87,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         ...(modelId !== undefined ? { modelId } : {}),
         ...(foundryResource !== undefined ? { foundryResource } : {}),
         ...(extraEnv !== undefined ? { extraEnv } : {}),
+        ...(credentialsJson !== undefined ? { credentialsJson } : {}),
       });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
