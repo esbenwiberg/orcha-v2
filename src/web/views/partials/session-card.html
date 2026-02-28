@@ -39,6 +39,14 @@
       class="btn btn-ghost btn-sm"
       onclick="this.closest('.session-card').classList.toggle('is-focused')"
     >Focus</button>
+    <button
+      class="btn btn-ghost btn-sm"
+      style="color:var(--color-error)"
+      hx-delete="/api/sessions/<%= it.id %>"
+      hx-target="#session-<%= it.id %>"
+      hx-swap="delete"
+      hx-confirm="Delete this session? This cannot be undone."
+    >Delete</button>
   </div>
   <div class="terminal-slot" id="terminal-slot-<%= it.id %>"></div>
 </div>

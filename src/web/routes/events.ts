@@ -1,9 +1,17 @@
 import { Router, type Request, type Response } from 'express';
 import type { Eta } from 'eta';
 import { eventBus } from '../services/event-bus.js';
+import { issueTicket } from '../ws/ws-tickets.js';
 
 export function createEventsRouter(eta: Eta): Router {
   const router = Router();
+
+  // Issue a one-time WebSocket auth ticket (for OIDC mode where cookies aren't
+  // available at the HTTP upgrade layer). This endpoint is protected by the
+  // normal auth middleware; the ticket is passed as ?ticket= in the WS URL.
+  router.get('/api/ws-ticket', (_req: Request, res: Response) => {
+    res.json({ ticket: issueTicket() });
+  });
 
   router.get('/api/events', (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/event-stream');

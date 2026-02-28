@@ -21,7 +21,7 @@ const openTerminals = new Map();
  * @param {string} sessionId - The session UUID.
  * @param {string} containerId - The id of the DOM element to mount into.
  */
-export function openTerminal(sessionId, containerId) {
+export async function openTerminal(sessionId, containerId) {
   if (openTerminals.has(sessionId)) {
     return;
   }
@@ -50,9 +50,25 @@ export function openTerminal(sessionId, containerId) {
   term.open(container);
   fitAddon.fit();
 
+  // Fetch a one-time auth ticket (needed when the server runs in OIDC mode,
+  // where session cookies aren't available at the WS upgrade layer).
+  let ticket = '';
+  try {
+    const r = await fetch('/api/ws-ticket');
+    if (r.ok) {
+      const data = await r.json();
+      ticket = typeof data.ticket === 'string' ? data.ticket : '';
+    }
+  } catch {
+    // If ticket fetch fails (e.g. auth=none), proceed without one.
+  }
+
   // Build the WebSocket URL — use wss:// when the page is served over HTTPS.
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const ws = new WebSocket(`${proto}//${location.host}/ws/terminal/${sessionId}`);
+  const wsUrl = ticket
+    ? `${proto}//${location.host}/ws/terminal/${sessionId}?ticket=${ticket}`
+    : `${proto}//${location.host}/ws/terminal/${sessionId}`;
+  const ws = new WebSocket(wsUrl);
 
   // The server sends JSON frames: { type: 'output', data: string }
   ws.onmessage = (event) => {

@@ -213,7 +213,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
-  // POST /api/sessions/:id/stop — cancel session with SIGTERM semantics
+  // POST /api/sessions/:id/stop — send SIGTERM to the PTY and mark cancelled
   router.post('/sessions/:id/stop', (req, res, next) => {
     try {
       const id = req.params['id'] ?? '';
@@ -225,13 +225,18 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
+      // Kill the PTY if still running in memory
+      const activeSession = deps.sessionEngine.getSessionByDbId(id);
+      if (activeSession) {
+        deps.sessionEngine.stopSession(activeSession.sessionId).catch(() => {});
+      }
+
       // Attempt to transition to cancelled; if already terminal, just re-render as-is
       let session: Session;
       try {
         session = store.updateStatus(id, 'cancelled');
         eventBus.publish({ sessionId: id, type: 'status', status: 'cancelled' });
       } catch {
-        // Transition invalid (session already completed/failed/cancelled) — re-render current state
         session = existing;
       }
 
@@ -243,17 +248,26 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
-  // POST /api/sessions/:id/kill — force-cancel session with SIGKILL semantics
+  // POST /api/sessions/:id/kill — send SIGKILL to the PTY and mark cancelled
   router.post('/sessions/:id/kill', (req, res, next) => {
     try {
       const id = req.params['id'] ?? '';
 
       const existing = store.getSession(id);
       if (existing === undefined) {
-        // Session not found — swap card out silently
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(200).send("<div style='display:none'></div>");
         return;
+      }
+
+      // Force-kill the PTY if still running in memory
+      const activeSession = deps.sessionEngine.getSessionByDbId(id);
+      if (activeSession) {
+        try {
+          activeSession.terminal.kill('SIGKILL');
+        } catch {
+          // Already dead
+        }
       }
 
       // Attempt to transition to cancelled; if already terminal, just re-render as-is
@@ -268,6 +282,35 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const html = eta.render('partials/session-card', toViewModel(session));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // DELETE /api/sessions/:id — delete session record (kills PTY first if still running)
+  router.delete('/sessions/:id', async (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+
+      const existing = store.getSession(id);
+      if (existing === undefined) {
+        res.status(404).send('');
+        return;
+      }
+
+      // Kill PTY if still active
+      const activeSession = deps.sessionEngine.getSessionByDbId(id);
+      if (activeSession) {
+        try {
+          await deps.sessionEngine.stopSession(activeSession.sessionId);
+        } catch {
+          try { activeSession.terminal.kill('SIGKILL'); } catch { /* ignore */ }
+        }
+      }
+
+      store.deleteSession(id);
+      // Return empty 200 — HTMX hx-swap="delete" will remove the card element
+      res.status(200).send('');
     } catch (err) {
       next(err);
     }
