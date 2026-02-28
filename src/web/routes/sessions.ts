@@ -1,6 +1,7 @@
 import { Router } from 'express';
+import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
@@ -168,16 +169,29 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             }
           }
 
-          // Write credentials file for max provider so Claude Code can use OAuth
-          // without an interactive browser flow in a headless container.
-          if (modelConfig.credentialsJson) {
-            try {
-              const claudeDir = join(homedir(), '.claude');
-              mkdirSync(claudeDir, { recursive: true });
-              writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
-            } catch (err) {
-              console.warn('Failed to write ~/.claude/.credentials.json for max provider:', err);
+        }
+      }
+
+      // Per-session isolated HOME: each session gets its own /tmp/orcha-home-<id>/
+      // so concurrent sessions with different credentials don't overwrite each other.
+      const sessionId = randomUUID();
+      if (modelConfigId) {
+        const modelConfig = modelConfigStore.getConfig(modelConfigId);
+        if (modelConfig?.credentialsJson) {
+          try {
+            const sessionHome = join('/tmp', `orcha-home-${sessionId}`);
+            const claudeDir = join(sessionHome, '.claude');
+            mkdirSync(claudeDir, { recursive: true });
+            // Copy shared settings.json so claude respects the permissions/settings
+            // configured via Orcha's Claude Permissions editor.
+            const sharedSettings = join(homedir(), '.claude', 'settings.json');
+            if (existsSync(sharedSettings)) {
+              writeFileSync(join(claudeDir, 'settings.json'), readFileSync(sharedSettings));
             }
+            writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
+            env['HOME'] = sessionHome;
+          } catch (err) {
+            console.warn('[sessions] Failed to create per-session home dir:', err);
           }
         }
       }
@@ -185,6 +199,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // Create a real session with worktree + PTY via the session engine
       const claudeArgs = skipPermissions ? ['--dangerously-skip-permissions'] : [];
       const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
+        sessionId,
         branch,
         command: 'claude',
         args: claudeArgs,

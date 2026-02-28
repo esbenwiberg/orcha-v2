@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { WorktreeManager } from './worktree-manager.js';
 import type { WorktreeInfo } from './worktree-manager.js';
 import { PtyManager } from './pty-manager.js';
@@ -213,6 +215,13 @@ export class SessionManager {
       await this._worktreeManager.removeWorktree(sessionId, session?.repoRoot);
     } catch {
       // Best-effort cleanup
+    }
+
+    // Clean up per-session isolated HOME if one was created.
+    try {
+      rmSync(join('/tmp', `orcha-home-${sessionId}`), { recursive: true, force: true });
+    } catch {
+      // Best-effort; directory may not exist for sessions without credentials
     }
   }
 
