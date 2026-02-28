@@ -232,6 +232,15 @@ export class SessionManager {
     return this._active.get(sessionId);
   }
 
+  getSessionByDbId(dbSessionId: string): ActiveSession | undefined {
+    for (const session of this._active.values()) {
+      if (session.dbSessionId === dbSessionId) {
+        return session;
+      }
+    }
+    return undefined;
+  }
+
   listSessions(): ActiveSession[] {
     return Array.from(this._active.values());
   }

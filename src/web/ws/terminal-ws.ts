@@ -12,7 +12,7 @@ export function handleTerminalConnection(
   sessionId: string,
   engine: SessionManager,
 ): void {
-  const session = engine.getSession(sessionId);
+  const session = engine.getSession(sessionId) ?? engine.getSessionByDbId(sessionId);
 
   if (session === undefined) {
     ws.send(JSON.stringify({ type: 'error', message: 'Session not found' }));
