@@ -8,7 +8,10 @@ export function openDatabase(dataPath: string): Database.Database {
   if (filename !== ':memory:') {
     mkdirSync(path.dirname(filename), { recursive: true });
   }
-  const db = new Database(filename, { timeout: 10000 });
+  // busy_timeout: 60s — on ACA rolling updates the old revision holds an
+  // exclusive lock briefly while the new replica starts up. 60s is enough
+  // for the old revision to drain and release the lock.
+  const db = new Database(filename, { timeout: 60000 });
   // Azure File Share (SMB) does not support POSIX advisory locking required
   // for WAL mode. Use DELETE journal mode on network-mounted volumes.
   db.pragma('journal_mode = DELETE');
