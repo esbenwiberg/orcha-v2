@@ -1,4 +1,3 @@
-import os from 'node:os';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { Router } from 'express';
@@ -6,8 +5,6 @@ import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import type { ModelProvider } from '../../model-config/types.js';
-
-const CLAUDE_CREDENTIALS_PATH = path.join(os.homedir(), '.claude', '.credentials.json');
 
 const VALID_PROVIDERS = new Set<string>(['max', 'anthropic', 'foundry', 'local', 'custom']);
 
@@ -146,15 +143,26 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
       const id = req.params['id'] ?? '';
       const token = typeof req.query['token'] === 'string' ? req.query['token'] : '';
 
+      // Look for credentials in the per-session isolated HOME, then fall back
+      // to the shared home as a safety net (e.g. older sessions).
+      const authSession = deps.authTerminalManager.getSession(token);
+      const credPaths: string[] = [];
+      if (authSession !== undefined) {
+        credPaths.push(path.join(authSession.homeDir, '.claude', '.credentials.json'));
+      }
+
       let credentialsJson: string | undefined;
-      try {
-        const raw = readFileSync(CLAUDE_CREDENTIALS_PATH, 'utf8');
-        const parsed = JSON.parse(raw) as unknown;
-        if (typeof parsed === 'object' && parsed !== null && 'claudeAiOauth' in parsed) {
-          credentialsJson = raw;
+      for (const credPath of credPaths) {
+        try {
+          const raw = readFileSync(credPath, 'utf8');
+          const parsed = JSON.parse(raw) as unknown;
+          if (typeof parsed === 'object' && parsed !== null && 'claudeAiOauth' in parsed) {
+            credentialsJson = raw;
+            break;
+          }
+        } catch {
+          // Not written yet — keep polling
         }
-      } catch {
-        // Not written yet — keep polling
       }
 
       if (credentialsJson !== undefined) {

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node-pty';
@@ -10,6 +11,7 @@ import { OutputBuffer } from './output-buffer.js';
 export interface AuthSession {
   token: string;
   configId: string;
+  homeDir: string;
   terminal: {
     output: NodeJS.ReadableStream;
     exitCode: number | undefined;
@@ -23,6 +25,7 @@ export interface AuthSession {
 interface InternalAuthSession {
   token: string;
   configId: string;
+  homeDir: string;
   pty: IPty;
   outputStream: Readable;
   exitCode: number | undefined;
@@ -34,29 +37,52 @@ export class AuthTerminalManager {
 
   startSession(configId: string): string {
     const token = randomUUID();
-    const cwd = `/tmp/orcha-auth-${configId}`;
-    mkdirSync(cwd, { recursive: true });
 
-    // Use the real home dir (os.homedir reads /etc/passwd; process.env.HOME
-    // may be /root in Docker even when the process runs as a non-root user).
-    const home = homedir();
+    // Per-session worktree: a fresh git repo so claude starts with a project context.
+    const cwd = `/tmp/orcha-auth-${token}`;
+    mkdirSync(cwd, { recursive: true });
+    try {
+      execSync('git init', { cwd, stdio: 'ignore' });
+    } catch {
+      // Best-effort; claude may still work without a git repo
+    }
+
+    // Per-session isolated HOME so credentials land in a known location and
+    // don't interfere with shared state or other concurrent auth sessions.
+    const home = `/tmp/orcha-auth-home-${token}`;
     const claudeDir = join(home, '.claude');
     mkdirSync(claudeDir, { recursive: true });
 
-    // Ensure a settings.json exists so claude doesn't stall on first-run wizard.
-    const settingsPath = join(claudeDir, 'settings.json');
-    if (!existsSync(settingsPath)) {
-      writeFileSync(settingsPath, '{}', 'utf8');
+    // Seed settings.json — copy shared settings if they exist, else write empty.
+    const sharedSettings = join(homedir(), '.claude', 'settings.json');
+    const sessionSettings = join(claudeDir, 'settings.json');
+    if (existsSync(sharedSettings)) {
+      try {
+        writeFileSync(sessionSettings, readFileSync(sharedSettings));
+      } catch {
+        writeFileSync(sessionSettings, '{}', 'utf8');
+      }
+    } else {
+      writeFileSync(sessionSettings, '{}', 'utf8');
     }
 
-    // Spawn via landlock-exec exactly as regular sessions do.
-    // This grants RW access to cwd and home/.claude, which claude needs to start.
-    const pty = spawn('landlock-exec', [cwd, home, '--', 'claude'], {
+    // Build env: inherit ambient vars but strip ANTHROPIC_API_KEY so claude
+    // uses OAuth/Max-plan auth rather than API key auth.
+    const spawnEnv: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (v !== undefined && k !== 'ANTHROPIC_API_KEY') {
+        spawnEnv[k] = v;
+      }
+    }
+    spawnEnv['HOME'] = home;
+
+    // Spawn claude directly — no landlock needed for a temporary auth flow.
+    const pty = spawn('claude', [], {
       name: 'xterm-256color',
-      cols: 120,
-      rows: 24,
+      cols: 220,
+      rows: 50,
       cwd,
-      env: { ...process.env, HOME: home },
+      env: spawnEnv,
     });
 
     const outputBuffer = new OutputBuffer();
@@ -109,6 +135,7 @@ export class AuthTerminalManager {
     const entry: InternalAuthSession = {
       token,
       configId,
+      homeDir: home,
       pty,
       outputStream,
       exitCode: undefined,
@@ -126,6 +153,7 @@ export class AuthTerminalManager {
     return {
       token: entry.token,
       configId: entry.configId,
+      homeDir: entry.homeDir,
       terminal: {
         output: entry.outputStream,
         get exitCode() {
@@ -154,6 +182,14 @@ export class AuthTerminalManager {
       entry.pty.kill('SIGTERM');
     } catch {
       // Already dead
+    }
+    // Clean up per-session dirs
+    for (const dir of [`/tmp/orcha-auth-${token}`, entry.homeDir]) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        // Best-effort
+      }
     }
     this._sessions.delete(token);
   }
