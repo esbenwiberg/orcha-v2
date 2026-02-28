@@ -92,6 +92,8 @@ export class PtyManager {
       opts.cwd,
       [opts.command, ...baseArgs],
       effectiveConfig,
+      undefined,
+      opts.extraRwPaths,
     );
     const [command = opts.command, ...args] = sandboxed;
 

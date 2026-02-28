@@ -1,54 +1,67 @@
 import type { SandboxConfig } from './sandbox-config.js';
 
 /**
- * Wraps a command with bwrap for filesystem isolation.
- * The sandboxed process can only see:
- *   - /workspace  — the session worktree (writable)
- *   - $HOME/.claude — Claude settings/transcripts (writable)
- *   - /tmp         — tmpfs for scratch space
- *   - standard system dirs (read-only)
+ * Builds a sandboxed command based on the active sandbox mode.
  *
- * Note: systemd-run is intentionally omitted — ACA containers have no systemd.
- * Resource limits (memory/CPU) are configured at the Container App level instead.
+ * landlock (default):
+ *   Uses landlock-exec, a small static C binary compiled into the image.
+ *   Applies Linux Landlock LSM restrictions — no privileges or user namespaces
+ *   required. Works in unprivileged ACA containers.
+ *   Allowed RW: worktree, ~/.claude, /tmp, any extraRwPaths
+ *   Allowed RO: /usr /lib /lib64 /bin /sbin /etc /proc /run
  *
- * When mode is 'none', returns the command unchanged.
+ * bwrap (legacy, requires user namespaces or SUID):
+ *   Uses bubblewrap for mount-namespace isolation. Does not work in ACA
+ *   (no_new_privs + user namespaces restricted). Left for environments
+ *   where bwrap is available.
+ *
+ * none: returns command unchanged.
  */
 export function buildSandboxedCommand(
   worktreePath: string,
   command: string[],
   config: SandboxConfig,
   homeDir?: string,
+  extraRwPaths: string[] = [],
 ): string[] {
-  if (!config.enabled || config.mode !== 'bwrap') {
-    return command;
-  }
+  if (!config.enabled) return command;
 
   const home = homeDir ?? process.env['HOME'] ?? '/root';
-  const claudeConfigDir = `${home}/.claude`;
 
-  const bwrap = [
-    'bwrap',
-    // System dirs (read-only)
-    '--ro-bind', '/usr', '/usr',
-    '--ro-bind', '/lib', '/lib',
-    '--ro-bind-try', '/lib64', '/lib64',
-    '--ro-bind', '/bin', '/bin',
-    '--ro-bind', '/etc/resolv.conf', '/etc/resolv.conf',
-    '--ro-bind-try', '/etc/ssl', '/etc/ssl',
-    '--ro-bind-try', '/etc/ca-certificates', '/etc/ca-certificates',
-    // Session worktree (writable — the agent's working directory)
-    '--bind', worktreePath, '/workspace',
-    // Claude config dir (writable — settings.json, CLAUDE.md, session JSONL transcripts)
-    '--bind-try', claudeConfigDir, claudeConfigDir,
-    // Scratch space
-    '--tmpfs', '/tmp',
-    '--chdir', '/workspace',
-    '--unshare-pid',
-    '--new-session',
-    '--die-with-parent',
-    '--',
-    ...command,
-  ];
+  if (config.mode === 'landlock') {
+    // landlock-exec <worktree> <home-dir> [extra-rw...] -- <command...>
+    return [
+      'landlock-exec',
+      worktreePath,
+      home,
+      ...extraRwPaths,
+      '--',
+      ...command,
+    ];
+  }
 
-  return bwrap;
+  if (config.mode === 'bwrap') {
+    const claudeConfigDir = `${home}/.claude`;
+    return [
+      'bwrap',
+      '--ro-bind', '/usr', '/usr',
+      '--ro-bind', '/lib', '/lib',
+      '--ro-bind-try', '/lib64', '/lib64',
+      '--ro-bind', '/bin', '/bin',
+      '--ro-bind', '/etc/resolv.conf', '/etc/resolv.conf',
+      '--ro-bind-try', '/etc/ssl', '/etc/ssl',
+      '--ro-bind-try', '/etc/ca-certificates', '/etc/ca-certificates',
+      '--bind', worktreePath, '/workspace',
+      '--bind-try', claudeConfigDir, claudeConfigDir,
+      '--tmpfs', '/tmp',
+      '--chdir', '/workspace',
+      '--unshare-pid',
+      '--new-session',
+      '--die-with-parent',
+      '--',
+      ...command,
+    ];
+  }
+
+  return command;
 }

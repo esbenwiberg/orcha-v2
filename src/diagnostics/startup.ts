@@ -14,12 +14,21 @@ function getGitVersion(): string {
   }
 }
 
-function isBwrapAvailable(): boolean {
+function isSandboxAvailable(mode: string): boolean {
   try {
-    execSync(
-      'bwrap --ro-bind /usr /usr --ro-bind-try /lib /lib --ro-bind-try /bin /bin --unshare-pid --die-with-parent -- /bin/true',
-      { stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 },
-    );
+    if (mode === 'landlock') {
+      execSync('landlock-exec /tmp /tmp -- /bin/true', {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 5000,
+      });
+    } else if (mode === 'bwrap') {
+      execSync(
+        'bwrap --ro-bind /usr /usr --ro-bind-try /lib /lib --ro-bind-try /bin /bin --unshare-pid --die-with-parent -- /bin/true',
+        { stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 },
+      );
+    } else {
+      return false;
+    }
     return true;
   } catch {
     return false;
@@ -55,7 +64,7 @@ export async function emitStartupDiagnostics(): Promise<void> {
     git_version: getGitVersion(),
     node_pty_version: getNodePtyVersion(),
     sandbox_mode: sandboxConfig.mode,
-    bwrap_available: isBwrapAvailable(),
+    sandbox_available: isSandboxAvailable(sandboxConfig.mode),
     data_persistent,
     data_warning,
   };

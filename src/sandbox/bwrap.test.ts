@@ -2,40 +2,56 @@ import { describe, it, expect } from 'vitest';
 import { buildSandboxedCommand } from './bwrap.js';
 import type { SandboxConfig } from './sandbox-config.js';
 
-const disabledConfig: SandboxConfig = {
-  enabled: false,
-  mode: 'none',
-};
+const disabledConfig: SandboxConfig = { enabled: false, mode: 'none' };
+const bwrapConfig: SandboxConfig = { enabled: true, mode: 'bwrap' };
+const landlockConfig: SandboxConfig = { enabled: true, mode: 'landlock' };
 
-const bwrapConfig: SandboxConfig = {
-  enabled: true,
-  mode: 'bwrap',
-};
-
-describe('buildSandboxedCommand', () => {
-  it('returns command unchanged when mode is none', () => {
+describe('buildSandboxedCommand — disabled', () => {
+  it('returns command unchanged when disabled', () => {
     const cmd = ['bash', '-c', 'echo hi'];
-    const result = buildSandboxedCommand('/workspace/foo', cmd, disabledConfig);
-    expect(result).toEqual(cmd);
+    expect(buildSandboxedCommand('/workspace/foo', cmd, disabledConfig)).toEqual(cmd);
+  });
+});
+
+describe('buildSandboxedCommand — landlock mode', () => {
+  it('uses landlock-exec as first arg', () => {
+    const result = buildSandboxedCommand('/my/worktree', ['bash'], landlockConfig, '/home/orcha');
+    expect(result[0]).toBe('landlock-exec');
   });
 
-  it('wraps command with bwrap when mode is bwrap', () => {
-    const cmd = ['claude', '--dangerously-skip-permissions'];
-    const result = buildSandboxedCommand('/workspace/foo', cmd, bwrapConfig, '/home/orcha');
+  it('passes worktree and home-dir as positional args', () => {
+    const result = buildSandboxedCommand('/my/worktree', ['bash'], landlockConfig, '/home/orcha');
+    expect(result[1]).toBe('/my/worktree');
+    expect(result[2]).toBe('/home/orcha');
+  });
 
+  it('separates landlock args from command with --', () => {
+    const result = buildSandboxedCommand('/my/worktree', ['bash', '-l'], landlockConfig, '/home/orcha');
+    const sep = result.indexOf('--');
+    expect(sep).toBeGreaterThan(0);
+    expect(result[sep + 1]).toBe('bash');
+    expect(result[sep + 2]).toBe('-l');
+  });
+
+  it('inserts extra RW paths before --', () => {
+    const result = buildSandboxedCommand(
+      '/my/worktree', ['bash'], landlockConfig, '/home/orcha',
+      ['/mnt/shared', '/opt/tools'],
+    );
+    const sep = result.indexOf('--');
+    const extraSection = result.slice(3, sep);
+    expect(extraSection).toContain('/mnt/shared');
+    expect(extraSection).toContain('/opt/tools');
+  });
+});
+
+describe('buildSandboxedCommand — bwrap mode', () => {
+  it('uses bwrap as first arg', () => {
+    const result = buildSandboxedCommand('/workspace/foo', ['claude'], bwrapConfig, '/home/orcha');
     expect(result[0]).toBe('bwrap');
-    expect(result).toContain('--bind');
-    expect(result).toContain('/workspace/foo');
-    expect(result).toContain('--tmpfs');
-    expect(result).toContain('/tmp');
-
-    // The original command must appear at the end
-    const claudeIdx = result.lastIndexOf('claude');
-    expect(claudeIdx).toBeGreaterThan(0);
-    expect(result[claudeIdx + 1]).toBe('--dangerously-skip-permissions');
   });
 
-  it('includes /workspace as the mount target', () => {
+  it('binds worktree to /workspace', () => {
     const result = buildSandboxedCommand('/my/worktree', ['bash'], bwrapConfig, '/home/orcha');
     const bindIdx = result.indexOf('--bind');
     expect(bindIdx).toBeGreaterThan(0);
@@ -43,8 +59,14 @@ describe('buildSandboxedCommand', () => {
     expect(result[bindIdx + 2]).toBe('/workspace');
   });
 
-  it('mounts the .claude config dir at its real path', () => {
+  it('mounts .claude config dir', () => {
     const result = buildSandboxedCommand('/my/worktree', ['bash'], bwrapConfig, '/home/orcha');
     expect(result).toContain('/home/orcha/.claude');
+  });
+
+  it('includes a tmpfs for /tmp', () => {
+    const result = buildSandboxedCommand('/my/worktree', ['bash'], bwrapConfig, '/home/orcha');
+    expect(result).toContain('--tmpfs');
+    expect(result).toContain('/tmp');
   });
 });

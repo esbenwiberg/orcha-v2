@@ -1,8 +1,8 @@
-# Stage 1: builder — compile native addons and TypeScript
+# Stage 1: builder — compile native addons, TypeScript, and landlock-exec
 FROM node:22-bookworm-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ git \
+    python3 make g++ gcc git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
@@ -14,17 +14,21 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# Compile landlock-exec as a static binary so it has no runtime deps
+RUN gcc -O2 -static -o /build/landlock-exec sandbox/landlock-exec.c
+
 # Stage 2: runtime — lean image with compiled output
 FROM node:22-bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git fuse3 ca-certificates bubblewrap \
+    git fuse3 ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r orcha && useradd -r -g orcha -d /app orcha
 
 WORKDIR /app
 
+COPY --from=builder /build/landlock-exec /usr/local/bin/landlock-exec
 COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json ./package.json
@@ -43,7 +47,7 @@ EXPOSE 3000
 
 ENV NODE_ENV=production \
     ORCHA_DATA_DIR=/data \
-    SANDBOX_MODE=bwrap
+    SANDBOX_MODE=landlock
 
 USER orcha
 
