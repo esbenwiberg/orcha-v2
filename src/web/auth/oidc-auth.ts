@@ -72,13 +72,34 @@ export async function buildOidcAuth(config: AuthConfig): Promise<OidcAuthHandler
 
   router.get('/auth/login', passport.authenticate('oidc', { scope: ['openid', 'profile', 'email'] }));
 
-  router.get(
-    '/auth/callback',
-    passport.authenticate('oidc', { failureRedirect: '/auth/login' }),
-    (_req, res) => {
-      res.redirect('/');
-    },
-  );
+  router.get('/auth/callback', (req, res, next) => {
+    passport.authenticate(
+      'oidc',
+      (err: Error | null, user: Express.User | false | null, info?: { message?: string }) => {
+        if (err) {
+          console.error('[auth] OIDC callback error:', err);
+          next(err);
+          return;
+        }
+        if (!user) {
+          console.error(
+            '[auth] OIDC authentication failed:',
+            (info as { message?: string } | undefined)?.message ?? 'unknown reason',
+          );
+          res.redirect('/auth/login');
+          return;
+        }
+        req.logIn(user, (loginErr) => {
+          if (loginErr) {
+            console.error('[auth] Session login error:', loginErr);
+            next(loginErr);
+            return;
+          }
+          res.redirect('/');
+        });
+      },
+    )(req, res, next);
+  });
 
   router.get('/auth/logout', (req, res, next) => {
     req.logout((err) => {

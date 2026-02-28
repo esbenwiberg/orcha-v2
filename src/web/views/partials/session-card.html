@@ -12,7 +12,7 @@
     <p class="card__meta">Started <%= it.createdAt %></p>
     <p class="card__meta">Updated <%= it.updatedAt %></p>
     <div id="confirm-slot-<%= it.id %>" style="position:relative"></div>
-    <%~ include('partials/credential-status-strip', { sessionId: it.id, credentials: it.credentials }) %>
+    <%~ include('credential-status-strip', { sessionId: it.id, credentials: it.credentials }) %>
   </div>
   <div class="session-card__footer">
     <button

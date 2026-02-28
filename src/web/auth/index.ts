@@ -1,9 +1,11 @@
 import session from 'express-session';
 import type express from 'express';
+import type Database from 'better-sqlite3';
 import type { AuthConfig } from './types.js';
 import { noAuthMiddleware } from './no-auth.js';
 import { tokenAuthMiddleware } from './token-auth.js';
 import { buildOidcAuth } from './oidc-auth.js';
+import { SqliteSessionStore } from './session-store.js';
 
 export type { AuthConfig, AuthMode, AuthenticatedUser } from './types.js';
 export { loadAuthConfig } from './types.js';
@@ -13,7 +15,10 @@ export interface AuthResult {
   router: express.Router | undefined;
 }
 
-export async function buildAuthMiddleware(config: AuthConfig): Promise<AuthResult> {
+export async function buildAuthMiddleware(
+  config: AuthConfig,
+  db: Database.Database,
+): Promise<AuthResult> {
   switch (config.mode) {
     case 'none':
       return { middleware: [noAuthMiddleware()], router: undefined };
@@ -37,8 +42,11 @@ export async function buildAuthMiddleware(config: AuthConfig): Promise<AuthResul
       }
 
       const oidcHandlers = await buildOidcAuth(config);
+      const store = new SqliteSessionStore(db);
 
       const sessionMiddleware = session({
+        store,
+        name: 'orcha.sid',
         secret: config.sessionSecret,
         resave: false,
         saveUninitialized: false,
@@ -46,6 +54,7 @@ export async function buildAuthMiddleware(config: AuthConfig): Promise<AuthResul
           httpOnly: true,
           sameSite: 'lax',
           secure: process.env['NODE_ENV'] === 'production',
+          maxAge: 24 * 60 * 60 * 1000, // 24 hours
         },
       }) as express.RequestHandler;
 
