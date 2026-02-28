@@ -1,0 +1,16 @@
+<div class="page-section">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Model Configs</h2>
+      <p class="page-section__subtitle">Reusable LLM backend configurations for sessions</p>
+    </div>
+  </div>
+  <div id="model-config-list-slot"
+    hx-get="/api/model-configs"
+    hx-trigger="load, refresh"
+    hx-swap="innerHTML"
+  >
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row" style="margin-top:0.5rem"></div>
+  </div>
+</div>

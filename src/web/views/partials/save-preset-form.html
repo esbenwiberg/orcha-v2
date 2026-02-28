@@ -49,6 +49,22 @@
     </select>
   </div>
 
+  <div class="form-group">
+    <label for="sp-model-config">
+      Model Config
+      <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
+    </label>
+    <select id="sp-model-config" name="modelConfigId">
+      <option value="">None</option>
+      <% if (it.modelConfigs) { for (const mc of it.modelConfigs) { %>
+        <option
+          value="<%= mc.id %>"
+          <%= mc.id === (it.modelConfigId ?? '') ? 'selected' : '' %>
+        ><%= mc.name %> (<%= mc.provider %>)</option>
+      <% } } %>
+    </select>
+  </div>
+
   <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
     <button type="submit" class="btn btn-primary">Save</button>
     <button

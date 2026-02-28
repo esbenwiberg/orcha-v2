@@ -4,7 +4,9 @@ import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
+import { ModelConfigStore } from '../../db/model-config-store.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
+import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import type { Session } from '@orcha/domain';
 import { formatRelativeTime } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
@@ -68,13 +70,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   const store = new SessionStore(deps.db);
   const repoStore = new RepoStore(deps.db);
   const credStore = new CredentialStore(deps.db);
+  const modelConfigStore = new ModelConfigStore(deps.db);
 
   // GET /api/sessions/new-form — render the new-session form partial
   router.get('/sessions/new-form', (_req, res, next) => {
     try {
       const repos = repoStore.listRepos();
       const credentialProfiles = credStore.listProfiles();
-      const html = eta.render('partials/new-session-form', { repos, credentialProfiles });
+      const modelConfigs = modelConfigStore.listConfigs();
+      const html = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -89,6 +93,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const branch = (typeof req.body['branch'] === 'string' ? req.body['branch'] : '').trim();
       const prompt = (typeof req.body['prompt'] === 'string' ? req.body['prompt'] : '').trim();
       const credentialProfileId = (typeof req.body['credentialProfileId'] === 'string' ? req.body['credentialProfileId'] : '').trim();
+      const modelConfigId = (typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : '').trim();
       // Checkbox: present = "1" (isolated), absent = not isolated
       const sandbox = req.body['sandbox'] === '1';
 
@@ -119,7 +124,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       if (errors.length > 0) {
-        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, repoId, branch, prompt, credentialProfileId, sandbox });
+        const modelConfigs = modelConfigStore.listConfigs();
+        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, repoId, branch, prompt, credentialProfileId, modelConfigId, sandbox });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
@@ -140,6 +146,21 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             Object.assign(env, provisionedCreds.env);
           } catch (err) {
             console.warn('Credential provisioning failed, continuing with ambient credentials:', err);
+          }
+        }
+      }
+
+      // Inject model config env vars if a model config was selected
+      if (modelConfigId) {
+        const modelConfig = modelConfigStore.getConfig(modelConfigId);
+        if (modelConfig) {
+          const modelEnv = buildModelEnv(modelConfig);
+          for (const [key, value] of Object.entries(modelEnv)) {
+            if (value === ENV_DELETE) {
+              delete env[key];
+            } else {
+              env[key] = value;
+            }
           }
         }
       }

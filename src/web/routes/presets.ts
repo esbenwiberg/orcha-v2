@@ -4,12 +4,14 @@ import type { AppDeps } from '../app.js';
 import { PresetStore } from '../../db/preset-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
+import { ModelConfigStore } from '../../db/model-config-store.js';
 
 export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new PresetStore(deps.db);
   const repoStore = new RepoStore(deps.db);
   const credStore = new CredentialStore(deps.db);
+  const modelConfigStore = new ModelConfigStore(deps.db);
 
   // GET /api/presets — render the full preset list partial
   router.get('/presets', (_req, res, next) => {
@@ -17,13 +19,18 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const presets = store.listPresets();
       const repos = repoStore.listRepos();
       const profiles = credStore.listProfiles();
+      const modelConfigs = modelConfigStore.listConfigs();
       const repoMap = new Map(repos.map((r) => [r.id, r.displayName]));
       const profileMap = new Map(profiles.map((p) => [p.id, p.name]));
+      const modelConfigMap = new Map(modelConfigs.map((mc) => [mc.id, mc.name]));
       const presetsEnriched = presets.map((p) => ({
         ...p,
         repoName: p.repoId ? (repoMap.get(p.repoId) ?? null) : null,
         credentialProfileName: p.credentialProfileId
           ? (profileMap.get(p.credentialProfileId) ?? null)
+          : null,
+        modelConfigName: p.modelConfigId
+          ? (modelConfigMap.get(p.modelConfigId) ?? null)
           : null,
       }));
       const html = eta.render('partials/preset-list', { presets: presetsEnriched });
@@ -39,7 +46,8 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
     try {
       const repos = repoStore.listRepos();
       const credentialProfiles = credStore.listProfiles();
-      const html = eta.render('partials/save-preset-form', { repos, credentialProfiles });
+      const modelConfigs = modelConfigStore.listConfigs();
+      const html = eta.render('partials/save-preset-form', { repos, credentialProfiles, modelConfigs });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -55,6 +63,9 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const credentialProfileId = (
         typeof req.body['credentialProfileId'] === 'string' ? req.body['credentialProfileId'] : ''
       ).trim();
+      const modelConfigId = (
+        typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : ''
+      ).trim();
 
       const errors: string[] = [];
 
@@ -67,12 +78,15 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       if (errors.length > 0) {
         const repos = repoStore.listRepos();
         const credentialProfiles = credStore.listProfiles();
+        const modelConfigs = modelConfigStore.listConfigs();
         const formHtml = eta.render('partials/save-preset-form', {
           name,
           repoId,
           credentialProfileId,
+          modelConfigId,
           repos,
           credentialProfiles,
+          modelConfigs,
         });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -80,7 +94,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      store.createPreset({ name, repoId, credentialProfileId });
+      store.createPreset({ name, repoId, credentialProfileId, modelConfigId });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('HX-Trigger', 'close-panel');
@@ -105,11 +119,14 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
 
       const repos = repoStore.listRepos();
       const credentialProfiles = credStore.listProfiles();
+      const modelConfigs = modelConfigStore.listConfigs();
       const html = eta.render('partials/new-session-form', {
         repoId: preset.repoId,
         credentialProfileId: preset.credentialProfileId,
+        modelConfigId: preset.modelConfigId,
         repos,
         credentialProfiles,
+        modelConfigs,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

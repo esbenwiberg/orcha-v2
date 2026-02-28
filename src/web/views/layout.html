@@ -97,6 +97,18 @@
         </a>
 
         <a
+          href="/models"
+          class="orcha-sidebar__nav-item<%= it.activeNav === 'models' ? ' orcha-sidebar__nav-item--active' : '' %>"
+          title="Models"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M8 1L14 4.5V11.5L8 15L2 11.5V4.5L8 1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M8 8L14 4.5M8 8L2 4.5M8 8V15" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+          <span class="orcha-sidebar__nav-item-text">Models</span>
+        </a>
+
+        <a
           href="/settings"
           class="orcha-sidebar__nav-item<%= it.activeNav === 'settings' ? ' orcha-sidebar__nav-item--active' : '' %>"
           title="Settings"
@@ -206,6 +218,10 @@
       });
       document.body.addEventListener('refresh-cred-list', function () {
         var el = document.getElementById('credential-profiles-slot');
+        if (el) htmx.trigger(el, 'refresh');
+      });
+      document.body.addEventListener('refresh-model-list', function () {
+        var el = document.getElementById('model-config-list-slot');
         if (el) htmx.trigger(el, 'refresh');
       });
     </script>

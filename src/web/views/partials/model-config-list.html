@@ -1,0 +1,41 @@
+<% if (!it.configs || it.configs.length === 0) { %>
+  <div class="empty-state">
+    <p>No model configs yet.</p>
+    <p class="text-sm text-muted" style="margin-top:0.25rem">Create a config to set which LLM backend sessions use.</p>
+  </div>
+<% } else { %>
+  <table class="data-table" id="model-config-list">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Provider</th>
+        <th>Model</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% for (const c of it.configs) { %>
+        <tr id="model-config-<%= c.id %>">
+          <td>
+            <span style="font-weight:500;color:var(--color-text-primary)"><%= c.name %></span>
+          </td>
+          <td>
+            <span class="badge badge--paused"><%= c.provider %></span>
+          </td>
+          <td>
+            <span class="text-xs text-muted"><%= c.modelId ?? '—' %></span>
+          </td>
+          <td class="data-table__actions">
+            <button
+              class="btn btn-ghost btn-xs"
+              hx-delete="/api/model-configs/<%= c.id %>"
+              hx-target="#model-config-<%= c.id %>"
+              hx-swap="outerHTML"
+              hx-confirm="Delete model config?"
+            >Delete</button>
+          </td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+<% } %>

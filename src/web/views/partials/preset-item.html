@@ -12,6 +12,11 @@
       <%= it.preset.credentialProfileName ?? (it.preset.credentialProfileId ? it.preset.credentialProfileId.slice(0, 8) : '—') %>
     </span>
   </td>
+  <td>
+    <span class="text-xs text-muted">
+      <%= it.preset.modelConfigName ?? (it.preset.modelConfigId ? it.preset.modelConfigId.slice(0, 8) : '—') %>
+    </span>
+  </td>
   <td class="data-table__actions">
     <button
       class="btn btn-ghost btn-xs"

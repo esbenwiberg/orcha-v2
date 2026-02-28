@@ -6,6 +6,7 @@ export interface Preset {
   name: string;
   repoId: string;
   credentialProfileId: string;
+  modelConfigId: string;
   createdAt: Date;
 }
 
@@ -13,6 +14,7 @@ export interface CreatePresetInput {
   name: string;
   repoId: string;
   credentialProfileId: string;
+  modelConfigId: string;
 }
 
 export class PresetStore {
@@ -28,6 +30,7 @@ export class PresetStore {
       name: row['name'] as string,
       repoId: (row['repo_id'] as string) ?? '',
       credentialProfileId: (row['credential_profile_id'] as string) ?? '',
+      modelConfigId: (row['model_config_id'] as string) ?? '',
       createdAt: new Date(row['created_at'] as string),
     };
   }
@@ -53,10 +56,10 @@ export class PresetStore {
 
     this.#db
       .prepare(
-        `INSERT INTO presets (id, name, repo_id, credential_profile_id, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO presets (id, name, repo_id, credential_profile_id, model_config_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, input.name, input.repoId || null, input.credentialProfileId || null, now);
+      .run(id, input.name, input.repoId || null, input.credentialProfileId || null, input.modelConfigId || null, now);
 
     return this.getPreset(id)!;
   }

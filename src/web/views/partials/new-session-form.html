@@ -61,6 +61,19 @@
     </select>
   </div>
 
+  <div class="form-group">
+    <label for="ns-model-config">
+      Model Config
+      <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
+    </label>
+    <select id="ns-model-config" name="modelConfigId">
+      <option value="">None — use ambient config</option>
+      <% if (it.modelConfigs) { for (const mc of it.modelConfigs) { %>
+        <option value="<%= mc.id %>" <%= mc.id === (it.modelConfigId ?? '') ? 'selected' : '' %>><%= mc.name %> (<%= mc.provider %>)</option>
+      <% } } %>
+    </select>
+  </div>
+
   <label style="display:flex;align-items:center;gap:0.625rem;cursor:pointer;user-select:none;">
     <span style="position:relative;display:inline-block;width:34px;height:20px;flex-shrink:0;">
       <input

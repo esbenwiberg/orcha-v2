@@ -20,6 +20,7 @@ import { createEventsRouter } from './routes/events.js';
 import { createCredentialsRouter } from './routes/credentials.js';
 import { createClaudePermissionsRouter } from './routes/claude-permissions.js';
 import { createSystemRouter } from './routes/system.js';
+import { createModelConfigsRouter } from './routes/model-configs.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 
@@ -107,6 +108,9 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // Credentials HTMX partials router
   app.use('/api', createCredentialsRouter(eta, deps));
+
+  // Model configs HTMX partials router
+  app.use('/api', createModelConfigsRouter(eta, deps));
 
   // Claude permissions editor router
   app.use('/api', createClaudePermissionsRouter(eta));

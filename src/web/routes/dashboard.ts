@@ -41,6 +41,16 @@ function newProfileBtn(): string {
   >+ New Profile</button>`;
 }
 
+function newModelConfigBtn(): string {
+  return `<button
+    class="btn btn-primary"
+    hx-get="/api/model-configs/form"
+    hx-target="#form-panel-slot"
+    hx-swap="innerHTML"
+    onclick="document.getElementById('form-panel').classList.add('is-open')"
+  >+ New Config</button>`;
+}
+
 export function createDashboardRouter(eta: Eta): Router {
   const router = Router();
 
@@ -107,6 +117,24 @@ export function createDashboardRouter(eta: Eta): Router {
         pageTitle: 'Credentials',
         activeNav: 'credentials',
         headerActions: newProfileBtn(),
+        body,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /models — model configs page
+  router.get('/models', (_req, res, next) => {
+    try {
+      const body = eta.render('model-configs-page', {});
+      const html = eta.render('layout', {
+        title: 'Orcha – Models',
+        pageTitle: 'Models',
+        activeNav: 'models',
+        headerActions: newModelConfigBtn(),
         body,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

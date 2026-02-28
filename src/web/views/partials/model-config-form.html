@@ -1,0 +1,98 @@
+<form hx-post="/api/model-configs"
+      hx-target="#form-panel-slot"
+      hx-swap="innerHTML">
+
+  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;">New Model Config</h2>
+
+  <div class="form-group">
+    <label for="mc-name">Config Name</label>
+    <input id="mc-name" type="text" name="name" required placeholder="e.g. My Max Plan" />
+  </div>
+
+  <div class="form-group">
+    <label for="mc-provider">Provider</label>
+    <select id="mc-provider" name="provider" required onchange="toggleProviderFields(this.value)">
+      <option value="">Select provider…</option>
+      <option value="max">Max / Pro (OAuth)</option>
+      <option value="anthropic">Anthropic API</option>
+      <option value="foundry">Azure AI Foundry</option>
+      <option value="local">Local (Ollama / Qwen)</option>
+      <option value="custom">Custom Env Vars</option>
+    </select>
+  </div>
+
+  <!-- max: no extra fields -->
+  <div id="mc-fields-max" class="mc-provider-fields" style="display:none">
+    <p class="text-xs text-muted" style="margin:0.5rem 0;">No configuration needed — Claude Code will use ambient OAuth login. Any existing ANTHROPIC_API_KEY will be unset.</p>
+  </div>
+
+  <!-- anthropic -->
+  <div id="mc-fields-anthropic" class="mc-provider-fields" style="display:none">
+    <div class="form-group">
+      <label for="mc-api-key">API Key</label>
+      <input id="mc-api-key" type="password" name="apiKey" placeholder="sk-ant-…" autocomplete="off" />
+    </div>
+  </div>
+
+  <!-- foundry -->
+  <div id="mc-fields-foundry" class="mc-provider-fields" style="display:none">
+    <div class="form-group">
+      <label for="mc-foundry-resource">Foundry Resource Name</label>
+      <input id="mc-foundry-resource" type="text" name="foundryResource" placeholder="my-foundry-resource" />
+    </div>
+    <div class="form-group">
+      <label for="mc-foundry-url">
+        Base URL
+        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(alternative to resource name)</span>
+      </label>
+      <input id="mc-foundry-url" type="text" name="baseUrl" placeholder="https://…" />
+    </div>
+    <div class="form-group">
+      <label for="mc-foundry-key">
+        API Key
+        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — uses DefaultAzureCredential if empty)</span>
+      </label>
+      <input id="mc-foundry-key" type="password" name="apiKey" placeholder="Foundry API key" autocomplete="off" />
+    </div>
+  </div>
+
+  <!-- local -->
+  <div id="mc-fields-local" class="mc-provider-fields" style="display:none">
+    <div class="form-group">
+      <label for="mc-local-url">Base URL</label>
+      <input id="mc-local-url" type="text" name="baseUrl" placeholder="http://localhost:11434/v1" />
+    </div>
+  </div>
+
+  <!-- custom -->
+  <div id="mc-fields-custom" class="mc-provider-fields" style="display:none">
+    <div class="form-group">
+      <label for="mc-extra-env">Environment Variables <span class="text-xs text-muted">(one KEY=VALUE per line)</span></label>
+      <textarea id="mc-extra-env" name="extraEnv" rows="5" placeholder="ANTHROPIC_API_KEY=sk-ant-…&#10;ANTHROPIC_MODEL=claude-sonnet-4-6" style="resize:vertical;min-height:80px;font-family:var(--font-mono);font-size:12px;"></textarea>
+    </div>
+  </div>
+
+  <!-- Model override (all providers) -->
+  <div class="form-group" id="mc-model-group" style="display:none">
+    <label for="mc-model">
+      Model Override
+      <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
+    </label>
+    <input id="mc-model" type="text" name="modelId" placeholder="e.g. claude-sonnet-4-6, qwen3-coder" />
+  </div>
+
+  <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+    <button type="submit" class="btn btn-primary">Create Config</button>
+    <button type="button" class="btn btn-ghost"
+      onclick="document.getElementById('form-panel').classList.remove('is-open')">Cancel</button>
+  </div>
+</form>
+
+<script>
+function toggleProviderFields(provider) {
+  document.querySelectorAll('.mc-provider-fields').forEach(function(el) { el.style.display = 'none'; });
+  var target = document.getElementById('mc-fields-' + provider);
+  if (target) target.style.display = 'block';
+  document.getElementById('mc-model-group').style.display = provider ? 'block' : 'none';
+}
+</script>
