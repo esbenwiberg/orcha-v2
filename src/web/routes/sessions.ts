@@ -91,11 +91,11 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     try {
       const repoId = (typeof req.body['repoId'] === 'string' ? req.body['repoId'] : '').trim();
       const branch = (typeof req.body['branch'] === 'string' ? req.body['branch'] : '').trim();
-      const prompt = (typeof req.body['prompt'] === 'string' ? req.body['prompt'] : '').trim();
       const credentialProfileId = (typeof req.body['credentialProfileId'] === 'string' ? req.body['credentialProfileId'] : '').trim();
       const modelConfigId = (typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : '').trim();
-      // Checkbox: present = "1" (isolated), absent = not isolated
+      // Checkboxes: present = "1"
       const sandbox = req.body['sandbox'] === '1';
+      const skipPermissions = req.body['skipPermissions'] === '1';
 
       // Validate
       const errors: string[] = [];
@@ -119,13 +119,9 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         errors.push('Branch name may only contain letters, numbers, /, _ and -.');
       }
 
-      if (prompt.length === 0) {
-        errors.push('Initial prompt is required.');
-      }
-
       if (errors.length > 0) {
         const modelConfigs = modelConfigStore.listConfigs();
-        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, repoId, branch, prompt, credentialProfileId, modelConfigId, sandbox });
+        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, repoId, branch, credentialProfileId, modelConfigId, sandbox, skipPermissions });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
@@ -135,7 +131,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const repo = repoStore.getRepo(repoId)!;
 
       // Provision credentials if a profile was selected
-      const env: Record<string, string> = { ORCHA_PROMPT: prompt };
+      const env: Record<string, string> = {};
       let provisionedCreds: import('../../credentials/credential-manager.js').ProvisionResult | undefined;
 
       if (credentialProfileId) {
@@ -166,9 +162,11 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       // Create a real session with worktree + PTY via the session engine
+      const claudeArgs = skipPermissions ? ['--dangerously-skip-permissions'] : [];
       const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
         branch,
-        command: 'bash',
+        command: 'claude',
+        args: claudeArgs,
         env,
         sandbox,
       };

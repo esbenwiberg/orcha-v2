@@ -38,17 +38,6 @@
   </div>
 
   <div class="form-group">
-    <label for="ns-prompt">Initial Prompt</label>
-    <textarea
-      id="ns-prompt"
-      name="prompt"
-      rows="5"
-      placeholder="Describe what you want the agent to do…"
-      style="resize:vertical;min-height:100px;"
-    ><%= it.prompt ?? '' %></textarea>
-  </div>
-
-  <div class="form-group">
     <label for="ns-cred-profile">
       Credential Profile
       <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
@@ -92,6 +81,27 @@
     <span style="font-size:12px;color:var(--color-text-secondary);">
       Isolate filesystem
       <span style="color:var(--color-text-muted);margin-left:2px;">(bwrap sandbox)</span>
+    </span>
+  </label>
+
+  <label style="display:flex;align-items:center;gap:0.625rem;cursor:pointer;user-select:none;">
+    <span style="position:relative;display:inline-block;width:34px;height:20px;flex-shrink:0;">
+      <input
+        type="checkbox"
+        name="skipPermissions"
+        value="1"
+        id="ns-skip-permissions"
+        style="opacity:0;width:0;height:0;position:absolute;"
+        <%= it.skipPermissions ? 'checked' : '' %>
+        onchange="var t=this.parentElement.querySelector('span');t.style.background=this.checked?'var(--color-accent)':'var(--color-bg-3)';t.querySelector('span').style.transform=this.checked?'translateX(14px)':'';"
+      />
+      <span style="position:absolute;inset:0;border-radius:10px;background:<%= it.skipPermissions ? 'var(--color-accent)' : 'var(--color-bg-3)' %>;transition:background 0.15s;">
+        <span style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform 0.15s;<%= it.skipPermissions ? 'transform:translateX(14px);' : '' %>"></span>
+      </span>
+    </span>
+    <span style="font-size:12px;color:var(--color-text-secondary);">
+      Skip permissions
+      <span style="color:var(--color-text-muted);margin-left:2px;">(--dangerously-skip-permissions)</span>
     </span>
   </label>
 

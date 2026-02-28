@@ -36,9 +36,16 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
   // POST /api/model-configs — create a model config
   router.post('/model-configs', (req, res, next) => {
     try {
-      const body = req.body as Record<string, string>;
-      const name = (body['name'] ?? '').trim();
-      const provider = (body['provider'] ?? '').trim();
+      // Some field names appear in multiple hidden sections (e.g. apiKey, baseUrl).
+      // Express parses duplicate names as arrays — take the first non-empty value.
+      const body = req.body as Record<string, unknown>;
+      const getField = (key: string): string => {
+        const v = body[key];
+        if (Array.isArray(v)) return (v as string[]).find((s) => typeof s === 'string' && s.length > 0) ?? '';
+        return typeof v === 'string' ? v : '';
+      };
+      const name = getField('name').trim();
+      const provider = getField('provider').trim();
 
       if (!name) {
         res.status(422).send('<div class="badge badge--failed">Name is required</div>');
@@ -49,14 +56,14 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      const apiKey = (body['apiKey'] ?? '').trim() || undefined;
-      const baseUrl = (body['baseUrl'] ?? '').trim() || undefined;
-      const modelId = (body['modelId'] ?? '').trim() || undefined;
-      const foundryResource = (body['foundryResource'] ?? '').trim() || undefined;
+      const apiKey = getField('apiKey').trim() || undefined;
+      const baseUrl = getField('baseUrl').trim() || undefined;
+      const modelId = getField('modelId').trim() || undefined;
+      const foundryResource = getField('foundryResource').trim() || undefined;
 
       // Parse custom env vars (key=value per line)
       let extraEnv: Record<string, string> | undefined;
-      const extraEnvRaw = (body['extraEnv'] ?? '').trim();
+      const extraEnvRaw = getField('extraEnv').trim();
       if (extraEnvRaw && provider === 'custom') {
         extraEnv = {};
         for (const line of extraEnvRaw.split('\n')) {

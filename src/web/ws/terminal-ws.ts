@@ -33,6 +33,15 @@ export function handleTerminalConnection(
   // loop ensures no data is missed between snapshot and subscription.
   session.terminal.output.on('data', onData);
 
+  // When the PTY exits, notify the client so the terminal shows a close message
+  // instead of sitting silently black forever.
+  const onEnd = (): void => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'output', data: '\r\n\x1b[33m[process exited]\x1b[0m\r\n' }));
+    }
+  };
+  session.terminal.output.once('end', onEnd);
+
   // Replay buffered output so the client sees everything emitted before it connected.
   const snapshot = session.outputBuffer.snapshot();
   if (snapshot.length > 0 && ws.readyState === WebSocket.OPEN) {
@@ -98,9 +107,9 @@ export function handleTerminalConnection(
     }
   });
 
-  // Clean up the data listener when the client disconnects to prevent
-  // memory leaks when a client disconnects without terminating the session.
+  // Clean up listeners when the client disconnects to prevent memory leaks.
   ws.on('close', () => {
     session.terminal.output.removeListener('data', onData);
+    session.terminal.output.removeListener('end', onEnd);
   });
 }

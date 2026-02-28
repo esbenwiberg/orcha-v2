@@ -24,6 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git fuse3 ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+RUN npm install -g @anthropic-ai/claude-code
+
 RUN groupadd -r orcha && useradd -r -g orcha -d /app orcha
 
 WORKDIR /app
@@ -40,6 +42,8 @@ COPY --from=builder /build/src/web/views ./dist/web/views
 COPY --from=builder /build/src/db/migrations ./dist/db/migrations
 
 RUN mkdir -p /data && chown orcha:orcha /data
+# Pre-create the orcha user's ~/.claude so the landlock RW rule for it is applied on session start
+RUN mkdir -p /app/.claude && chown -R orcha:orcha /app/.claude
 
 VOLUME ["/data"]
 
