@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><%= it.title ?? 'Orcha' %></title>
+    <!-- HTMX 2.x: swap 422 responses so validation errors are shown in forms -->
+    <meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"422","swap":true},{"code":"[45]..","swap":false,"error":true},{"code":"[23]..","swap":true},{"code":"[0-9][0-9][0-9]","swap":false,"error":true}]}' />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/css/tokens.css" />
     <link rel="stylesheet" href="/css/layout.css" />
