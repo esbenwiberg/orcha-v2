@@ -4,6 +4,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { getStoragePaths } from '../storage/paths.js';
 
+// Git env applied to all git subprocesses.
+// safe.directory=* suppresses the "dubious ownership" check that fires when
+// the repo on Azure File Share is presented with a different UID than the
+// running process.
+const GIT_ENV = {
+  ...process.env,
+  GIT_TERMINAL_PROMPT: '0',
+  GIT_CONFIG_COUNT: '1',
+  GIT_CONFIG_KEY_0: 'safe.directory',
+  GIT_CONFIG_VALUE_0: '*',
+};
+
 /**
  * Recursively copies directory contents using plain read/write (no chmod).
  * Azure File Share (SMB) doesn't support chmod so fs.promises.cp can't be used.
@@ -84,7 +96,7 @@ export class WorktreeManager {
   private async execGit(args: string[], cwdOverride?: string): Promise<string> {
     const cwd = cwdOverride ?? this.options.repoRoot;
     return new Promise<string>((resolve, reject) => {
-      execFile('git', args, { cwd }, (err, stdout, stderr) => {
+      execFile('git', args, { cwd, env: GIT_ENV }, (err, stdout, stderr) => {
         if (err !== null) {
           reject(new WorktreeError(`git ${args[0]} failed: ${stderr}`, 'GIT_ERROR', err));
         } else {
@@ -211,7 +223,7 @@ export class WorktreeManager {
           'git',
           ['clone', '--bare', repoUrl, stagingPath],
           {
-            env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+            env: GIT_ENV,
             timeout: 5 * 60 * 1000,
           },
           (err, _stdout, stderr) => {
