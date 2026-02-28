@@ -48,7 +48,7 @@ export class AuthTerminalManager {
     const cwd = `/tmp/orcha-auth-${configId}`;
     mkdirSync(cwd, { recursive: true });
 
-    const pty = spawn('claude', [], {
+    const pty = spawn('claude', ['auth', 'login'], {
       name: 'xterm-256color',
       cols: 80,
       rows: 24,
