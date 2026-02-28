@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { openDatabase, runMigrations, SessionStore } from '@orcha/db';
 import { CredentialStore } from '../db/credential-store.js';
@@ -22,46 +22,48 @@ const migrationsDir = path.resolve(__dirname, '../db/migrations');
 
 // --- DB persistence bridge ---
 // SQLite can't run reliably on Azure File Share (SMB has no chmod/flock
-// support). We keep the live DB in /tmp (local SSD, full POSIX support) and
-// sync it to /data for persistence. On startup we restore from /data if
-// a backup exists. Every 30s + on SIGTERM we write back.
+// support). Live DB stays in /tmp (local SSD, full POSIX support).
+// On startup we restore from /data if a backup exists.
+// Every 30s + on SIGTERM we serialize the DB and write it back to /data.
 const { dataDir, dbPath } = getStoragePaths();
-// dbPath = /tmp/orcha-db/orcha.db  (ORCHA_DB_DIR=/tmp/orcha-db)
-// persistentDbPath = /data/orcha.db (ORCHA_DATA_DIR=/data)
+// dbPath            = /tmp/orcha-db/orcha.db  (ORCHA_DB_DIR=/tmp/orcha-db)
+// persistentDbPath  = /data/orcha.db          (ORCHA_DATA_DIR=/data)
 const persistentDbPath = path.join(dataDir, 'orcha.db');
 
 mkdirSync(path.dirname(dbPath), { recursive: true });
 
 if (!existsSync(dbPath) && existsSync(persistentDbPath)) {
   try {
-    copyFileSync(persistentDbPath, dbPath);
+    // readFileSync + writeFileSync uses plain read/write syscalls that
+    // work on both local SSD and Azure File Share.
+    writeFileSync(dbPath, readFileSync(persistentDbPath));
     console.log('[db] restored from persistent backup');
   } catch (e) {
     console.error('[db] restore from backup failed:', e);
   }
 }
 
+const db = openDatabase(path.dirname(dbPath));
+runMigrations(db, migrationsDir);
+
+// db.serialize() produces a consistent byte-for-byte snapshot without needing
+// WAL checkpointing or file copying. writeFileSync works on Azure File Share.
 const syncDbToPersistent = () => {
   try {
     mkdirSync(path.dirname(persistentDbPath), { recursive: true });
-    copyFileSync(dbPath, persistentDbPath);
+    writeFileSync(persistentDbPath, db.serialize());
   } catch (e) {
     console.error('[db] sync to persistent storage failed:', e);
   }
 };
 
-// Sync every 30s in the background
 setInterval(syncDbToPersistent, 30_000).unref();
 
-// Final sync on graceful shutdown (ACA sends SIGTERM before SIGKILL)
 process.on('SIGTERM', () => {
   syncDbToPersistent();
   process.exit(0);
 });
 // --- end DB persistence bridge ---
-
-const db = openDatabase(path.dirname(dbPath));
-runMigrations(db, migrationsDir);
 
 const sessionStore = new SessionStore(db);
 const credentialStore = new CredentialStore(db);
