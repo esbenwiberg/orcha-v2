@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { getStoragePaths } from '../storage/paths.js';
 
 export interface WorktreeInfo {
@@ -181,25 +182,36 @@ export class WorktreeManager {
       fs.rmSync(bareRepoPath, { recursive: true, force: true });
     }
 
-    fs.mkdirSync(bareRepoPath, { recursive: true });
+    // Clone to a local staging dir first. Azure File Share (SMB) doesn't support
+    // chmod, which git calls when writing its config file. /tmp is local SSD and
+    // has full POSIX support. We copy the completed bare repo to /data afterwards.
+    const stagingPath = path.join(os.tmpdir(), `orcha-clone-${Date.now()}`);
+    fs.mkdirSync(stagingPath, { recursive: true });
 
-    await new Promise<void>((resolve, reject) => {
-      execFile(
-        'git',
-        ['clone', '--bare', '-c', 'core.fileMode=false', repoUrl, bareRepoPath],
-        {
-          env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-          timeout: 5 * 60 * 1000,
-        },
-        (err, _stdout, stderr) => {
-          if (err !== null) {
-            reject(new WorktreeError(`git clone --bare failed: ${stderr}`, 'GIT_ERROR', err));
-          } else {
-            resolve();
-          }
-        },
-      );
-    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        execFile(
+          'git',
+          ['clone', '--bare', repoUrl, stagingPath],
+          {
+            env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+            timeout: 5 * 60 * 1000,
+          },
+          (err, _stdout, stderr) => {
+            if (err !== null) {
+              reject(new WorktreeError(`git clone --bare failed: ${stderr}`, 'GIT_ERROR', err));
+            } else {
+              resolve();
+            }
+          },
+        );
+      });
+
+      fs.mkdirSync(bareRepoPath, { recursive: true });
+      await fs.promises.cp(stagingPath, bareRepoPath, { recursive: true });
+    } finally {
+      fs.rmSync(stagingPath, { recursive: true, force: true });
+    }
 
     return bareRepoPath;
   }
