@@ -16,7 +16,10 @@ function getGitVersion(): string {
 
 function isBwrapAvailable(): boolean {
   try {
-    execSync('which bwrap', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+    execSync(
+      'bwrap --ro-bind /usr /usr --ro-bind-try /lib /lib --ro-bind-try /bin /bin --unshare-pid --die-with-parent -- /bin/true',
+      { stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 },
+    );
     return true;
   } catch {
     return false;

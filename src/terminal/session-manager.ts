@@ -176,7 +176,9 @@ export class SessionManager {
 
   private async _handleExit(sessionId: string, exitCode: number): Promise<void> {
     const session = this._active.get(sessionId);
-    this._active.delete(sessionId);
+    // Keep session accessible for 5 min after exit so a WS that connects late
+    // can still read the output buffer (e.g. bwrap failing immediately).
+    setTimeout(() => this._active.delete(sessionId), 5 * 60 * 1000);
 
     if (session?.dbSessionId !== undefined) {
       const dbId = session.dbSessionId;
