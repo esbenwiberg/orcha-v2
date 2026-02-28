@@ -36,9 +36,12 @@ async function makeFixture(): Promise<TestFixture> {
   const sessionStore = new SessionStore(db);
   const instanceRegistry = new InstanceRegistry(db);
 
+  const now = new Date();
+  instanceRegistry.upsertInstance({ id: 'local', repoRoot, registeredAt: now, lastSeenAt: now });
+
   const worktreeManager = new WorktreeManager({ repoRoot, worktreesBaseDir: worktreesDir });
   const ptyManager = new PtyManager();
-  const sessionManager = new SessionManager(worktreeManager, ptyManager, sessionStore);
+  const sessionManager = new SessionManager(worktreeManager, ptyManager, sessionStore, undefined, 'local');
 
   return {
     repoRoot,

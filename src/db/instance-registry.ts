@@ -58,6 +58,18 @@ export class InstanceRegistry {
     return inserted;
   }
 
+  upsertInstance(info: Omit<InstanceInfo, 'activeSessions'>): InstanceInfo {
+    const now = info.lastSeenAt.toISOString();
+    this.#db
+      .prepare(
+        `INSERT INTO instances (id, repo_root, registered_at, last_seen_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET repo_root = excluded.repo_root, last_seen_at = excluded.last_seen_at`,
+      )
+      .run(info.id, info.repoRoot, info.registeredAt.toISOString(), now);
+    return this.getInstance(info.id)!;
+  }
+
   unregisterInstance(id: string): void {
     const existing = this.getInstance(id);
     if (existing === undefined) {

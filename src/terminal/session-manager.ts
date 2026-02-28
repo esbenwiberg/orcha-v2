@@ -56,6 +56,7 @@ export class SessionManager {
     private readonly _ptyManager: PtyManager,
     private readonly _sessionStore: SessionStore,
     private readonly _credentialStore?: CredentialStore,
+    private readonly _instanceId: string = 'local',
   ) {}
 
   async createSession(opts: CreateSessionOptions): Promise<ActiveSession> {
@@ -124,7 +125,7 @@ export class SessionManager {
     try {
       const dbSession = this._sessionStore.createSession(
         {
-          instanceId: sessionId,
+          instanceId: this._instanceId,
           repoRoot: worktree.path,
           branch: worktree.branch,
           worktreePath: worktree.path,
@@ -144,8 +145,9 @@ export class SessionManager {
       // Transition to starting → running
       this._sessionStore.updateStatus(dbSessionId, 'starting');
       this._sessionStore.updateStatus(dbSessionId, 'running');
-    } catch {
-      // Best-effort: if DB operations fail, the session is still active in memory
+    } catch (err) {
+      console.error('[session-manager] DB write failed for session', sessionId, err);
+      // Session is still active in memory; DB persistence failed
     }
 
     // Step 5: Build ActiveSession record

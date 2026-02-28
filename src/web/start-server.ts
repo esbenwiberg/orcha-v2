@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { openDatabase, runMigrations, SessionStore } from '@orcha/db';
+import { openDatabase, runMigrations, SessionStore, InstanceRegistry } from '@orcha/db';
 import { CredentialStore } from '../db/credential-store.js';
 import { WorktreeManager } from '../terminal/worktree-manager.js';
 import { PtyManager } from '../terminal/pty-manager.js';
@@ -69,7 +69,15 @@ const sessionStore = new SessionStore(db);
 const credentialStore = new CredentialStore(db);
 const worktreeManager = new WorktreeManager({ repoRoot });
 const ptyManager = new PtyManager();
-const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionStore, credentialStore);
+
+// Register this Orcha instance so sessions can satisfy the FK constraint.
+// upsertInstance handles both first-run and restarts gracefully.
+const instanceRegistry = new InstanceRegistry(db);
+const instanceId = 'local';
+const now = new Date();
+instanceRegistry.upsertInstance({ id: instanceId, repoRoot, registeredAt: now, lastSeenAt: now });
+
+const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionStore, credentialStore, instanceId);
 
 const authConfig = loadAuthConfig();
 
