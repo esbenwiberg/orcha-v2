@@ -62,11 +62,18 @@
   </div>
 
   <div style="display:flex;gap:0.5rem;padding-top:0.25rem;border-top:1px solid var(--color-border);margin-top:auto;">
-    <button type="submit" class="btn btn-primary" style="flex:1;">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+    <button type="submit" class="btn btn-primary" style="flex:1;" aria-busy="false"
+      hx-on::before-request="this.setAttribute('aria-busy','true'); this.disabled=true;"
+      hx-on::after-request="this.setAttribute('aria-busy','false'); this.disabled=false;"
+    >
+      <svg class="btn-icon-default" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
         <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      Create Session
+      <svg class="btn-icon-loading" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" style="display:none;animation:spin 0.7s linear infinite;">
+        <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20" stroke-dashoffset="5" stroke-linecap="round"/>
+      </svg>
+      <span class="btn-label-default">Create Session</span>
+      <span class="btn-label-loading" style="display:none;">Creating…</span>
     </button>
     <button
       type="button"

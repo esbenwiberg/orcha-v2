@@ -839,3 +839,12 @@
 .prose .data-table {
   margin: 0.75rem 0;
 }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+button[aria-busy="true"] .btn-icon-default,
+button[aria-busy="true"] .btn-label-default { display: none; }
+button[aria-busy="true"] .btn-icon-loading,
+button[aria-busy="true"] .btn-label-loading { display: inline !important; }

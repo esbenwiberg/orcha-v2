@@ -179,28 +179,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         ? store.getSession(activeSession.dbSessionId)
         : undefined;
 
-      if (dbSession !== undefined) {
-        const html = eta.render('partials/session-card', toViewModel(dbSession));
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('HX-Trigger', 'close-panel');
-        res.setHeader('HX-Retarget', '#session-grid');
-        res.setHeader('HX-Reswap', 'afterbegin');
-        res.status(201).send(html);
-      } else {
-        // Fallback: render a minimal card
-        const html = eta.render('partials/session-card', {
-          id: activeSession.sessionId,
-          branch: activeSession.worktree.branch,
-          status: 'running',
-          createdAt: formatRelativeTime(activeSession.createdAt),
-          updatedAt: formatRelativeTime(activeSession.createdAt),
-        });
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.setHeader('HX-Trigger', 'close-panel');
-        res.setHeader('HX-Retarget', '#session-grid');
-        res.setHeader('HX-Reswap', 'afterbegin');
-        res.status(201).send(html);
-      }
+      // Redirect to home so the session grid is always visible regardless of
+      // which page the user is on when they submit the form.
+      res.setHeader('HX-Redirect', '/');
+      res.status(201).send('');
     } catch (err) {
       next(err);
     }
