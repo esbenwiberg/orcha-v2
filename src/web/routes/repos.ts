@@ -76,6 +76,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
           store.updateStatus(repo.id, 'ready', { barePath });
         })
         .catch((err: unknown) => {
+          console.error(`[repos] clone failed for ${url}:`, err);
           store.updateStatus(repo.id, 'error', { error: String(err) });
         });
 
@@ -134,6 +135,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
           store.updateStatus(repo.id, 'ready', { barePath });
         })
         .catch((err: unknown) => {
+          console.error(`[repos] retry clone failed for ${repo.url}:`, err);
           store.updateStatus(repo.id, 'error', { error: String(err) });
         });
 

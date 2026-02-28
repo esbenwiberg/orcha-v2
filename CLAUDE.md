@@ -19,6 +19,9 @@ npm test              # vitest run
 npm run lint          # eslint
 npm run format        # prettier write
 bash scripts/deploy-app.sh   # build ACR image, push, update Container App (~5-8 min, run in background)
+bash scripts/logs.sh         # tail last 50 lines from Container App logs
+bash scripts/logs.sh --tail 100    # tail last N lines
+bash scripts/logs.sh --follow      # stream live (ctrl-C to stop)
 ```
 
 ## Project Structure
