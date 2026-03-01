@@ -421,7 +421,8 @@ function showCloseMenu(sessionId, anchorBtn) {
   menu.appendChild(deleteItem);
 
   // Position the menu below the anchor button
-  anchorBtn.closest('.terminal-header__actions').appendChild(menu);
+  const actionsContainer = anchorBtn.closest('.terminal-header__actions') || anchorBtn.closest('.session-card__term-actions');
+  actionsContainer.appendChild(menu);
 
   // Dismiss on click outside
   function dismiss(e) {

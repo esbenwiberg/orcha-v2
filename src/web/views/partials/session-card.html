@@ -6,7 +6,22 @@
 >
   <div class="session-card__header">
     <span class="card__meta"><%= it.branch %></span>
-    <span class="badge badge--<%= it.status %>" id="badge-<%= it.id %>" sse-swap="session-status-<%= it.id %>" hx-swap="outerHTML"><%= it.status %></span>
+    <div class="session-card__header-right">
+      <span class="badge badge--<%= it.status %>" id="badge-<%= it.id %>" sse-swap="session-status-<%= it.id %>" hx-swap="outerHTML"><%= it.status %></span>
+      <div class="session-card__term-actions">
+        <button class="terminal-header__btn" title="Fullscreen" onclick="window.__termFullscreen('<%= it.id %>')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 1 1 1 1 4" /><polyline points="12 1 15 1 15 4" />
+            <polyline points="4 15 1 15 1 12" /><polyline points="12 15 15 15 15 12" />
+          </svg>
+        </button>
+        <button class="terminal-header__btn" title="Close" onclick="window.__termCloseMenu('<%= it.id %>', this)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" />
+          </svg>
+        </button>
+      </div>
+    </div>
   </div>
   <div class="session-card__body">
     <p class="card__meta">Started <%= it.createdAt %></p>

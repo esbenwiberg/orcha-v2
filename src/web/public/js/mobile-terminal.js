@@ -113,11 +113,26 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
  *
  * @param {string} _sessionId - The session UUID (reserved for future multi-session support).
  * @param {string} wsUrl - Full WebSocket URL (ws:// or wss://).
- * @returns {{ disconnect: () => void }}
+ * @returns {Promise<{ disconnect: () => void }>}
  */
-function openMobileTerminal(_sessionId, wsUrl) {
+async function openMobileTerminal(_sessionId, wsUrl) {
   // Dispose any previously open terminal
   _disposeMobileTerminal();
+
+  // Fetch a one-time auth ticket (needed when the server runs in OIDC mode,
+  // where session cookies aren't available at the WS upgrade layer).
+  try {
+    const r = await fetch('/api/ws-ticket');
+    if (r.ok) {
+      const data = await r.json();
+      if (typeof data.ticket === 'string' && data.ticket) {
+        const sep = wsUrl.includes('?') ? '&' : '?';
+        wsUrl = `${wsUrl}${sep}ticket=${data.ticket}`;
+      }
+    }
+  } catch {
+    // If ticket fetch fails (e.g. auth=none), proceed without one.
+  }
 
   const container = document.getElementById('xterm-container');
   if (!container) {
@@ -284,14 +299,14 @@ document.addEventListener('htmx:afterSwap', (event) => {
     if (!sessionId || !wsUrl) {
       console.error('[mobile-terminal] terminal-frame missing data-session-id or data-ws-url');
     } else {
-      const { disconnect } = openMobileTerminal(sessionId, wsUrl);
-
-      initSwipeToDisconnect(frame, () => {
-        disconnect();
-        // Navigate back to the sessions list
-        htmx.ajax('GET', '/mobile/sessions', {
-          target: '#mobile-terminal-area',
-          swap: 'innerHTML',
+      openMobileTerminal(sessionId, wsUrl).then(({ disconnect }) => {
+        initSwipeToDisconnect(frame, () => {
+          disconnect();
+          // Navigate back to the sessions list
+          htmx.ajax('GET', '/mobile/sessions', {
+            target: '#mobile-terminal-area',
+            swap: 'innerHTML',
+          });
         });
       });
 
