@@ -1,5 +1,5 @@
 <div
-  class="session-card"
+  class="session-card has-terminal"
   id="session-<%= it.id %>"
   hx-ext="sse"
   sse-connect="/api/events"
@@ -23,13 +23,6 @@
   <div class="session-card__footer">
     <button
       class="btn btn-ghost btn-sm"
-      hx-get="/api/sessions/<%= it.id %>/terminal"
-      hx-target="#terminal-slot-<%= it.id %>"
-      hx-swap="innerHTML"
-      onclick="this.closest('.session-card').classList.add('has-terminal')"
-    >Open Terminal</button>
-    <button
-      class="btn btn-ghost btn-sm"
       hx-get="/api/sessions/<%= it.id %>/confirm?action=stop"
       hx-target="#confirm-slot-<%= it.id %>"
       hx-swap="innerHTML"
@@ -50,5 +43,9 @@
       hx-confirm="Delete this session? This cannot be undone."
     >Delete</button>
   </div>
-  <div class="terminal-slot" id="terminal-slot-<%= it.id %>"></div>
+  <div class="terminal-slot" id="terminal-slot-<%= it.id %>"
+    hx-get="/api/sessions/<%= it.id %>/terminal"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  ></div>
 </div>
