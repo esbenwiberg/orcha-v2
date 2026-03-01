@@ -66,6 +66,7 @@
     "helmet": "^8.1.0",
     "htmx.org": "2.0.8",
     "js-yaml": "^4.1.1",
+    "marked": "^17.0.3",
     "node-pty": "^1.1.0",
     "openid-client": "^6.8.2",
     "passport": "^0.7.0",

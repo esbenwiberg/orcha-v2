@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, statSync } from 'node:fs';
+import { basename, join, resolve, relative, extname } from 'node:path';
+import { marked } from 'marked';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
@@ -615,6 +616,163 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       // Still waiting — return polling stub
       const html = eta.render('partials/session-auth-banner', { waiting: true });
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── Markdown browser endpoints ─────────────────────────────────────────
+
+  /** Recursively collect *.md files up to a max depth, relative to root. */
+  function collectMdFiles(root: string, dir: string, depth: number, max: number): string[] {
+    if (depth > 4) return [];
+    const results: string[] = [];
+    let entries: string[];
+    try { entries = readdirSync(dir); } catch { return []; }
+    for (const entry of entries) {
+      if (results.length >= max) break;
+      if (entry.startsWith('.') && entry !== '.claude') continue;
+      const full = join(dir, entry);
+      let st;
+      try { st = statSync(full); } catch { continue; }
+      if (st.isDirectory()) {
+        results.push(...collectMdFiles(root, full, depth + 1, max - results.length));
+      } else if (st.isFile() && extname(entry).toLowerCase() === '.md') {
+        results.push(relative(root, full));
+      }
+    }
+    return results;
+  }
+
+  /** Validate a user-supplied relative path resolves inside the worktree. */
+  function validateMdPath(worktreePath: string, userPath: string): string | null {
+    if (!userPath || userPath.includes('\0')) return null;
+    const resolved = resolve(worktreePath, userPath);
+    if (!resolved.startsWith(worktreePath + '/') && resolved !== worktreePath) return null;
+    if (!resolved.endsWith('.md')) return null;
+    return resolved;
+  }
+
+  const MD_MAX_BYTES = 512 * 1024; // 512KB
+
+  // GET /api/sessions/:id/md-browser — render the markdown browser modal
+  router.get('/sessions/:id/md-browser', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const session = store.getSession(id);
+      if (!session) { res.status(404).send(''); return; }
+
+      const worktreePath = session.worktree.worktreePath;
+      if (!existsSync(worktreePath)) {
+        res.status(404).send('<div class="badge badge--failed">Worktree not found</div>');
+        return;
+      }
+
+      const files = collectMdFiles(worktreePath, worktreePath, 0, 100);
+      // Sort: CLAUDE.md first, then alphabetical
+      files.sort((a, b) => {
+        const aIsClaudeMd = a === 'CLAUDE.md' || a === '.claude/CLAUDE.md';
+        const bIsClaudeMd = b === 'CLAUDE.md' || b === '.claude/CLAUDE.md';
+        if (aIsClaudeMd && !bIsClaudeMd) return -1;
+        if (!aIsClaudeMd && bIsClaudeMd) return 1;
+        return a.localeCompare(b);
+      });
+
+      // Auto-select first file (CLAUDE.md if present)
+      let initialContent = '';
+      let initialRaw = '';
+      let initialFile = '';
+      if (files.length > 0) {
+        initialFile = files[0]!;
+        const absPath = resolve(worktreePath, initialFile);
+        try {
+          initialRaw = readFileSync(absPath, 'utf8').slice(0, MD_MAX_BYTES);
+          initialContent = marked.parse(initialRaw) as string;
+        } catch { /* empty */ }
+      }
+
+      const html = eta.render('partials/md-browser', {
+        sessionId: id,
+        files,
+        initialFile,
+        initialContent,
+        initialRaw,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/md-file?path=README.md — render a single markdown file
+  router.get('/sessions/:id/md-file', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const userPath = typeof req.query['path'] === 'string' ? req.query['path'] : '';
+      const session = store.getSession(id);
+      if (!session) { res.status(404).send(''); return; }
+
+      const worktreePath = session.worktree.worktreePath;
+      const absPath = validateMdPath(worktreePath, userPath);
+      if (!absPath) {
+        res.status(400).send('<div class="badge badge--failed">Invalid path</div>');
+        return;
+      }
+
+      if (!existsSync(absPath)) {
+        res.status(404).send('<div class="badge badge--failed">File not found</div>');
+        return;
+      }
+
+      const raw = readFileSync(absPath, 'utf8').slice(0, MD_MAX_BYTES);
+      const rendered = marked.parse(raw) as string;
+
+      const html = eta.render('partials/md-file-view', {
+        sessionId: id,
+        filePath: userPath,
+        rendered,
+        raw,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PUT /api/sessions/:id/md-file — save edited markdown content
+  router.put('/sessions/:id/md-file', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const userPath = typeof req.body['path'] === 'string' ? req.body['path'] : '';
+      const content = typeof req.body['content'] === 'string' ? req.body['content'] : '';
+      const session = store.getSession(id);
+      if (!session) { res.status(404).send(''); return; }
+
+      const worktreePath = session.worktree.worktreePath;
+      const absPath = validateMdPath(worktreePath, userPath);
+      if (!absPath) {
+        res.status(400).send('<div class="badge badge--failed">Invalid path</div>');
+        return;
+      }
+
+      if (content.length > MD_MAX_BYTES) {
+        res.status(413).send('<div class="badge badge--failed">File too large</div>');
+        return;
+      }
+
+      writeFileSync(absPath, content, 'utf8');
+      const rendered = marked.parse(content) as string;
+
+      const html = eta.render('partials/md-file-view', {
+        sessionId: id,
+        filePath: userPath,
+        rendered,
+        raw: content,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
       next(err);
