@@ -193,4 +193,24 @@ describe('SessionStore', () => {
     expect(session.worktree.createdAt).toBeInstanceOf(Date);
     expect(session.worktree.createdAt.toISOString()).toBe('2026-02-26T00:00:00.000Z');
   });
+
+  it('reconcileOrphanedSessions marks running and starting sessions as failed', () => {
+    const s1 = store.createSession(BASE_CONFIG, BASE_WORKTREE);
+    store.updateStatus(s1.id, 'starting');
+    store.updateStatus(s1.id, 'running');
+
+    const s2 = store.createSession(BASE_CONFIG, BASE_WORKTREE);
+    store.updateStatus(s2.id, 'starting');
+
+    const s3 = store.createSession(BASE_CONFIG, BASE_WORKTREE);
+    store.updateStatus(s3.id, 'starting');
+    store.updateStatus(s3.id, 'running');
+    store.updateStatus(s3.id, 'completed');
+
+    const count = store.reconcileOrphanedSessions();
+    expect(count).toBe(2);
+    expect(store.getSession(s1.id)?.status).toBe('failed');
+    expect(store.getSession(s2.id)?.status).toBe('failed');
+    expect(store.getSession(s3.id)?.status).toBe('completed');
+  });
 });
