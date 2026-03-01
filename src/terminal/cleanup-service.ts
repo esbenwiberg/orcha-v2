@@ -77,12 +77,10 @@ export class CleanupService extends EventEmitter {
     // --- Step 2: Find orphaned worktrees (on disk but no active DB session) ---
     const fsWorktrees = await this._worktreeManager.listWorktrees();
 
-    // Build a set of worktree paths that have a live (non-terminal) DB session
-    const liveStatuses = new Set(['pending', 'starting', 'running', 'paused']);
+    // Build a set of worktree paths for ALL DB sessions — worktrees are now
+    // preserved until the session is deleted so users can reopen failed/cancelled ones.
     const activeWorktreePaths = new Set<string>(
-      allDbSessions
-        .filter((s) => liveStatuses.has(s.status))
-        .map((s) => s.worktree.worktreePath),
+      allDbSessions.map((s) => s.worktree.worktreePath),
     );
 
     for (const worktree of fsWorktrees) {

@@ -6,8 +6,8 @@ export const VALID_TRANSITIONS: ReadonlyMap<SessionStatus, ReadonlySet<SessionSt
   ['running', new Set<SessionStatus>(['paused', 'completed', 'failed', 'cancelled'])],
   ['paused', new Set<SessionStatus>(['running', 'cancelled'])],
   ['completed', new Set<SessionStatus>()],
-  ['failed', new Set<SessionStatus>()],
-  ['cancelled', new Set<SessionStatus>()],
+  ['failed', new Set<SessionStatus>(['starting'])],
+  ['cancelled', new Set<SessionStatus>(['starting'])],
 ]);
 
 export function isValidTransition(from: SessionStatus, to: SessionStatus): boolean {

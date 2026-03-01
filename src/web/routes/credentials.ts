@@ -285,9 +285,13 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
       });
       store.markRevoked(id);
 
-      // Return empty strip (replaces the cred-strip div)
+      // Re-render remaining active credentials
+      const activeCreds = store.listAll().filter((c) => !c.revokedAt);
+      const html = eta.render('partials/active-credentials-table', {
+        activeCreds: activeCreds.map(toCredViewModel),
+      });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(200).send('');
+      res.status(200).send(html);
     } catch (err) {
       next(err);
     }

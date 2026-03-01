@@ -326,6 +326,43 @@ body {
   width: 100% !important;
 }
 
+/* On-screen key buttons for mobile (Esc, Tab, Ctrl+C, etc.) */
+.mobile-keys {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  background-color: #111;
+  border-top: 1px solid var(--color-border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-key {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-key:active {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+
+.mobile-key--arrow {
+  padding: 6px 12px;
+}
+
 .swipe-hint {
   flex-shrink: 0;
   padding: 6px 0 8px;

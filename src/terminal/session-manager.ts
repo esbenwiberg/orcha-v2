@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { WorktreeManager } from './worktree-manager.js';
 import type { WorktreeInfo } from './worktree-manager.js';
 import { PtyManager } from './pty-manager.js';
@@ -266,18 +266,105 @@ export class SessionManager {
       }
     }
 
-    try {
-      await this._worktreeManager.removeWorktree(sessionId, session?.repoRoot);
-    } catch {
-      // Best-effort cleanup
+    // Worktrees and per-session HOME dirs are now preserved until the session
+    // is explicitly deleted, so users can reopen failed/cancelled sessions.
+  }
+
+  async reopenSession(dbSessionId: string, opts?: { sandbox?: boolean }): Promise<ActiveSession> {
+    // Step 1: Look up the DB session
+    const dbSession = this._sessionStore.getSession(dbSessionId);
+    if (dbSession === undefined) {
+      throw new SessionError(`Session '${dbSessionId}' not found`, 'NOT_FOUND');
     }
 
-    // Clean up per-session isolated HOME if one was created.
-    try {
-      rmSync(join('/tmp', `orcha-home-${sessionId}`), { recursive: true, force: true });
-    } catch {
-      // Best-effort; directory may not exist for sessions without credentials
+    if (dbSession.status !== 'failed' && dbSession.status !== 'cancelled') {
+      throw new SessionError(
+        `Cannot reopen session in '${dbSession.status}' state`,
+        'NOT_FOUND',
+      );
     }
+
+    // Step 2: Extract worktree path and original sessionId
+    const worktreePath = dbSession.worktree.worktreePath;
+    const sessionId = basename(worktreePath);
+
+    // Verify worktree directory exists
+    if (!existsSync(worktreePath)) {
+      throw new SessionError(
+        `Worktree directory no longer exists: ${worktreePath}`,
+        'WORKTREE_FAILED',
+      );
+    }
+
+    // Check not already active
+    if (this._active.has(sessionId)) {
+      throw new SessionError(
+        `Session '${sessionId}' is already active`,
+        'DUPLICATE_SESSION',
+      );
+    }
+
+    // Step 3: Spawn PTY in existing worktree
+    let terminal: SessionTerminal;
+    const spawnOpts: PtySpawnOptions = {
+      sessionId,
+      cwd: worktreePath,
+      command: 'claude',
+      size: { cols: 220, rows: 50 },
+      ...(opts?.sandbox !== undefined ? { sandbox: opts.sandbox } : {}),
+    };
+
+    try {
+      terminal = this._ptyManager.spawn(spawnOpts);
+    } catch (err) {
+      throw new SessionError(
+        `Failed to spawn PTY for reopened session '${sessionId}': ${String(err)}`,
+        'PTY_FAILED',
+        err,
+      );
+    }
+
+    // Step 4: Set up output buffer + exit handler
+    const outputBuffer = new OutputBuffer();
+    outputBuffer.push('\r\n\x1b[33mReopening session...\x1b[0m\r\n');
+    terminal.output.on('data', (chunk: Buffer | string) => {
+      outputBuffer.push(chunk);
+    });
+
+    // Step 5: Transition status and clear stale data
+    try {
+      this._sessionStore.resetForReopen(dbSessionId);
+      this._sessionStore.updateStatus(dbSessionId, 'starting');
+      this._sessionStore.updateStatus(dbSessionId, 'running');
+    } catch (err) {
+      console.error('[session-manager] DB status transition failed for reopen', dbSessionId, err);
+    }
+
+    // Step 6: Build ActiveSession and add to active map
+    const worktreeInfo: WorktreeInfo = {
+      id: sessionId,
+      path: worktreePath,
+      branch: dbSession.worktree.branch,
+      commitSha: dbSession.worktree.headSha,
+      createdAt: dbSession.worktree.createdAt,
+    };
+
+    const activeSession: ActiveSession = {
+      sessionId,
+      dbSessionId,
+      worktree: worktreeInfo,
+      terminal,
+      outputBuffer,
+      createdAt: new Date(),
+    };
+
+    this._active.set(sessionId, activeSession);
+
+    terminal.on('exit', (code: number) => {
+      void this._handleExit(sessionId, code);
+    });
+
+    return activeSession;
   }
 
   async stopSession(sessionId: string): Promise<void> {

@@ -2,7 +2,6 @@
   <div class="terminal-header" ondblclick="window.__termFullscreen('<%= it.id %>')">
     <div class="terminal-header__info">
       <span class="terminal-header__branch" title="<%= it.branch %>"><%= it.branch %></span>
-      <span class="badge badge--<%= it.status %>"><%= it.status %></span>
     </div>
     <div class="terminal-header__actions">
       <button class="terminal-header__btn" title="Fullscreen" onclick="window.__termFullscreen('<%= it.id %>')">
@@ -11,7 +10,7 @@
           <polyline points="4 15 1 15 1 12" /><polyline points="12 15 15 15 15 12" />
         </svg>
       </button>
-      <button class="terminal-header__btn" title="Close terminal" onclick="window.__termClose('<%= it.id %>')">
+      <button class="terminal-header__btn" title="Close" onclick="window.__termCloseMenu('<%= it.id %>', this)">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" />
         </svg>

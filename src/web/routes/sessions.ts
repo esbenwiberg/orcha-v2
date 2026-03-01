@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
@@ -379,6 +379,34 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // POST /api/sessions/:id/reopen — reopen a failed or cancelled session
+  router.post('/sessions/:id/reopen', async (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+
+      const existing = store.getSession(id);
+      if (existing === undefined) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(404).send('<div class="badge badge--failed">Session not found</div>');
+        return;
+      }
+
+      if (existing.status !== 'failed' && existing.status !== 'cancelled') {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(422).send('<div class="badge badge--failed">Session cannot be reopened</div>');
+        return;
+      }
+
+      const activeSession = await deps.sessionEngine.reopenSession(id);
+      eventBus.publish({ sessionId: activeSession.sessionId, type: 'status', status: 'running' });
+
+      res.setHeader('HX-Redirect', '/');
+      res.status(200).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // DELETE /api/sessions/:id — delete session record (kills PTY first if still running)
   router.delete('/sessions/:id', async (req, res, next) => {
     try {
@@ -398,6 +426,22 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         } catch {
           try { activeSession.terminal.kill('SIGKILL'); } catch { /* ignore */ }
         }
+      }
+
+      // Clean up worktree on disk before removing the DB record
+      const worktreePath = existing.worktree.worktreePath;
+      const worktreeSessionId = basename(worktreePath);
+      try {
+        await deps.worktreeManager.removeWorktree(worktreeSessionId);
+      } catch {
+        // Best-effort: worktree may already be gone
+      }
+
+      // Clean up per-session isolated HOME dir
+      try {
+        rmSync(join('/tmp', `orcha-home-${worktreeSessionId}`), { recursive: true, force: true });
+      } catch {
+        // Best-effort
       }
 
       store.deleteSession(id);

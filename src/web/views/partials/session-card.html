@@ -17,31 +17,7 @@
          hx-trigger="load, every 3s"
          hx-swap="innerHTML"></div>
     <% } %>
-    <div id="confirm-slot-<%= it.id %>" style="position:relative"></div>
     <%~ include('credential-status-strip', { sessionId: it.id, credentials: it.credentials }) %>
-  </div>
-  <div class="session-card__footer">
-    <button
-      class="btn btn-ghost btn-sm"
-      hx-get="/api/sessions/<%= it.id %>/confirm?action=stop"
-      hx-target="#confirm-slot-<%= it.id %>"
-      hx-swap="innerHTML"
-    >Stop</button>
-    <button
-      class="btn btn-ghost btn-sm"
-      style="color:var(--color-error)"
-      hx-get="/api/sessions/<%= it.id %>/confirm?action=kill"
-      hx-target="#confirm-slot-<%= it.id %>"
-      hx-swap="innerHTML"
-    >Kill</button>
-    <button
-      class="btn btn-ghost btn-sm"
-      style="color:var(--color-error)"
-      hx-delete="/api/sessions/<%= it.id %>"
-      hx-target="#session-<%= it.id %>"
-      hx-swap="delete"
-      hx-confirm="Delete this session? This cannot be undone."
-    >Delete</button>
   </div>
   <div class="terminal-slot" id="terminal-slot-<%= it.id %>"
     hx-get="/api/sessions/<%= it.id %>/terminal"

@@ -217,17 +217,18 @@ function dispatchPrefixAction(e) {
     return true;
   }
 
-  // Ctrl+A, X — stop session (SIGTERM via HTMX)
+  // Ctrl+A, X — stop session (SIGTERM)
   if (key === 'x' || key === 'X') {
     if (focusedSessionId) {
-      const stopBtn = document.querySelector(`#session-${focusedSessionId} [hx-post*="/stop"]`);
-      if (stopBtn) {
-        stopBtn.click();
-      } else {
-        // Fall back: fetch the confirm dialog which has the stop button
-        const confirmBtn = document.querySelector(`#session-${focusedSessionId} [hx-get*="confirm"]`);
-        if (confirmBtn) confirmBtn.click();
-      }
+      fetch(`/api/sessions/${focusedSessionId}/stop`, { method: 'POST' })
+        .then((r) => { if (r.ok) return r.text(); })
+        .then((html) => {
+          if (html) {
+            const card = document.getElementById(`session-${focusedSessionId}`);
+            if (card) { card.outerHTML = html; }
+          }
+        })
+        .catch(() => {});
     }
     return true;
   }
@@ -327,9 +328,118 @@ async function handlePaste(sessionId) {
   }
 }
 
+/* -----------------------------------------------------------------------
+   Close menu (replaces Stop/Kill/Delete footer)
+   ----------------------------------------------------------------------- */
+
+/**
+ * Show a small dropdown menu anchored to the X button with Close / Stop / Delete.
+ * @param {string} sessionId
+ * @param {HTMLElement} anchorBtn
+ */
+function showCloseMenu(sessionId, anchorBtn) {
+  // Remove any existing menu
+  const existing = document.getElementById('term-close-menu');
+  if (existing) existing.remove();
+
+  const menu = document.createElement('div');
+  menu.id = 'term-close-menu';
+  menu.className = 'term-close-menu';
+
+  // Close (disconnect only)
+  const closeItem = document.createElement('button');
+  closeItem.className = 'term-close-menu__item';
+  closeItem.textContent = 'Close';
+  closeItem.addEventListener('click', () => {
+    menu.remove();
+    removeTerminal(sessionId);
+  });
+  menu.appendChild(closeItem);
+
+  // Stop (SIGTERM) — only if session is running
+  const badge = document.getElementById(`badge-${sessionId}`);
+  const status = badge ? badge.textContent.trim() : '';
+  if (status === 'running') {
+    const stopItem = document.createElement('button');
+    stopItem.className = 'term-close-menu__item term-close-menu__item--warn';
+    stopItem.textContent = 'Stop session';
+    stopItem.addEventListener('click', () => {
+      menu.remove();
+      fetch(`/api/sessions/${sessionId}/stop`, { method: 'POST' })
+        .then((r) => { if (r.ok) return r.text(); })
+        .then((html) => {
+          if (html) {
+            const card = document.getElementById(`session-${sessionId}`);
+            if (card) { card.outerHTML = html; }
+          }
+        })
+        .catch(() => {});
+    });
+    menu.appendChild(stopItem);
+  }
+
+  // Reopen — only if session is failed or cancelled
+  if (status === 'failed' || status === 'cancelled') {
+    const reopenItem = document.createElement('button');
+    reopenItem.className = 'term-close-menu__item term-close-menu__item--success';
+    reopenItem.textContent = 'Reopen session';
+    reopenItem.addEventListener('click', () => {
+      menu.remove();
+      fetch(`/api/sessions/${sessionId}/reopen`, { method: 'POST' })
+        .then((r) => {
+          if (r.ok && r.redirected) { window.location.href = r.url; }
+          else if (r.ok) {
+            const redirect = r.headers.get('HX-Redirect');
+            if (redirect) window.location.href = redirect;
+            else window.location.reload();
+          }
+        })
+        .catch(() => {});
+    });
+    menu.appendChild(reopenItem);
+  }
+
+  // Delete (remove DB + worktree)
+  const deleteItem = document.createElement('button');
+  deleteItem.className = 'term-close-menu__item term-close-menu__item--danger';
+  deleteItem.textContent = 'Delete session';
+  deleteItem.addEventListener('click', () => {
+    if (!confirm('Delete this session? This cannot be undone.')) {
+      menu.remove();
+      return;
+    }
+    menu.remove();
+    fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
+      .then((r) => {
+        if (r.ok) {
+          const card = document.getElementById(`session-${sessionId}`);
+          if (card) card.remove();
+        }
+      })
+      .catch(() => {});
+  });
+  menu.appendChild(deleteItem);
+
+  // Position the menu below the anchor button
+  anchorBtn.closest('.terminal-header__actions').appendChild(menu);
+
+  // Dismiss on click outside
+  function dismiss(e) {
+    if (!menu.contains(e.target) && e.target !== anchorBtn) {
+      menu.remove();
+      document.removeEventListener('pointerdown', dismiss, true);
+    }
+  }
+  // Delay listener so the current click doesn't immediately dismiss
+  requestAnimationFrame(() => {
+    document.addEventListener('pointerdown', dismiss, true);
+  });
+}
+
 // Global bindings for template onclick handlers
 window.__termFullscreen = fullscreenTerminal;
 window.__termClose = removeTerminal;
+window.__termCloseMenu = showCloseMenu;
 
 /**
  * Refit a terminal after layout changes (double-rAF to let flex settle).

@@ -294,6 +294,21 @@ document.addEventListener('htmx:afterSwap', (event) => {
           swap: 'innerHTML',
         });
       });
+
+      // Wire up on-screen key buttons
+      const keysBar = document.getElementById('mobile-keys');
+      if (keysBar) {
+        keysBar.addEventListener('click', (e) => {
+          const btn = e.target.closest('.mobile-key');
+          if (!btn) return;
+          const data = btn.dataset.key;
+          if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
+            _activeWs.send(JSON.stringify({ type: 'input', data }));
+          }
+          // Re-focus the terminal so user can keep typing
+          if (_activeTerm) _activeTerm.focus();
+        });
+      }
     }
   }
 

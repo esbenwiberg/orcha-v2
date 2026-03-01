@@ -203,6 +203,26 @@ export class SessionStore {
     return rows.length;
   }
 
+  /**
+   * Clear stale exit data so a reopened session looks fresh.
+   * Resets exit_code, error_message, completed_at and bumps updated_at.
+   */
+  resetForReopen(id: string): Session {
+    const session = this.getSession(id);
+    if (session === undefined) {
+      throw new TypeError(`Session not found: ${id}`);
+    }
+
+    const now = new Date().toISOString();
+    this.#db
+      .prepare(
+        'UPDATE sessions SET exit_code = NULL, error_message = NULL, completed_at = NULL, updated_at = ? WHERE id = ?',
+      )
+      .run(now, id);
+
+    return this.getSession(id)!;
+  }
+
   deleteSession(id: string): void {
     const session = this.getSession(id);
     if (session === undefined) {
