@@ -241,9 +241,9 @@ body {
 }
 
 /* -----------------------------------------------------------------------
-   Session status badge — data-status attribute selectors
+   Badge — shared format with desktop SSE (class="badge badge--STATUS")
    ----------------------------------------------------------------------- */
-.session-status-badge {
+.badge {
   flex-shrink: 0;
   display: inline-block;
   padding: 2px 8px;
@@ -256,29 +256,65 @@ body {
   color: var(--color-text-muted);
 }
 
-.session-status-badge[data-status='pending'] {
+.badge--pending {
   background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
   color: var(--color-accent);
 }
 
-.session-status-badge[data-status='running'] {
+.badge--running {
   background-color: color-mix(in srgb, #22c55e 15%, transparent);
   color: #22c55e;
 }
 
-.session-status-badge[data-status='completed'] {
+.badge--completed {
   background-color: color-mix(in srgb, var(--color-text-muted) 15%, transparent);
   color: var(--color-text-muted);
 }
 
-.session-status-badge[data-status='failed'] {
+.badge--failed {
   background-color: color-mix(in srgb, var(--color-error) 15%, transparent);
   color: var(--color-error);
 }
 
-.session-status-badge[data-status='cancelled'] {
+.badge--cancelled {
   background-color: color-mix(in srgb, var(--color-text-muted) 15%, transparent);
   color: var(--color-text-muted);
+}
+
+/* -----------------------------------------------------------------------
+   Session item row — flex wrapper for select button + kebab
+   ----------------------------------------------------------------------- */
+.session-item-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.session-item-row .session-select-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-kebab-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.session-kebab-btn:active {
+  background: rgba(37, 99, 235, 0.2);
 }
 
 /* -----------------------------------------------------------------------
@@ -512,6 +548,118 @@ body {
 }
 
 /* -----------------------------------------------------------------------
+   Action sheet — bottom-sheet for session actions (stop/reopen/delete)
+   ----------------------------------------------------------------------- */
+.action-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.action-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.action-sheet-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 16px;
+  padding-bottom: max(env(safe-area-inset-bottom), 20px);
+  background-color: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  border-radius: 16px 16px 0 0;
+}
+
+.action-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.action-sheet-branch {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.action-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.action-sheet-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+
+.action-sheet-btn--warn {
+  background-color: color-mix(in srgb, #f59e0b 15%, var(--color-surface-raised));
+  color: #f59e0b;
+}
+
+.action-sheet-btn--warn:active {
+  background-color: color-mix(in srgb, #f59e0b 30%, var(--color-surface-raised));
+}
+
+.action-sheet-btn--success {
+  background-color: color-mix(in srgb, #22c55e 15%, var(--color-surface-raised));
+  color: #22c55e;
+}
+
+.action-sheet-btn--success:active {
+  background-color: color-mix(in srgb, #22c55e 30%, var(--color-surface-raised));
+}
+
+.action-sheet-btn--danger {
+  background-color: color-mix(in srgb, var(--color-error) 15%, var(--color-surface-raised));
+  color: var(--color-error);
+}
+
+.action-sheet-btn--danger:active {
+  background-color: color-mix(in srgb, var(--color-error) 30%, var(--color-surface-raised));
+}
+
+.action-sheet-btn--cancel {
+  background-color: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  margin-top: 4px;
+}
+
+.action-sheet-btn--cancel:active {
+  background-color: var(--color-border);
+}
+
+/* -----------------------------------------------------------------------
    Connection status badge — shown in the mobile header
    ----------------------------------------------------------------------- */
 .conn-badge {
@@ -560,6 +708,87 @@ body {
 }
 
 /* -----------------------------------------------------------------------
+   Info panel — session detail view for the Info tab
+   ----------------------------------------------------------------------- */
+.info-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  gap: 16px;
+}
+
+.info-panel__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.info-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+
+.info-panel__section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+
+.info-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.info-panel__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.info-panel__branch {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.info-panel__meta {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.info-panel__meta--warn {
+  color: #f59e0b;
+}
+
+.info-panel__meta--danger {
+  color: var(--color-error);
+}
+
+.info-panel__actions {
+  gap: 8px;
+}
+
+/* -----------------------------------------------------------------------
    Hover states — wrapped in (hover: hover) to prevent iOS sticky-hover
    ----------------------------------------------------------------------- */
 @media (hover: hover) {
@@ -579,6 +808,27 @@ body {
 
   .send-submit-btn:hover {
     opacity: 0.88;
+  }
+
+  .session-kebab-btn:hover {
+    background-color: var(--color-surface-raised);
+    color: var(--color-text-primary);
+  }
+
+  .action-sheet-btn--warn:hover {
+    background-color: color-mix(in srgb, #f59e0b 25%, var(--color-surface-raised));
+  }
+
+  .action-sheet-btn--success:hover {
+    background-color: color-mix(in srgb, #22c55e 25%, var(--color-surface-raised));
+  }
+
+  .action-sheet-btn--danger:hover {
+    background-color: color-mix(in srgb, var(--color-error) 25%, var(--color-surface-raised));
+  }
+
+  .action-sheet-btn--cancel:hover {
+    background-color: var(--color-surface-raised);
   }
 }
 

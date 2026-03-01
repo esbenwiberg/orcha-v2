@@ -1,0 +1,33 @@
+<div id="action-sheet" class="action-sheet" role="dialog" aria-modal="true" aria-label="Session actions">
+  <div class="action-sheet-backdrop"></div>
+  <div class="action-sheet-panel">
+    <div class="action-sheet-header">
+      <span class="action-sheet-branch"><%= it.branch %></span>
+      <span class="badge badge--<%= it.status %>"><%= it.status %></span>
+    </div>
+    <div class="action-sheet-actions">
+      <% if (it.status === 'running' || it.status === 'pending') { %>
+      <button
+        class="action-sheet-btn action-sheet-btn--warn"
+        hx-post="/api/sessions/<%= it.sessionId %>/stop"
+        hx-swap="none"
+        hx-on::after-request="window._onActionSheetResult(event)"
+      >Stop Session</button>
+      <% } %>
+      <% if (it.status === 'failed' || it.status === 'cancelled') { %>
+      <button
+        class="action-sheet-btn action-sheet-btn--success"
+        hx-post="/api/sessions/<%= it.sessionId %>/reopen"
+        hx-swap="none"
+        hx-on::after-request="window._onActionSheetResult(event)"
+      >Reopen Session</button>
+      <% } %>
+      <button
+        class="action-sheet-btn action-sheet-btn--danger"
+        data-action="delete"
+        data-session-id="<%= it.sessionId %>"
+      >Delete Session</button>
+    </div>
+    <button class="action-sheet-btn action-sheet-btn--cancel">Cancel</button>
+  </div>
+</div>

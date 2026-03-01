@@ -286,6 +286,179 @@ function _closeSendModal() {
 window.openSendModal = openSendModal;
 
 /**
+ * Open the action sheet for a session by fetching it from the server.
+ * @param {string} sessionId
+ */
+function openActionSheet(sessionId) {
+  const existing = document.getElementById('action-sheet');
+  if (existing) existing.remove();
+
+  htmx.ajax('GET', `/mobile/action-sheet/${sessionId}`, {
+    target: '#mobile-shell',
+    swap: 'beforeend',
+  });
+}
+
+/** Remove the action sheet from the DOM. */
+function _closeActionSheet() {
+  const sheet = document.getElementById('action-sheet');
+  if (sheet) sheet.remove();
+}
+
+/**
+ * Handle the result of stop/reopen actions from the action sheet.
+ * Reopen sets HX-Redirect to / on the desktop — intercept and redirect to /mobile/.
+ */
+window._onActionSheetResult = function (event) {
+  const detail = event.detail;
+  if (!detail) return;
+
+  _closeActionSheet();
+
+  // Check for HX-Redirect header (reopen sends HX-Redirect: /)
+  const xhr = detail.xhr;
+  if (xhr) {
+    const redirect = xhr.getResponseHeader('HX-Redirect');
+    if (redirect) {
+      // Prevent HTMX from following the desktop redirect
+      event.preventDefault?.();
+      window.location.href = '/mobile/';
+      return;
+    }
+  }
+
+  // For stop — just refresh the sessions list
+  if (detail.successful) {
+    htmx.ajax('GET', '/mobile/sessions', {
+      target: '#mobile-terminal-area',
+      swap: 'innerHTML',
+    });
+  }
+};
+
+/**
+ * Switch to the terminal tab. If a terminal frame is already showing, no-op.
+ * Otherwise, try to reconnect to the active session from the cookie.
+ */
+window._switchToTerminal = function () {
+  const frame = document.getElementById('terminal-frame');
+  if (frame) return; // Already showing the terminal
+
+  // Read the mobile-session-id cookie
+  const cookieMatch = /mobile-session-id=([^;]+)/.exec(document.cookie);
+  const sessionId = cookieMatch?.[1];
+  if (!sessionId) {
+    // No active session — show placeholder
+    const area = document.getElementById('mobile-terminal-area');
+    if (area) {
+      area.innerHTML = '<div id="mobile-content-slot"><p class="mobile-placeholder-text">No session connected. Select one from the Sessions tab.</p></div>';
+    }
+    return;
+  }
+
+  // Re-fetch the terminal frame for the active session
+  htmx.ajax('GET', `/mobile/terminal/${sessionId}`, {
+    target: '#mobile-terminal-area',
+    swap: 'innerHTML',
+  });
+};
+
+/**
+ * Handle the result of stop/reopen/revoke actions from the info panel.
+ */
+window._onInfoPanelAction = function (event) {
+  const detail = event.detail;
+  if (!detail) return;
+
+  const xhr = detail.xhr;
+  if (xhr) {
+    const redirect = xhr.getResponseHeader('HX-Redirect');
+    if (redirect) {
+      event.preventDefault?.();
+      window.location.href = '/mobile/';
+      return;
+    }
+  }
+
+  // Refresh the info panel to show updated state
+  if (detail.successful) {
+    htmx.ajax('GET', '/mobile/session-info', {
+      target: '#mobile-terminal-area',
+      swap: 'innerHTML',
+    });
+  }
+};
+
+/**
+ * Global click delegation for action sheet triggers and buttons.
+ */
+document.addEventListener('click', (e) => {
+  // Kebab button → open action sheet
+  const kebab = e.target.closest('.session-kebab-btn');
+  if (kebab) {
+    e.stopPropagation();
+    const sessionId = kebab.dataset.sessionId;
+    if (sessionId) openActionSheet(sessionId);
+    return;
+  }
+
+  // Action sheet backdrop or cancel → close
+  if (e.target.closest('.action-sheet-backdrop') || e.target.closest('.action-sheet-btn--cancel')) {
+    _closeActionSheet();
+    return;
+  }
+
+  // Delete button in action sheet
+  const deleteBtn = e.target.closest('[data-action="delete"]');
+  if (deleteBtn) {
+    const sessionId = deleteBtn.dataset.sessionId;
+    if (!sessionId) return;
+    if (!confirm('Delete this session? This cannot be undone.')) return;
+
+    _closeActionSheet();
+    fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' }).then((r) => {
+      if (r.ok) {
+        // Remove the item from the list
+        const item = document.getElementById(`mobile-session-${sessionId}`);
+        if (item) item.remove();
+
+        // If this was the active session, clear terminal and cookie
+        const cookieMatch = /mobile-session-id=([^;]+)/.exec(document.cookie);
+        if (cookieMatch && cookieMatch[1] === sessionId) {
+          _disposeMobileTerminal();
+          document.cookie = 'mobile-session-id=; Max-Age=0; Path=/mobile';
+          htmx.ajax('GET', '/mobile/sessions', {
+            target: '#mobile-terminal-area',
+            swap: 'innerHTML',
+          });
+        }
+      }
+    });
+    return;
+  }
+
+  // Delete button in info panel
+  const deleteInfoBtn = e.target.closest('[data-action="delete-from-info"]');
+  if (deleteInfoBtn) {
+    const sessionId = deleteInfoBtn.dataset.sessionId;
+    if (!sessionId) return;
+    if (!confirm('Delete this session? This cannot be undone.')) return;
+
+    fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' }).then((r) => {
+      if (r.ok) {
+        _disposeMobileTerminal();
+        document.cookie = 'mobile-session-id=; Max-Age=0; Path=/mobile';
+        htmx.ajax('GET', '/mobile/sessions', {
+          target: '#mobile-terminal-area',
+          swap: 'innerHTML',
+        });
+      }
+    });
+    return;
+  }
+});
+
+/**
  * Boot the terminal when #terminal-frame appears in the DOM after an HTMX swap,
  * or wire up the send modal when it appears.
  */
@@ -325,6 +498,18 @@ document.addEventListener('htmx:afterSwap', (event) => {
         });
       }
     }
+  }
+
+  // --- Action sheet wiring ---
+  const actionSheet = document.getElementById('action-sheet');
+  if (actionSheet) {
+    htmx.process(actionSheet);
+  }
+
+  // --- Info panel wiring ---
+  const infoPanel = document.querySelector('.info-panel');
+  if (infoPanel) {
+    htmx.process(infoPanel);
   }
 
   // --- Send modal wiring ---

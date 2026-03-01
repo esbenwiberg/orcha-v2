@@ -4,17 +4,7 @@ import type { AppDeps } from '../app.js';
 import { CredentialStore } from '../../db/credential-store.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import type { ActiveCredentials } from '../../credentials/types.js';
-import { formatRelativeTime } from '../views/helpers.js';
-
-function formatExpiresIn(expiresAt: Date): string {
-  const ms = expiresAt.getTime() - Date.now();
-  if (ms <= 0) return 'expired';
-  const totalMinutes = Math.floor(ms / 60_000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
-}
+import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 
 function credExpiryPct(creds: ActiveCredentials): number {
   // We don't store createdAt separately in the panel view model — use a 4h window as default

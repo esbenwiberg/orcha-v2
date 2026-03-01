@@ -1,0 +1,71 @@
+<div class="info-panel">
+  <% if (!it.session) { %>
+  <div class="info-panel__empty">
+    <p class="mobile-placeholder-text">No session connected</p>
+  </div>
+  <% } else { %>
+  <div class="info-panel__section">
+    <div class="info-panel__row">
+      <span class="info-panel__label">Branch</span>
+      <span class="info-panel__branch"><%= it.session.branch %></span>
+    </div>
+    <div class="info-panel__row">
+      <span class="info-panel__label">Status</span>
+      <span class="badge badge--<%= it.session.status %>"><%= it.session.status %></span>
+    </div>
+    <div class="info-panel__row">
+      <span class="info-panel__label">Started</span>
+      <span class="info-panel__meta"><%= it.session.createdAt %></span>
+    </div>
+    <div class="info-panel__row">
+      <span class="info-panel__label">Updated</span>
+      <span class="info-panel__meta"><%= it.session.updatedAt %></span>
+    </div>
+  </div>
+
+  <% if (it.credentials) { %>
+  <div class="info-panel__section info-panel__creds">
+    <h3 class="info-panel__section-title">Credentials</h3>
+    <div class="info-panel__row">
+      <span class="info-panel__label">Profile</span>
+      <span class="info-panel__meta"><%= it.credentials.profileName %></span>
+    </div>
+    <div class="info-panel__row">
+      <span class="info-panel__label">Expires</span>
+      <span class="info-panel__meta<%= it.credentials.isExpired ? ' info-panel__meta--danger' : (it.credentials.isExpiringSoon ? ' info-panel__meta--warn' : '') %>"><%= it.credentials.expiresInFormatted %></span>
+    </div>
+    <button
+      class="action-sheet-btn action-sheet-btn--danger"
+      style="margin-top: 8px"
+      hx-post="/api/credentials/<%= it.credentials.id %>/revoke"
+      hx-swap="none"
+      hx-on::after-request="window._onInfoPanelAction(event)"
+    >Revoke Credentials</button>
+  </div>
+  <% } %>
+
+  <div class="info-panel__section info-panel__actions">
+    <% if (it.session.status === 'running' || it.session.status === 'pending') { %>
+    <button
+      class="action-sheet-btn action-sheet-btn--warn"
+      hx-post="/api/sessions/<%= it.session.id %>/stop"
+      hx-swap="none"
+      hx-on::after-request="window._onInfoPanelAction(event)"
+    >Stop Session</button>
+    <% } %>
+    <% if (it.session.status === 'failed' || it.session.status === 'cancelled') { %>
+    <button
+      class="action-sheet-btn action-sheet-btn--success"
+      hx-post="/api/sessions/<%= it.session.id %>/reopen"
+      hx-swap="none"
+      hx-on::after-request="window._onInfoPanelAction(event)"
+    >Reopen Session</button>
+    <% } %>
+    <button
+      class="action-sheet-btn action-sheet-btn--danger"
+      data-action="delete-from-info"
+      data-session-id="<%= it.session.id %>"
+    >Delete Session</button>
+  </div>
+  <% } %>
+</div>

@@ -13,7 +13,7 @@ import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
 import type { Session } from '@orcha/domain';
-import { formatRelativeTime } from '../views/helpers.js';
+import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
 
 /** Allowed characters for a git branch name (simplified). */
@@ -26,16 +26,6 @@ interface CredStripViewModel {
   expiresInFormatted: string;
   isExpired: boolean;
   isExpiringSoon: boolean;
-}
-
-function formatExpiresIn(expiresAt: Date): string {
-  const ms = expiresAt.getTime() - Date.now();
-  if (ms <= 0) return 'expired';
-  const totalMinutes = Math.floor(ms / 60_000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
 }
 
 interface SessionCardViewModel {

@@ -32,3 +32,21 @@ export function formatRelativeTime(date: Date): string {
   const diffDays = Math.floor(diffHours / 24);
   return `${diffDays} days ago`;
 }
+
+/**
+ * Format a future Date as a human-readable countdown string.
+ *
+ * Returns:
+ *   'expired'    — date is in the past
+ *   'Xh Ym'     — hours and minutes remaining
+ *   'Xm'        — less than 60 minutes remaining
+ */
+export function formatExpiresIn(expiresAt: Date): string {
+  const ms = expiresAt.getTime() - Date.now();
+  if (ms <= 0) return 'expired';
+  const totalMinutes = Math.floor(ms / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}

@@ -83,6 +83,7 @@
           class="mobile-tab<%= it.activeTab === 'terminal' ? ' mobile-tab--active' : '' %>"
           aria-label="Terminal"
           data-tab="terminal"
+          onclick="window._switchToTerminal()"
         >
           <svg
             class="mobile-tab__icon"
@@ -124,6 +125,10 @@
           class="mobile-tab<%= it.activeTab === 'info' ? ' mobile-tab--active' : '' %>"
           aria-label="Session info"
           data-tab="info"
+          hx-get="/mobile/session-info"
+          hx-target="#mobile-terminal-area"
+          hx-swap="innerHTML"
+          hx-trigger="click"
         >
           <svg
             class="mobile-tab__icon"

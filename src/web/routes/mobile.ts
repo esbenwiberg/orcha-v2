@@ -2,6 +2,8 @@ import { Router } from 'express';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
+import { CredentialStore } from '../../db/credential-store.js';
+import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 
 /** Minimal HTML-escape to prevent XSS in inline error messages. */
 function escapeHtml(str: string): string {
@@ -16,6 +18,7 @@ function escapeHtml(str: string): string {
 export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new SessionStore(deps.db);
+  const credStore = new CredentialStore(deps.db);
 
   // GET / — mobile shell with bottom-tab navigation
   router.get('/', (_req, res, next) => {
@@ -156,6 +159,82 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       clearInterval(interval);
       res.end();
     });
+  });
+
+  // GET /session-info — render the info panel for the active mobile session
+  router.get('/session-info', (req, res, next) => {
+    try {
+      const cookieHeader = req.headers.cookie ?? '';
+      const match = /mobile-session-id=([^;]+)/.exec(cookieHeader);
+      const activeId = match?.[1];
+
+      if (!activeId) {
+        const html = eta.render('partials/mobile-info-panel', { session: null });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(200).send(html);
+        return;
+      }
+
+      const session = store.getSession(activeId);
+      if (session === undefined) {
+        const html = eta.render('partials/mobile-info-panel', { session: null });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(200).send(html);
+        return;
+      }
+
+      const creds = credStore.getBySessionId(activeId);
+      let credentials: { id: string; profileName: string; expiresInFormatted: string; isExpired: boolean; isExpiringSoon: boolean } | undefined;
+      if (creds && !creds.revokedAt) {
+        const remainingMs = creds.expiresAt.getTime() - Date.now();
+        credentials = {
+          id: creds.id,
+          profileName: creds.profileName,
+          expiresInFormatted: formatExpiresIn(creds.expiresAt),
+          isExpired: remainingMs <= 0,
+          isExpiringSoon: remainingMs > 0 && remainingMs < 30 * 60_000,
+        };
+      }
+
+      const html = eta.render('partials/mobile-info-panel', {
+        session: {
+          id: session.id,
+          branch: session.worktree.branch,
+          status: session.status,
+          createdAt: formatRelativeTime(session.createdAt),
+          updatedAt: formatRelativeTime(session.updatedAt),
+        },
+        ...(credentials !== undefined ? { credentials } : {}),
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /action-sheet/:sessionId — return the action sheet partial
+  router.get('/action-sheet/:sessionId', (req, res, next) => {
+    try {
+      const sessionId = req.params['sessionId'] ?? '';
+      const session = store.getSession(sessionId);
+
+      if (session === undefined) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(404).send('<div class="connecting-msg connecting-msg--error">Session not found.</div>');
+        return;
+      }
+
+      const html = eta.render('partials/mobile-action-sheet', {
+        sessionId: session.id,
+        branch: session.worktree.branch,
+        status: session.status,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
   });
 
   // GET /send-modal — return the send modal partial for HTMX injection
