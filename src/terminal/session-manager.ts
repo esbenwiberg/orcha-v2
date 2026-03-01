@@ -10,6 +10,7 @@ import { SessionStore } from '@orcha/db';
 import { CredentialStore } from '../db/credential-store.js';
 import { ModelConfigStore } from '../db/model-config-store.js';
 import { credentialManager } from '../credentials/credential-manager.js';
+import type { ValidationManager } from '../validation/validation-manager.js';
 
 export interface CreateSessionOptions {
   sessionId?: string;
@@ -72,6 +73,8 @@ export class SessionError extends Error {
 export class SessionManager {
   private _active: Map<string, ActiveSession> = new Map();
 
+  private _validationManager?: ValidationManager;
+
   constructor(
     private readonly _worktreeManager: WorktreeManager,
     private readonly _ptyManager: PtyManager,
@@ -80,6 +83,10 @@ export class SessionManager {
     private readonly _instanceId: string = 'local',
     private readonly _modelConfigStore?: ModelConfigStore,
   ) {}
+
+  setValidationManager(vm: ValidationManager): void {
+    this._validationManager = vm;
+  }
 
   async createSession(opts: CreateSessionOptions): Promise<ActiveSession> {
     const sessionId = opts.sessionId ?? randomUUID();
@@ -246,6 +253,13 @@ export class SessionManager {
           this._credentialStore.markRevoked(activeCreds.id);
         }
       }
+    }
+
+    // Tear down any running validation environment for this session
+    if (this._validationManager && session?.dbSessionId) {
+      this._validationManager.stop(session.dbSessionId).catch((err) => {
+        console.warn(`[session] validation teardown failed sessionId=${sessionId}:`, err);
+      });
     }
 
     // Capture refreshed credentials before cleaning up the home dir (Tier 3).

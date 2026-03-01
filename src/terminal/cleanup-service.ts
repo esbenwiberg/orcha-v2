@@ -4,6 +4,7 @@ import { SessionManager } from './session-manager.js';
 import { SessionStore } from '../db/session-store.js';
 import { CredentialStore } from '../db/credential-store.js';
 import { credentialManager } from '../credentials/credential-manager.js';
+import type { ValidationManager } from '../validation/validation-manager.js';
 
 export interface CleanupResult {
   scannedAt: Date;
@@ -15,6 +16,8 @@ export interface CleanupResult {
 export class CleanupService extends EventEmitter {
   private _timer: NodeJS.Timeout | undefined = undefined;
 
+  private _validationManager?: ValidationManager;
+
   constructor(
     private readonly _sessionManager: SessionManager,
     private readonly _worktreeManager: WorktreeManager,
@@ -23,6 +26,10 @@ export class CleanupService extends EventEmitter {
     private readonly _credentialStore?: CredentialStore,
   ) {
     super();
+  }
+
+  setValidationManager(vm: ValidationManager): void {
+    this._validationManager = vm;
   }
 
   start(): void {
@@ -111,6 +118,19 @@ export class CleanupService extends EventEmitter {
             error: `credential revoke: ${String(err)}`,
           });
         }
+      }
+    }
+
+    // --- Step 4: Sweep orphaned validation docker projects ---
+    if (this._validationManager) {
+      const activeSessionIds = new Set(allDbSessions.filter((s) => s.status === 'running').map((s) => s.id));
+      try {
+        await this._validationManager.cleanup(activeSessionIds);
+      } catch (err) {
+        result.errors.push({
+          sessionId: 'validation-cleanup',
+          error: String(err),
+        });
       }
     }
 

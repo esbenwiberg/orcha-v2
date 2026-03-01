@@ -69,6 +69,59 @@
     </select>
   </div>
 
+  <details style="margin-top:0.75rem;border-top:1px solid var(--color-border);padding-top:0.5rem;">
+    <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--color-text-primary);user-select:none;">
+      Validation Overrides <span style="font-weight:400;color:var(--color-text-muted)">(optional)</span>
+    </summary>
+    <div style="margin-top:0.5rem;">
+      <span style="font-size:11px;color:var(--color-text-muted);display:block;margin-bottom:0.5rem;">
+        Leave blank to inherit from repo config.
+      </span>
+
+      <div class="form-group">
+        <label for="sp-validate-mode">Mode</label>
+        <select id="sp-validate-mode" name="validateMode" onchange="
+          var mode = this.value;
+          document.getElementById('sp-serve-fields').style.display = mode === 'serve' ? '' : 'none';
+          document.getElementById('sp-docker-fields').style.display = mode === 'docker' ? '' : 'none';
+        ">
+          <option value="" <%= !(it.validateMode) ? 'selected' : '' %>>Inherit from repo</option>
+          <option value="serve" <%= it.validateMode === 'serve' ? 'selected' : '' %>>Serve</option>
+          <option value="docker" <%= it.validateMode === 'docker' ? 'selected' : '' %>>Docker</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="sp-validate-build">Build Command</label>
+        <input id="sp-validate-build" type="text" name="validateBuild" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateBuild ?? '' %>" />
+      </div>
+
+      <div id="sp-serve-fields" style="<%= it.validateMode === 'serve' ? '' : 'display:none' %>">
+        <div class="form-group">
+          <label for="sp-validate-start">Start Command</label>
+          <input id="sp-validate-start" type="text" name="validateStart" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateStart ?? '' %>" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="sp-validate-health">Health Path</label>
+        <input id="sp-validate-health" type="text" name="validateHealth" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateHealth ?? '' %>" />
+      </div>
+
+      <div id="sp-docker-fields" style="<%= it.validateMode === 'docker' ? '' : 'display:none' %>">
+        <div class="form-group">
+          <label for="sp-validate-compose">Compose File</label>
+          <input id="sp-validate-compose" type="text" name="validateComposeFile" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateComposeFile ?? '' %>" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="sp-validate-timeout">Timeout (seconds)</label>
+        <input id="sp-validate-timeout" type="number" name="validateTimeout" min="30" max="3600" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateTimeout ?? '' %>" />
+      </div>
+    </div>
+  </details>
+
   <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
     <button type="submit" class="btn btn-primary"><%= it.editId ? 'Update' : 'Save' %></button>
     <button

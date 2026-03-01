@@ -172,45 +172,60 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
-      // Per-session isolated HOME: each session gets its own /tmp/orcha-home-<id>/
-      // so concurrent sessions with different credentials don't overwrite each other.
+      // Per-session isolated HOME: every session gets its own /tmp/orcha-home-<id>/
+      // so concurrent sessions with different credentials don't overwrite each other,
+      // and each session gets its own MCP server config for validation tools.
       const sessionId = randomUUID();
-      if (modelConfigId) {
-        const modelConfig = modelConfigStore.getConfig(modelConfigId);
-        if (modelConfig?.credentialsJson) {
-          try {
-            const sessionHome = join('/tmp', `orcha-home-${sessionId}`);
-            const claudeDir = join(sessionHome, '.claude');
-            mkdirSync(claudeDir, { recursive: true });
-            // Build settings.json for this session: start from shared settings,
-            // then ensure theme=dark is set so claude skips the first-run picker.
-            const sharedSettings = join(homedir(), '.claude', 'settings.json');
-            let settings: Record<string, unknown> = {};
-            if (existsSync(sharedSettings)) {
-              try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
-            }
-            if (!('theme' in settings)) settings['theme'] = 'dark';
-            writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+      {
+        try {
+          const sessionHome = join('/tmp', `orcha-home-${sessionId}`);
+          const claudeDir = join(sessionHome, '.claude');
+          mkdirSync(claudeDir, { recursive: true });
 
-            const credsPath = join(claudeDir, '.credentials.json');
-            writeFileSync(credsPath, modelConfig.credentialsJson, 'utf8');
-
-            // Diagnostic: verify credentials were written and check expiry
-            try {
-              const readback = readFileSync(credsPath, 'utf8');
-              const parsed = JSON.parse(readback) as Record<string, unknown>;
-              const expiresAt = parsed['expiresAt'] as string | undefined;
-              const isExpired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : 'no-expiry';
-              console.log(`[sessions] credentials injected sessionId=${sessionId} path=${credsPath} expired=${isExpired} expiresAt=${expiresAt ?? 'none'} provider=${modelConfig.provider}`);
-            } catch (readErr) {
-              console.warn(`[sessions] credentials readback failed sessionId=${sessionId}:`, readErr);
-            }
-
-            env['HOME'] = sessionHome;
-            console.log(`[sessions] per-session HOME=${sessionHome} sessionId=${sessionId}`);
-          } catch (err) {
-            console.warn('[sessions] Failed to create per-session home dir:', err);
+          // Build settings.json for this session: start from shared settings,
+          // then ensure theme=dark is set so claude skips the first-run picker.
+          const sharedSettings = join(homedir(), '.claude', 'settings.json');
+          let settings: Record<string, unknown> = {};
+          if (existsSync(sharedSettings)) {
+            try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
           }
+          if (!('theme' in settings)) settings['theme'] = 'dark';
+
+          // Inject MCP validation server config
+          const orchaPort = process.env['PORT'] ?? '3001';
+          const mcpServers = (settings['mcpServers'] ?? {}) as Record<string, unknown>;
+          mcpServers['validate'] = {
+            type: 'sse',
+            url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
+          };
+          settings['mcpServers'] = mcpServers;
+
+          writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+
+          // Inject model credentials if available
+          if (modelConfigId) {
+            const modelConfig = modelConfigStore.getConfig(modelConfigId);
+            if (modelConfig?.credentialsJson) {
+              const credsPath = join(claudeDir, '.credentials.json');
+              writeFileSync(credsPath, modelConfig.credentialsJson, 'utf8');
+
+              // Diagnostic: verify credentials were written and check expiry
+              try {
+                const readback = readFileSync(credsPath, 'utf8');
+                const parsed = JSON.parse(readback) as Record<string, unknown>;
+                const expiresAt = parsed['expiresAt'] as string | undefined;
+                const isExpired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : 'no-expiry';
+                console.log(`[sessions] credentials injected sessionId=${sessionId} path=${credsPath} expired=${isExpired} expiresAt=${expiresAt ?? 'none'} provider=${modelConfig.provider}`);
+              } catch (readErr) {
+                console.warn(`[sessions] credentials readback failed sessionId=${sessionId}:`, readErr);
+              }
+            }
+          }
+
+          env['HOME'] = sessionHome;
+          console.log(`[sessions] per-session HOME=${sessionHome} sessionId=${sessionId}`);
+        } catch (err) {
+          console.warn('[sessions] Failed to create per-session home dir:', err);
         }
       }
 

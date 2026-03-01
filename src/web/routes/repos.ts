@@ -46,6 +46,12 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         editId: repo.id,
         url: repo.url,
         displayName: repo.displayName,
+        validateMode: repo.validateMode ?? '',
+        validateBuild: repo.validateBuild ?? '',
+        validateStart: repo.validateStart ?? '',
+        validateHealth: repo.validateHealth ?? '',
+        validateComposeFile: repo.validateComposeFile ?? '',
+        validateTimeout: repo.validateTimeout,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -54,7 +60,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
-  // PUT /api/repos/:id — update display name
+  // PUT /api/repos/:id — update display name + validation config
   router.put('/repos/:id', (req, res, next) => {
     try {
       const id = req.params['id'] ?? '';
@@ -71,6 +77,12 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
           editId: id,
           url: repo?.url ?? '',
           displayName,
+          validateMode: repo?.validateMode ?? '',
+          validateBuild: repo?.validateBuild ?? '',
+          validateStart: repo?.validateStart ?? '',
+          validateHealth: repo?.validateHealth ?? '',
+          validateComposeFile: repo?.validateComposeFile ?? '',
+          validateTimeout: repo?.validateTimeout ?? 300,
         });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -79,6 +91,24 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       store.updateDisplayName(id, displayName);
+
+      // Update validation config fields
+      const validateMode = (typeof req.body['validateMode'] === 'string' ? req.body['validateMode'] : '').trim();
+      const validateBuild = (typeof req.body['validateBuild'] === 'string' ? req.body['validateBuild'] : '').trim();
+      const validateStart = (typeof req.body['validateStart'] === 'string' ? req.body['validateStart'] : '').trim();
+      const validateHealth = (typeof req.body['validateHealth'] === 'string' ? req.body['validateHealth'] : '').trim();
+      const validateComposeFile = (typeof req.body['validateComposeFile'] === 'string' ? req.body['validateComposeFile'] : '').trim();
+      const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
+      const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
+
+      store.updateValidation(id, {
+        validateMode,
+        validateBuild,
+        validateStart,
+        validateHealth,
+        validateComposeFile,
+        ...(validateTimeout !== undefined && !isNaN(validateTimeout) ? { validateTimeout } : {}),
+      });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('HX-Trigger', 'close-panel');

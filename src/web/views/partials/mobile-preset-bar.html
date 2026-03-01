@@ -1,0 +1,10 @@
+<div class="preset-bar">
+  <% for (const preset of it.presets) { %>
+    <button
+      class="preset-chip"
+      hx-post="/mobile/launch-preset/<%= preset.id %>"
+      hx-target="#mobile-terminal-area"
+      hx-swap="innerHTML"
+    ><%= preset.name %></button>
+  <% } %>
+</div>

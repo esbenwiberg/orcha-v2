@@ -119,6 +119,50 @@
 <div class="page-section" style="margin-bottom: 1rem">
   <div class="page-section__header">
     <div>
+      <h2 class="page-section__title">Validation</h2>
+      <p class="page-section__subtitle">Sessions can spin up and test the app they're working on</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Orcha exposes an MCP server to each session so Claude Code can build, start, and health-check the application under development — without breaking out of the sandbox.</p>
+    <h3>How it works</h3>
+    <ol>
+      <li>Configure validation on the <strong>Repos</strong> page (edit a repo → Validation Config section) or override per-preset</li>
+      <li>Choose a <strong>mode</strong>: <em>serve</em> (run a process on a port) or <em>docker</em> (docker compose)</li>
+      <li>When a session starts, Orcha injects an MCP server URL into the session's <code>.claude/settings.json</code></li>
+      <li>The agent calls <code>validate_start</code> to build and launch the app, then <code>validate_status</code> or <code>validate_logs</code> to check progress</li>
+      <li>When done, <code>validate_stop</code> tears it down — or it auto-stops on session exit or timeout</li>
+    </ol>
+    <h3>MCP tools available to sessions</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Tool</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>validate_start</code></td><td>Build, start, and health-poll the app. Returns the URL and port.</td></tr>
+        <tr><td><code>validate_stop</code></td><td>Gracefully tear down the validation environment</td></tr>
+        <tr><td><code>validate_status</code></td><td>Check current status, URL, port, and uptime</td></tr>
+        <tr><td><code>validate_logs</code></td><td>Get recent stdout/stderr output from the running app</td></tr>
+      </tbody>
+    </table>
+    <h3>Configuration sources (layered, later wins)</h3>
+    <ol>
+      <li><code>.orcha/validate.yml</code> in the repo (version-controlled)</li>
+      <li>Validation fields on the repo (set in the Repos edit form)</li>
+      <li>Validation overrides on the preset</li>
+      <li>Parameters passed directly to <code>validate_start</code></li>
+    </ol>
+    <h3>Teardown guarantees</h3>
+    <p>Validation environments are cleaned up via four layers: agent explicit stop, session exit handler, periodic cleanup sweep, and configurable timeout (default 5 minutes).</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
       <h2 class="page-section__title">Settings</h2>
       <p class="page-section__subtitle">Claude Code permissions</p>
     </div>

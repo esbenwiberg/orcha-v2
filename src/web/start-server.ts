@@ -12,6 +12,7 @@ import { AuthTerminalManager } from '../terminal/auth-terminal-manager.js';
 import { startServer } from './server.js';
 import type { AppDeps } from './app.js';
 import { loadAuthConfig } from './auth/index.js';
+import { ValidationManager } from '../validation/validation-manager.js';
 import { emitStartupDiagnostics } from '../diagnostics/startup.js';
 import { getStoragePaths } from '../storage/paths.js';
 
@@ -100,10 +101,13 @@ instanceRegistry.upsertInstance({ id: instanceId, repoRoot, registeredAt: now, l
 const modelConfigStore = new ModelConfigStore(db);
 const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionStore, credentialStore, instanceId, modelConfigStore);
 
+const validationManager = new ValidationManager();
+sessionEngine.setValidationManager(validationManager);
+
 const authConfig = loadAuthConfig();
 const authTerminalManager = new AuthTerminalManager();
 
-const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig, authTerminalManager };
+const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig, authTerminalManager, validationManager };
 
 startServer(deps, port)
   .then(() => {

@@ -458,6 +458,23 @@ document.addEventListener('click', (e) => {
   }
 });
 
+/* -----------------------------------------------------------------------
+   Tab active-state management — keep the highlight in sync with clicks
+   ----------------------------------------------------------------------- */
+(function initTabState() {
+  const tabs = document.getElementById('mobile-tabs');
+  if (!tabs) return;
+
+  tabs.addEventListener('click', (e) => {
+    const tab = e.target.closest('.mobile-tab');
+    if (!tab) return;
+
+    // Remove active from all siblings, add to the clicked tab
+    tabs.querySelectorAll('.mobile-tab').forEach((t) => t.classList.remove('mobile-tab--active'));
+    tab.classList.add('mobile-tab--active');
+  });
+})();
+
 /**
  * Boot the terminal when #terminal-frame appears in the DOM after an HTMX swap,
  * or wire up the send modal when it appears.
@@ -560,5 +577,28 @@ document.addEventListener('htmx:afterRequest', (event) => {
     detail.pathInfo.requestPath === '/mobile/send'
   ) {
     setTimeout(_closeSendModal, 600);
+  }
+});
+
+/* -----------------------------------------------------------------------
+   Preset chip loading state — disable button while request is in flight
+   ----------------------------------------------------------------------- */
+document.addEventListener('htmx:beforeRequest', (event) => {
+  const elt = event.detail?.elt;
+  if (elt && elt.classList.contains('preset-chip')) {
+    elt.disabled = true;
+    elt.dataset.origText = elt.textContent;
+    elt.textContent = 'Launching\u2026';
+  }
+});
+
+document.addEventListener('htmx:afterRequest', (event) => {
+  const elt = event.detail?.elt;
+  if (elt && elt.classList.contains('preset-chip')) {
+    elt.disabled = false;
+    if (elt.dataset.origText) {
+      elt.textContent = elt.dataset.origText;
+      delete elt.dataset.origText;
+    }
   }
 });

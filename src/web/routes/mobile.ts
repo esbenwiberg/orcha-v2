@@ -1,9 +1,19 @@
 import { Router } from 'express';
+import { randomUUID } from 'node:crypto';
+import { homedir } from 'node:os';
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
+import { PresetStore } from '../../db/preset-store.js';
+import { RepoStore } from '../../db/repo-store.js';
+import { ModelConfigStore } from '../../db/model-config-store.js';
+import { credentialManager } from '../../credentials/credential-manager.js';
+import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
+import { eventBus } from '../services/event-bus.js';
 
 /** Minimal HTML-escape to prevent XSS in inline error messages. */
 function escapeHtml(str: string): string {
@@ -19,6 +29,9 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new SessionStore(deps.db);
   const credStore = new CredentialStore(deps.db);
+  const presetStore = new PresetStore(deps.db);
+  const repoStore = new RepoStore(deps.db);
+  const modelConfigStore = new ModelConfigStore(deps.db);
 
   // GET / — mobile shell with bottom-tab navigation
   router.get('/', (_req, res, next) => {
@@ -51,7 +64,13 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
         )
         .join('');
 
-      const html = eta.render('partials/mobile-sessions-list', { sessionItemsHtml });
+      // Render preset bar if presets exist
+      const presets = presetStore.listPresets();
+      const presetBarHtml = presets.length > 0
+        ? eta.render('partials/mobile-preset-bar', { presets })
+        : '';
+
+      const html = eta.render('partials/mobile-sessions-list', { sessionItemsHtml, presetBarHtml });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -115,6 +134,145 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       const wsUrl = `${proto}://${req.get('host') ?? 'localhost'}/ws/terminal/${sessionId}`;
 
       const html = eta.render('partials/mobile-terminal-frame', { sessionId, wsUrl });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /launch-preset/:presetId — create a session from a preset and connect
+  router.post('/launch-preset/:presetId', async (req, res, next) => {
+    try {
+      const presetId = req.params['presetId'] ?? '';
+      const preset = presetStore.getPreset(presetId);
+      if (preset === undefined) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(404).send('<div class="connecting-msg connecting-msg--error">Preset not found.</div>');
+        return;
+      }
+
+      // Validate repo
+      const repo = preset.repoId ? repoStore.getRepo(preset.repoId) : undefined;
+      if (!repo || repo.status !== 'ready') {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(422).send('<div class="connecting-msg connecting-msg--error">Repo not ready.</div>');
+        return;
+      }
+
+      // Validate model config
+      const modelConfig = preset.modelConfigId ? modelConfigStore.getConfig(preset.modelConfigId) : undefined;
+      if (!modelConfig) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(422).send('<div class="connecting-msg connecting-msg--error">Model config not found.</div>');
+        return;
+      }
+
+      // Provision credentials if a profile was selected
+      const env: Record<string, string> = {};
+      let provisionedCreds: import('../../credentials/credential-manager.js').ProvisionResult | undefined;
+
+      if (preset.credentialProfileId) {
+        const profile = credStore.getProfile(preset.credentialProfileId);
+        if (profile) {
+          try {
+            provisionedCreds = await credentialManager.provision(profile);
+            Object.assign(env, provisionedCreds.env);
+          } catch (err) {
+            console.warn('[mobile] Credential provisioning failed, continuing with ambient credentials:', err);
+          }
+        }
+      }
+
+      // Build model env vars
+      const deleteEnvKeys: string[] = [];
+      const modelEnv = buildModelEnv(modelConfig);
+      for (const [key, value] of Object.entries(modelEnv)) {
+        if (value === ENV_DELETE) {
+          deleteEnvKeys.push(key);
+        } else {
+          env[key] = value;
+        }
+      }
+
+      // Per-session isolated HOME for credential injection
+      const sessionId = randomUUID();
+      if (modelConfig.credentialsJson) {
+        try {
+          const sessionHome = join('/tmp', `orcha-home-${sessionId}`);
+          const claudeDir = join(sessionHome, '.claude');
+          mkdirSync(claudeDir, { recursive: true });
+
+          const sharedSettings = join(homedir(), '.claude', 'settings.json');
+          let settings: Record<string, unknown> = {};
+          if (existsSync(sharedSettings)) {
+            try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
+          }
+          if (!('theme' in settings)) settings['theme'] = 'dark';
+          writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+          writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
+
+          env['HOME'] = sessionHome;
+        } catch (err) {
+          console.warn('[mobile] Failed to create per-session home dir:', err);
+        }
+      }
+
+      // Auto-generate branch name from preset
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const branch = `${preset.name.replace(/\s+/g, '-').toLowerCase()}/${ts}`;
+
+      const sessionHome = env['HOME'];
+      const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
+        sessionId,
+        branch,
+        command: 'claude',
+        args: [],
+        env,
+        sandbox: false,
+        ...(deleteEnvKeys.length > 0 ? { deleteEnv: deleteEnvKeys } : {}),
+        ...(sessionHome !== undefined ? { homeDir: sessionHome } : {}),
+        ...(preset.modelConfigId ? { modelConfigId: preset.modelConfigId } : {}),
+        ...(modelConfig !== undefined ? { modelProvider: modelConfig.provider } : {}),
+      };
+      if (repo.barePath !== null) {
+        createOpts.repoRoot = repo.barePath;
+      }
+
+      const activeSession = await deps.sessionEngine.createSession(createOpts);
+
+      // Persist credential records
+      if (provisionedCreds && activeSession.dbSessionId) {
+        try {
+          const { activeCreds } = provisionedCreds;
+          credStore.createSessionCredentials({
+            sessionId: activeSession.dbSessionId,
+            profileId: activeCreds.profileId,
+            profileName: activeCreds.profileName,
+            expiresAt: activeCreds.expiresAt,
+            ...(activeCreds.azureSpName !== undefined ? { azureSpName: activeCreds.azureSpName } : {}),
+            ...(activeCreds.azureAppId !== undefined ? { azureAppId: activeCreds.azureAppId } : {}),
+            ...(activeCreds.githubPatId !== undefined ? { githubPatId: activeCreds.githubPatId } : {}),
+            ...(activeCreds.devopsPatId !== undefined ? { devopsPatId: activeCreds.devopsPatId } : {}),
+          });
+        } catch (err) {
+          console.warn('[mobile] Failed to persist credential record to DB:', err);
+        }
+      }
+
+      eventBus.publish({ sessionId: activeSession.sessionId, type: 'created' });
+
+      // Set mobile session cookie and return terminal frame
+      const dbSessionId = activeSession.dbSessionId ?? sessionId;
+      res.setHeader(
+        'Set-Cookie',
+        `mobile-session-id=${dbSessionId}; HttpOnly; SameSite=Strict; Path=/mobile`,
+      );
+
+      const proto = req.protocol === 'https' ? 'wss' : 'ws';
+      const wsUrl = `${proto}://${req.get('host') ?? 'localhost'}/ws/terminal/${activeSession.sessionId}`;
+
+      const html = eta.render('partials/mobile-terminal-frame', { sessionId: dbSessionId, wsUrl });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {

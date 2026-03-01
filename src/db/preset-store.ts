@@ -1,7 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 
-export interface Preset {
+export interface PresetValidateFields {
+  validateMode: string | null;
+  validateBuild: string | null;
+  validateStart: string | null;
+  validateHealth: string | null;
+  validateComposeFile: string | null;
+  validateTimeout: number | null;
+}
+
+export interface Preset extends PresetValidateFields {
   id: string;
   name: string;
   repoId: string;
@@ -15,6 +24,12 @@ export interface CreatePresetInput {
   repoId: string;
   credentialProfileId: string;
   modelConfigId: string;
+  validateMode?: string;
+  validateBuild?: string;
+  validateStart?: string;
+  validateHealth?: string;
+  validateComposeFile?: string;
+  validateTimeout?: number;
 }
 
 export class PresetStore {
@@ -31,6 +46,12 @@ export class PresetStore {
       repoId: (row['repo_id'] as string) ?? '',
       credentialProfileId: (row['credential_profile_id'] as string) ?? '',
       modelConfigId: (row['model_config_id'] as string) ?? '',
+      validateMode: (row['validate_mode'] as string | null) ?? null,
+      validateBuild: (row['validate_build'] as string | null) ?? null,
+      validateStart: (row['validate_start'] as string | null) ?? null,
+      validateHealth: (row['validate_health'] as string | null) ?? null,
+      validateComposeFile: (row['validate_compose_file'] as string | null) ?? null,
+      validateTimeout: (row['validate_timeout'] as number | null) ?? null,
       createdAt: new Date(row['created_at'] as string),
     };
   }
@@ -56,10 +77,17 @@ export class PresetStore {
 
     this.#db
       .prepare(
-        `INSERT INTO presets (id, name, repo_id, credential_profile_id, model_config_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO presets (id, name, repo_id, credential_profile_id, model_config_id,
+           validate_mode, validate_build, validate_start, validate_health, validate_compose_file, validate_timeout,
+           created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, input.name, input.repoId || null, input.credentialProfileId || null, input.modelConfigId || null, now);
+      .run(
+        id, input.name, input.repoId || null, input.credentialProfileId || null, input.modelConfigId || null,
+        input.validateMode || null, input.validateBuild || null, input.validateStart || null,
+        input.validateHealth || null, input.validateComposeFile || null, input.validateTimeout ?? null,
+        now,
+      );
 
     return this.getPreset(id)!;
   }
@@ -75,9 +103,21 @@ export class PresetStore {
 
     this.#db
       .prepare(
-        `UPDATE presets SET name = ?, repo_id = ?, credential_profile_id = ?, model_config_id = ? WHERE id = ?`,
+        `UPDATE presets SET name = ?, repo_id = ?, credential_profile_id = ?, model_config_id = ?,
+           validate_mode = ?, validate_build = ?, validate_start = ?,
+           validate_health = ?, validate_compose_file = ?, validate_timeout = ?
+         WHERE id = ?`,
       )
-      .run(name, repoId || null, credentialProfileId || null, modelConfigId || null, id);
+      .run(
+        name, repoId || null, credentialProfileId || null, modelConfigId || null,
+        input.validateMode ?? existing.validateMode,
+        input.validateBuild ?? existing.validateBuild,
+        input.validateStart ?? existing.validateStart,
+        input.validateHealth ?? existing.validateHealth,
+        input.validateComposeFile ?? existing.validateComposeFile,
+        input.validateTimeout ?? existing.validateTimeout,
+        id,
+      );
 
     return this.getPreset(id);
   }

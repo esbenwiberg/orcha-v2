@@ -54,6 +54,57 @@
     </div>
   <% } %>
 
+  <% if (it.editId) { %>
+    <details style="margin-top:0.75rem;border-top:1px solid var(--color-border);padding-top:0.5rem;">
+      <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--color-text-primary);user-select:none;">
+        Validation Config
+      </summary>
+      <div style="margin-top:0.5rem;">
+        <div class="form-group">
+          <label for="ar-validate-mode">Mode</label>
+          <select id="ar-validate-mode" name="validateMode" onchange="
+            var mode = this.value;
+            document.getElementById('ar-serve-fields').style.display = mode === 'serve' ? '' : 'none';
+            document.getElementById('ar-docker-fields').style.display = mode === 'docker' ? '' : 'none';
+          ">
+            <option value="" <%= !(it.validateMode) ? 'selected' : '' %>>None</option>
+            <option value="serve" <%= it.validateMode === 'serve' ? 'selected' : '' %>>Serve</option>
+            <option value="docker" <%= it.validateMode === 'docker' ? 'selected' : '' %>>Docker</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="ar-validate-build">Build Command <span style="font-weight:400;color:var(--color-text-muted)">(optional)</span></label>
+          <input id="ar-validate-build" type="text" name="validateBuild" placeholder="npm run build" autocomplete="off" value="<%= it.validateBuild ?? '' %>" />
+        </div>
+
+        <div id="ar-serve-fields" style="<%= it.validateMode === 'serve' ? '' : 'display:none' %>">
+          <div class="form-group">
+            <label for="ar-validate-start">Start Command</label>
+            <input id="ar-validate-start" type="text" name="validateStart" placeholder="node dist/server.js" autocomplete="off" value="<%= it.validateStart ?? '' %>" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="ar-validate-health">Health Path <span style="font-weight:400;color:var(--color-text-muted)">(optional)</span></label>
+          <input id="ar-validate-health" type="text" name="validateHealth" placeholder="/health" autocomplete="off" value="<%= it.validateHealth ?? '' %>" />
+        </div>
+
+        <div id="ar-docker-fields" style="<%= it.validateMode === 'docker' ? '' : 'display:none' %>">
+          <div class="form-group">
+            <label for="ar-validate-compose">Compose File</label>
+            <input id="ar-validate-compose" type="text" name="validateComposeFile" placeholder="docker-compose.yml" autocomplete="off" value="<%= it.validateComposeFile ?? '' %>" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="ar-validate-timeout">Timeout (seconds)</label>
+          <input id="ar-validate-timeout" type="number" name="validateTimeout" min="30" max="3600" placeholder="300" autocomplete="off" value="<%= it.validateTimeout ?? 300 %>" />
+        </div>
+      </div>
+    </details>
+  <% } %>
+
   <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
     <button type="submit" class="btn btn-primary"><%= it.editId ? 'Update' : 'Add' %></button>
     <button

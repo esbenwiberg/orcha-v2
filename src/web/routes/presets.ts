@@ -66,6 +66,13 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const modelConfigId = (
         typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : ''
       ).trim();
+      const validateMode = (typeof req.body['validateMode'] === 'string' ? req.body['validateMode'] : '').trim();
+      const validateBuild = (typeof req.body['validateBuild'] === 'string' ? req.body['validateBuild'] : '').trim();
+      const validateStart = (typeof req.body['validateStart'] === 'string' ? req.body['validateStart'] : '').trim();
+      const validateHealth = (typeof req.body['validateHealth'] === 'string' ? req.body['validateHealth'] : '').trim();
+      const validateComposeFile = (typeof req.body['validateComposeFile'] === 'string' ? req.body['validateComposeFile'] : '').trim();
+      const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
+      const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
 
       const errors: string[] = [];
 
@@ -84,6 +91,12 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           repoId,
           credentialProfileId,
           modelConfigId,
+          validateMode,
+          validateBuild,
+          validateStart,
+          validateHealth,
+          validateComposeFile,
+          validateTimeout,
           repos,
           credentialProfiles,
           modelConfigs,
@@ -94,7 +107,15 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      store.createPreset({ name, repoId, credentialProfileId, modelConfigId });
+      store.createPreset({
+        name, repoId, credentialProfileId, modelConfigId,
+        ...(validateMode ? { validateMode } : {}),
+        ...(validateBuild ? { validateBuild } : {}),
+        ...(validateStart ? { validateStart } : {}),
+        ...(validateHealth ? { validateHealth } : {}),
+        ...(validateComposeFile ? { validateComposeFile } : {}),
+        ...(validateTimeout !== undefined && !isNaN(validateTimeout) ? { validateTimeout } : {}),
+      });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('HX-Trigger', 'close-panel');
@@ -126,6 +147,12 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         repoId: preset.repoId,
         credentialProfileId: preset.credentialProfileId,
         modelConfigId: preset.modelConfigId,
+        validateMode: preset.validateMode ?? '',
+        validateBuild: preset.validateBuild ?? '',
+        validateStart: preset.validateStart ?? '',
+        validateHealth: preset.validateHealth ?? '',
+        validateComposeFile: preset.validateComposeFile ?? '',
+        validateTimeout: preset.validateTimeout,
         repos,
         credentialProfiles,
         modelConfigs,
@@ -149,6 +176,13 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const modelConfigId = (
         typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : ''
       ).trim();
+      const validateMode = (typeof req.body['validateMode'] === 'string' ? req.body['validateMode'] : '').trim();
+      const validateBuild = (typeof req.body['validateBuild'] === 'string' ? req.body['validateBuild'] : '').trim();
+      const validateStart = (typeof req.body['validateStart'] === 'string' ? req.body['validateStart'] : '').trim();
+      const validateHealth = (typeof req.body['validateHealth'] === 'string' ? req.body['validateHealth'] : '').trim();
+      const validateComposeFile = (typeof req.body['validateComposeFile'] === 'string' ? req.body['validateComposeFile'] : '').trim();
+      const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
+      const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
 
       const errors: string[] = [];
 
@@ -168,6 +202,12 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           repoId,
           credentialProfileId,
           modelConfigId,
+          validateMode,
+          validateBuild,
+          validateStart,
+          validateHealth,
+          validateComposeFile,
+          validateTimeout,
           repos,
           credentialProfiles,
           modelConfigs,
@@ -178,7 +218,15 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      store.updatePreset(id, { name, repoId, credentialProfileId, modelConfigId });
+      store.updatePreset(id, {
+        name, repoId, credentialProfileId, modelConfigId,
+        ...(validateMode ? { validateMode } : {}),
+        ...(validateBuild ? { validateBuild } : {}),
+        ...(validateStart ? { validateStart } : {}),
+        ...(validateHealth ? { validateHealth } : {}),
+        ...(validateComposeFile ? { validateComposeFile } : {}),
+        ...(validateTimeout !== undefined && !isNaN(validateTimeout) ? { validateTimeout } : {}),
+      });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('HX-Trigger', 'close-panel');

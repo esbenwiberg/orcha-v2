@@ -4,7 +4,18 @@ import Database from 'better-sqlite3';
 export type RepoProvider = 'github' | 'azure-devops' | 'other';
 export type RepoStatus = 'pending' | 'cloning' | 'ready' | 'error';
 
-export interface Repo {
+export type ValidateMode = 'serve' | 'docker';
+
+export interface RepoValidateFields {
+  validateMode: ValidateMode | null;
+  validateBuild: string | null;
+  validateStart: string | null;
+  validateHealth: string | null;
+  validateComposeFile: string | null;
+  validateTimeout: number;
+}
+
+export interface Repo extends RepoValidateFields {
   id: string;
   url: string;
   provider: RepoProvider;
@@ -71,6 +82,12 @@ export class RepoStore {
       barePath: (row['bare_path'] as string | null) ?? null,
       status: row['status'] as RepoStatus,
       error: (row['error'] as string | null) ?? null,
+      validateMode: (row['validate_mode'] as ValidateMode | null) ?? null,
+      validateBuild: (row['validate_build'] as string | null) ?? null,
+      validateStart: (row['validate_start'] as string | null) ?? null,
+      validateHealth: (row['validate_health'] as string | null) ?? null,
+      validateComposeFile: (row['validate_compose_file'] as string | null) ?? null,
+      validateTimeout: (row['validate_timeout'] as number | null) ?? 300,
       createdAt: new Date(row['created_at'] as string),
       updatedAt: new Date(row['updated_at'] as string),
     };
@@ -145,6 +162,43 @@ export class RepoStore {
     }
 
     return this.getRepo(id)!;
+  }
+
+  updateValidation(
+    id: string,
+    fields: {
+      validateMode?: string;
+      validateBuild?: string;
+      validateStart?: string;
+      validateHealth?: string;
+      validateComposeFile?: string;
+      validateTimeout?: number;
+    },
+  ): Repo | undefined {
+    const existing = this.getRepo(id);
+    if (existing === undefined) return undefined;
+
+    const now = new Date().toISOString();
+    this.#db
+      .prepare(
+        `UPDATE repos SET
+           validate_mode = ?, validate_build = ?, validate_start = ?,
+           validate_health = ?, validate_compose_file = ?, validate_timeout = ?,
+           updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(
+        fields.validateMode || null,
+        fields.validateBuild || null,
+        fields.validateStart || null,
+        fields.validateHealth || null,
+        fields.validateComposeFile || null,
+        fields.validateTimeout ?? existing.validateTimeout,
+        now,
+        id,
+      );
+
+    return this.getRepo(id);
   }
 
   deleteRepo(id: string): void {

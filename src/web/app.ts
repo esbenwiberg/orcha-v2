@@ -24,6 +24,8 @@ import { createSystemRouter } from './routes/system.js';
 import { createModelConfigsRouter } from './routes/model-configs.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
+import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
+import { ValidationManager } from '../validation/validation-manager.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -33,6 +35,7 @@ export interface AppDeps {
   db: Database.Database;
   authConfig: AuthConfig;
   authTerminalManager: AuthTerminalManager;
+  validationManager?: ValidationManager;
 }
 
 export async function createApp(deps: AppDeps): Promise<express.Application> {
@@ -72,6 +75,11 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // Health endpoint — mounted before auth so it is always reachable without credentials
   app.use('/health', createHealthRouter(deps.db));
+
+  // MCP validation endpoint — mounted before auth so sandboxed sessions can reach it
+  if (deps.validationManager) {
+    app.use(createValidateMcpRouter(deps.db, deps.validationManager));
+  }
 
   // Build and mount auth middleware
   const { middleware: authMiddleware, router: authRouter } = await buildAuthMiddleware(

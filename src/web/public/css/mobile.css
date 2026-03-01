@@ -188,6 +188,60 @@ body {
 }
 
 /* -----------------------------------------------------------------------
+   Preset quick-launch bar — horizontal scrollable row of pill buttons
+   ----------------------------------------------------------------------- */
+.preset-bar {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Hide scrollbar but keep scrollability */
+.preset-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.preset-bar {
+  scrollbar-width: none;
+}
+
+.preset-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  min-width: 44px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-accent);
+  background-color: transparent;
+  border: 1.5px solid var(--color-accent);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.preset-chip:active {
+  background-color: var(--color-accent);
+  color: #fff;
+}
+
+.preset-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* -----------------------------------------------------------------------
    Session list
    ----------------------------------------------------------------------- */
 .session-list {
@@ -829,6 +883,10 @@ body {
 
   .action-sheet-btn--cancel:hover {
     background-color: var(--color-surface-raised);
+  }
+
+  .preset-chip:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
 }
 
