@@ -105,7 +105,9 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       const proto = req.protocol === 'https' ? 'wss' : 'ws';
       const wsUrl = `${proto}://${req.get('host') ?? 'localhost'}/ws/terminal/${sessionId}`;
 
-      const html = eta.render('partials/mobile-terminal-frame', { sessionId, wsUrl });
+      const active = deps.sessionEngine.getSessionByDbId(sessionId);
+      const modelProvider = active?.modelProvider;
+      const html = eta.render('partials/mobile-terminal-frame', { sessionId, wsUrl, ...(modelProvider !== undefined ? { modelProvider } : {}) });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -133,7 +135,9 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       const proto = req.protocol === 'https' ? 'wss' : 'ws';
       const wsUrl = `${proto}://${req.get('host') ?? 'localhost'}/ws/terminal/${sessionId}`;
 
-      const html = eta.render('partials/mobile-terminal-frame', { sessionId, wsUrl });
+      const active = deps.sessionEngine.getSessionByDbId(sessionId);
+      const modelProvider = active?.modelProvider;
+      const html = eta.render('partials/mobile-terminal-frame', { sessionId, wsUrl, ...(modelProvider !== undefined ? { modelProvider } : {}) });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -272,7 +276,8 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       const proto = req.protocol === 'https' ? 'wss' : 'ws';
       const wsUrl = `${proto}://${req.get('host') ?? 'localhost'}/ws/terminal/${activeSession.sessionId}`;
 
-      const html = eta.render('partials/mobile-terminal-frame', { sessionId: dbSessionId, wsUrl });
+      const launchModelProvider = modelConfig?.provider;
+      const html = eta.render('partials/mobile-terminal-frame', { sessionId: dbSessionId, wsUrl, ...(launchModelProvider !== undefined ? { modelProvider: launchModelProvider } : {}) });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {

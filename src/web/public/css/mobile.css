@@ -400,6 +400,29 @@ body {
   background-color: #0d0d0d;
 }
 
+/* Auth banner slot — sits above terminal, auto-hides when empty */
+.mobile-auth-slot {
+  flex-shrink: 0;
+}
+
+.mobile-auth-slot:empty {
+  display: none;
+}
+
+.mobile-auth-slot .auth-banner {
+  margin: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
+.mobile-auth-slot .auth-banner--login {
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+}
+
 .xterm-container {
   flex: 1 1 0;
   overflow: hidden;

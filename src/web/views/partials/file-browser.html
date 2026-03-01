@@ -29,5 +29,17 @@
     </div>
   </div>
 </div>
-<script src="/js/file-browser.js"></script>
-<script>window.__fileBrowserInit('<%= it.sessionId %>')</script>
+<script>
+(function() {
+  // If file-browser.js is pre-loaded (mobile.html / layout.html), init immediately.
+  // Otherwise load it dynamically and init on load.
+  if (typeof window.__fileBrowserInit === 'function') {
+    window.__fileBrowserInit('<%= it.sessionId %>');
+  } else {
+    var s = document.createElement('script');
+    s.src = '/js/file-browser.js';
+    s.onload = function() { window.__fileBrowserInit('<%= it.sessionId %>'); };
+    document.head.appendChild(s);
+  }
+})();
+</script>
