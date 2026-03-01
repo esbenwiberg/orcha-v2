@@ -96,6 +96,12 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
       ] : [])
     }
     template: {
+      // Orcha manages stateful PTY sessions — scaling to zero kills them all.
+      // Pin to exactly 1 replica so sessions survive browser disconnects.
+      scale: {
+        minReplicas: 1
+        maxReplicas: 1
+      }
       // Persistent volume backed by the Azure File Share
       volumes: [
         {
