@@ -458,6 +458,31 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // POST /api/sessions/:id/send-input — write text to the session's PTY
+  router.post('/sessions/:id/send-input', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const text = typeof req.body['text'] === 'string' ? req.body['text'] : '';
+
+      if (!text) {
+        res.status(400).send('');
+        return;
+      }
+
+      const active = deps.sessionEngine.getSessionByDbId(id);
+      if (!active || active.terminal.exitCode !== undefined) {
+        res.status(404).send('');
+        return;
+      }
+
+      active.terminal.write(text + '\r');
+      console.log(`[sessions] send-input sessionId=${id} length=${text.length}`);
+      res.status(200).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // GET /api/sessions/:id/auth-url — poll for auth URL or credential capture
   router.get('/sessions/:id/auth-url', (req, res, next) => {
     try {

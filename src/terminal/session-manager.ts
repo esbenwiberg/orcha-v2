@@ -145,6 +145,16 @@ export class SessionManager {
         firstChunkLogged = true;
         const bytes = typeof chunk === 'string' ? chunk.length : chunk.byteLength;
         console.log(`[session] first output chunk sessionId=${sessionId} bytes=${bytes}`);
+
+        // Max/Pro sessions with per-session HOME: auto-dismiss the theme picker
+        // by sending Enter after a short delay (Claude shows it on first run
+        // even with theme set in settings.json).
+        if (opts.modelProvider === 'max') {
+          setTimeout(() => {
+            try { terminal.write('\r'); } catch { /* may have exited */ }
+            console.log(`[session] auto-dismissed theme picker sessionId=${sessionId}`);
+          }, 600);
+        }
       }
     });
 
