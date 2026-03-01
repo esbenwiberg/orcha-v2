@@ -178,6 +178,31 @@ export class SessionStore {
     return this.getSession(id)!;
   }
 
+  /**
+   * Mark all sessions stuck in 'running' or 'starting' as 'failed'.
+   * Called at startup — any session that was active before a server restart
+   * has lost its PTY process and can't recover.
+   */
+  reconcileOrphanedSessions(): number {
+    const rows = this.#db
+      .prepare("SELECT id FROM sessions WHERE status IN ('running', 'starting')")
+      .all() as { id: string }[];
+
+    for (const row of rows) {
+      try {
+        this.updateStatus(row.id, 'failed', 'Server restarted while session was active');
+      } catch {
+        // Best-effort: skip if transition fails
+      }
+    }
+
+    if (rows.length > 0) {
+      console.log(`[session-store] reconciled ${rows.length} orphaned session(s) → failed`);
+    }
+
+    return rows.length;
+  }
+
   deleteSession(id: string): void {
     const session = this.getSession(id);
     if (session === undefined) {

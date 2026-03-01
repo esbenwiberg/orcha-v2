@@ -17,3 +17,17 @@
   <div class="skeleton skeleton-card"></div>
   <div class="skeleton skeleton-card"></div>
 </div>
+<script>
+(function() {
+  window.__syncGridCount = function() {
+    var grid = document.getElementById('session-grid');
+    if (!grid) return;
+    var n = grid.querySelectorAll(':scope > .session-card:not(.is-hidden-by-filter)').length;
+    grid.dataset.count = String(n);
+  };
+  var grid = document.getElementById('session-grid');
+  if (grid) {
+    new MutationObserver(window.__syncGridCount).observe(grid, { childList: true });
+  }
+})();
+</script>

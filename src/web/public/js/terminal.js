@@ -210,6 +210,8 @@ function toggleFilter(sessionId) {
   if (!isHidden) {
     refitTerminal(sessionId);
   }
+
+  if (window.__syncGridCount) window.__syncGridCount();
 }
 
 /**
@@ -225,6 +227,8 @@ function showAll() {
 
   // Refit all visible terminals
   openTerminals.forEach((_entry, id) => refitTerminal(id));
+
+  if (window.__syncGridCount) window.__syncGridCount();
 }
 
 // ESC key exits fullscreen

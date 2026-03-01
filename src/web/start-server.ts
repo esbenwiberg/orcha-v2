@@ -85,6 +85,7 @@ process.on('SIGTERM', () => {
 // --- end DB persistence bridge ---
 
 const sessionStore = new SessionStore(db);
+sessionStore.reconcileOrphanedSessions();
 const credentialStore = new CredentialStore(db);
 const worktreeManager = new WorktreeManager({ repoRoot });
 const ptyManager = new PtyManager();

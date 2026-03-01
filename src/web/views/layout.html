@@ -191,7 +191,7 @@
     </header>
 
     <!-- Main content -->
-    <main class="orcha-main" id="main-content"><%~ it.body %></main>
+    <main class="orcha-main<%= it.activeNav === 'sessions' ? ' orcha-main--sessions' : '' %>" id="main-content"><%~ it.body %></main>
 
     <script>
       (function () {
