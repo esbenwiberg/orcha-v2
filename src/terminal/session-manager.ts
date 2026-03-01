@@ -49,6 +49,8 @@ export interface ActiveSession {
   modelConfigId?: string;
   /** Model provider type (e.g. 'max', 'anthropic'). */
   modelProvider?: string;
+  /** Timestamp when auth code was sent to PTY (for detecting post-auth state). */
+  authCodeSentAt?: number;
 }
 
 export class SessionError extends Error {

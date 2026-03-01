@@ -481,21 +481,18 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       active.terminal.write(text + '\r');
       console.log(`[sessions] send-input sessionId=${id} length=${text.length}`);
 
-      // After pasting an auth code, Claude prompts: submit code → disclaimer → trust folder.
-      // Auto-dismiss all three with staggered Enters.
+      // After pasting an auth code, Claude prompts through several screens:
+      // submit code → disclaimer → trust folder → possibly more.
+      // Auto-dismiss with staggered Enters at generous intervals.
       if (active.modelProvider === 'max') {
-        setTimeout(() => {
-          try { active.terminal.write('\r'); } catch { /* exited */ }
-          console.log(`[sessions] post-auth auto-dismiss #1 (submit code) sessionId=${id}`);
-        }, 1500);
-        setTimeout(() => {
-          try { active.terminal.write('\r'); } catch { /* exited */ }
-          console.log(`[sessions] post-auth auto-dismiss #2 (disclaimer) sessionId=${id}`);
-        }, 4000);
-        setTimeout(() => {
-          try { active.terminal.write('\r'); } catch { /* exited */ }
-          console.log(`[sessions] post-auth auto-dismiss #3 (trust folder) sessionId=${id}`);
-        }, 7000);
+        active.authCodeSentAt = Date.now();
+        const delays = [2000, 5000, 8000, 11000];
+        delays.forEach((delay, i) => {
+          setTimeout(() => {
+            try { active.terminal.write('\r'); } catch { /* exited */ }
+            console.log(`[sessions] post-auth auto-dismiss #${i + 1} sessionId=${id}`);
+          }, delay);
+        });
       }
 
       res.status(200).send('');
@@ -531,10 +528,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             if (isRefreshed) {
               modelConfigStore.updateConfig(active.modelConfigId, { credentialsJson: credsJson });
               console.log(`[sessions] captured refreshed credentials sessionId=${id} modelConfigId=${active.modelConfigId}`);
-            }
-
-            // File differs from injected → auth succeeded; show success badge
-            if (isRefreshed) {
               const html = eta.render('partials/session-auth-banner', { authenticated: true });
               res.status(200).send(html);
               return;
@@ -543,6 +536,14 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             // Ignore parse errors, fall through to URL detection
           }
         }
+      }
+
+      // If auth code was sent and enough time passed, assume auth succeeded
+      // (credential file may not change if tokens were already valid).
+      if (active.authCodeSentAt && Date.now() - active.authCodeSentAt > 15_000) {
+        const html = eta.render('partials/session-auth-banner', { authenticated: true });
+        res.status(200).send(html);
+        return;
       }
 
       // Tier 2: Check terminal output for login URL
