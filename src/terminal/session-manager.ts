@@ -246,27 +246,17 @@ export class SessionManager {
       }
     }
 
-    // Capture refreshed credentials before cleaning up the home dir (Tier 3)
+    // Capture refreshed credentials before cleaning up the home dir (Tier 3).
+    // Compare file content to stored config — if different, Claude refreshed tokens.
     if (session?.homeDir && session.modelConfigId && this._modelConfigStore) {
       try {
         const credsPath = join(session.homeDir, '.claude', '.credentials.json');
         if (existsSync(credsPath)) {
           const credsJson = readFileSync(credsPath, 'utf8');
-          const parsed = JSON.parse(credsJson) as Record<string, unknown>;
-          const expiresAt = parsed['expiresAt'] as string | undefined;
-          if (expiresAt && new Date(expiresAt).getTime() > Date.now()) {
-            const current = this._modelConfigStore.getConfig(session.modelConfigId);
-            let isNew = true;
-            if (current?.credentialsJson) {
-              try {
-                const existing = JSON.parse(current.credentialsJson) as Record<string, unknown>;
-                isNew = existing['expiresAt'] !== expiresAt;
-              } catch { /* treat as new */ }
-            }
-            if (isNew) {
-              this._modelConfigStore.updateConfig(session.modelConfigId, { credentialsJson: credsJson });
-              console.log(`[session] captured credentials at exit sessionId=${sessionId} modelConfigId=${session.modelConfigId} expiresAt=${expiresAt}`);
-            }
+          const current = this._modelConfigStore.getConfig(session.modelConfigId);
+          if (current?.credentialsJson !== credsJson) {
+            this._modelConfigStore.updateConfig(session.modelConfigId, { credentialsJson: credsJson });
+            console.log(`[session] captured credentials at exit sessionId=${sessionId} modelConfigId=${session.modelConfigId}`);
           }
         }
       } catch (err) {

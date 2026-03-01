@@ -14,7 +14,7 @@
   <a class="btn btn-xs btn-primary" href="<%= it.authUrl %>" target="_blank" rel="noopener">Open URL</a>
   <button class="btn btn-xs btn-ghost" onclick="navigator.clipboard.writeText('<%= it.authUrl %>')">Copy URL</button>
   <button class="btn btn-xs btn-ghost"
-    onclick="navigator.clipboard.readText().then(t=>{if(t){fetch('/api/sessions/<%= it.sessionId %>/send-input',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'text='+encodeURIComponent(t)}).then(()=>{this.closest('[id^=auth-slot-]').innerHTML=''})}})"
+    onclick="var el=this;navigator.clipboard.readText().then(function(t){if(t){el.disabled=true;el.textContent='Sending...';fetch('/api/sessions/<%= it.sessionId %>/send-input',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'text='+encodeURIComponent(t)})}})"
   >Paste Code</button>
 </div>
 <% } else if (it.waiting) { %>

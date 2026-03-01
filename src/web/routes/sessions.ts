@@ -412,7 +412,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   router.get('/sessions/:id/terminal', (req, res, next) => {
     try {
       const id = req.params['id'] ?? '';
-      const html = eta.render('partials/terminal-panel', { id });
+      const session = store.getSession(id);
+      const branch = session?.worktree?.branch ?? 'unknown';
+      const status = session?.status ?? 'unknown';
+      const html = eta.render('partials/terminal-panel', { id, branch, status });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -478,17 +481,21 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       active.terminal.write(text + '\r');
       console.log(`[sessions] send-input sessionId=${id} length=${text.length}`);
 
-      // After pasting an auth code, Claude shows a disclaimer then a
-      // "trust this folder" prompt. Auto-dismiss both with staggered Enters.
+      // After pasting an auth code, Claude prompts: submit code → disclaimer → trust folder.
+      // Auto-dismiss all three with staggered Enters.
       if (active.modelProvider === 'max') {
         setTimeout(() => {
           try { active.terminal.write('\r'); } catch { /* exited */ }
-          console.log(`[sessions] post-auth auto-dismiss #1 (disclaimer) sessionId=${id}`);
-        }, 3000);
+          console.log(`[sessions] post-auth auto-dismiss #1 (submit code) sessionId=${id}`);
+        }, 1500);
         setTimeout(() => {
           try { active.terminal.write('\r'); } catch { /* exited */ }
-          console.log(`[sessions] post-auth auto-dismiss #2 (trust folder) sessionId=${id}`);
-        }, 5000);
+          console.log(`[sessions] post-auth auto-dismiss #2 (disclaimer) sessionId=${id}`);
+        }, 4000);
+        setTimeout(() => {
+          try { active.terminal.write('\r'); } catch { /* exited */ }
+          console.log(`[sessions] post-auth auto-dismiss #3 (trust folder) sessionId=${id}`);
+        }, 7000);
       }
 
       res.status(200).send('');
@@ -510,34 +517,24 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      // Tier 3: Check if credentials were refreshed after in-session auth
+      // Tier 3: Check if credentials were refreshed after in-session auth.
+      // Compare file content to what's stored in the model config — if different,
+      // Claude Code refreshed the tokens during in-session auth.
       if (active.homeDir && active.modelConfigId) {
         const credsPath = join(active.homeDir, '.claude', '.credentials.json');
         if (existsSync(credsPath)) {
           try {
             const credsJson = readFileSync(credsPath, 'utf8');
-            const parsed = JSON.parse(credsJson) as Record<string, unknown>;
-            const expiresAt = parsed['expiresAt'] as string | undefined;
+            const currentConfig = modelConfigStore.getConfig(active.modelConfigId);
+            const isRefreshed = currentConfig?.credentialsJson !== credsJson;
 
-            // Check if these are fresh credentials (expiresAt in the future)
-            if (expiresAt && new Date(expiresAt).getTime() > Date.now()) {
-              // Compare with what's stored in the model config
-              const currentConfig = modelConfigStore.getConfig(active.modelConfigId);
-              let isNew = true;
-              if (currentConfig?.credentialsJson) {
-                try {
-                  const existing = JSON.parse(currentConfig.credentialsJson) as Record<string, unknown>;
-                  isNew = existing['expiresAt'] !== expiresAt;
-                } catch { /* treat as new */ }
-              }
+            if (isRefreshed) {
+              modelConfigStore.updateConfig(active.modelConfigId, { credentialsJson: credsJson });
+              console.log(`[sessions] captured refreshed credentials sessionId=${id} modelConfigId=${active.modelConfigId}`);
+            }
 
-              if (isNew) {
-                // Capture refreshed credentials back to model config
-                modelConfigStore.updateConfig(active.modelConfigId, { credentialsJson: credsJson });
-                console.log(`[sessions] captured refreshed credentials sessionId=${id} modelConfigId=${active.modelConfigId} expiresAt=${expiresAt}`);
-              }
-
-              // Authenticated — render success badge, stop polling
+            // File differs from injected → auth succeeded; show success badge
+            if (isRefreshed) {
               const html = eta.render('partials/session-auth-banner', { authenticated: true });
               res.status(200).send(html);
               return;
