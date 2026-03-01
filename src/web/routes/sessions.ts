@@ -572,5 +572,41 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // POST /api/upload-image — save a pasted image from the clipboard
+  router.post('/upload-image', (req, res, next) => {
+    try {
+      const data = typeof req.body['data'] === 'string' ? req.body['data'] : '';
+      const filename = typeof req.body['filename'] === 'string' ? req.body['filename'] : 'paste.png';
+
+      if (!data) {
+        res.status(400).json({ error: 'No image data' });
+        return;
+      }
+
+      // Extract base64 payload from data URL (data:image/png;base64,...)
+      const match = data.match(/^data:[^;]+;base64,(.+)$/);
+      if (!match) {
+        res.status(400).json({ error: 'Invalid data URL' });
+        return;
+      }
+
+      const buffer = Buffer.from(match[1]!, 'base64');
+      const ext = filename.split('.').pop() || 'png';
+      const dir = '/tmp/orcha-images';
+      mkdirSync(dir, { recursive: true });
+
+      const ts = Date.now();
+      const rand = randomUUID().slice(0, 8);
+      const outName = `${ts}-${rand}.${ext}`;
+      const outPath = join(dir, outName);
+      writeFileSync(outPath, buffer);
+
+      console.log(`[sessions] upload-image path=${outPath} size=${buffer.length}`);
+      res.json({ path: outPath });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   return router;
 }

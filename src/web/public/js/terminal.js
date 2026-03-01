@@ -5,10 +5,18 @@
  * <script> tags in layout.html (window.Terminal, window.FitAddon).
  *
  * The server WebSocket handler (terminal-ws.ts) exchanges JSON frames:
- *   client → server: { type: 'input', data: string }
+ *   client -> server: { type: 'input', data: string }
  *                    { type: 'resize', cols: number, rows: number }
- *   server → client: { type: 'output', data: string }
+ *   server -> client: { type: 'output', data: string }
  *                    { type: 'error',  message: string }
+ *
+ * Keyboard shortcuts (tmux-style Ctrl+A prefix):
+ *   Ctrl+A, Enter     — toggle fullscreen on focused session
+ *   Ctrl+A, Arrow     — navigate to adjacent session in grid
+ *   Ctrl+A, 1-9       — jump to session by position
+ *   Ctrl+A, W         — close terminal panel (disconnect, keep session)
+ *   Ctrl+A, X         — stop session (SIGTERM)
+ *   Ctrl+A, Ctrl+A    — send literal Ctrl+A to terminal
  */
 
 /** @type {Map<string, {term: object, ws: WebSocket, fitAddon: object, observer: ResizeObserver}>} */
@@ -16,6 +24,312 @@ const openTerminals = new Map();
 
 /** Currently fullscreened session id (only one at a time). */
 let fullscreenId = null;
+
+/* -----------------------------------------------------------------------
+   Prefix-mode state (Ctrl+A shortcuts)
+   ----------------------------------------------------------------------- */
+let prefixActive = false;
+let prefixTimeout = null;
+
+/** Which session card currently has keyboard focus. */
+let focusedSessionId = null;
+
+/* -----------------------------------------------------------------------
+   Toast notifications
+   ----------------------------------------------------------------------- */
+
+/**
+ * Show a brief toast notification.
+ * @param {string} message
+ * @param {'success'|'error'} [type='success']
+ */
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const el = document.createElement('div');
+  el.className = `toast toast--${type}`;
+  el.textContent = message;
+  container.appendChild(el);
+
+  setTimeout(() => {
+    el.classList.add('is-exiting');
+    setTimeout(() => el.remove(), 300);
+  }, 2500);
+}
+
+/* -----------------------------------------------------------------------
+   Focus tracking
+   ----------------------------------------------------------------------- */
+
+/**
+ * Set keyboard focus to a session card.
+ * @param {string} sessionId
+ */
+function focusSession(sessionId) {
+  // Remove old focus
+  if (focusedSessionId) {
+    const oldCard = document.getElementById(`session-${focusedSessionId}`);
+    if (oldCard) oldCard.classList.remove('is-focused');
+  }
+
+  focusedSessionId = sessionId;
+
+  const card = document.getElementById(`session-${sessionId}`);
+  if (card) card.classList.add('is-focused');
+
+  // Focus the xterm instance so it receives keyboard input
+  const entry = openTerminals.get(sessionId);
+  if (entry) entry.term.focus();
+}
+
+/**
+ * Get visible session cards that have terminals, in DOM order.
+ * @returns {string[]} array of session IDs
+ */
+function getVisibleTerminalIds() {
+  const cards = document.querySelectorAll('.session-card.has-terminal:not(.is-hidden-by-filter)');
+  return Array.from(cards).map((c) => c.id.replace('session-', ''));
+}
+
+/* -----------------------------------------------------------------------
+   Grid navigation
+   ----------------------------------------------------------------------- */
+
+/**
+ * Navigate to an adjacent session card in the grid.
+ * @param {'ArrowUp'|'ArrowDown'|'ArrowLeft'|'ArrowRight'} direction
+ */
+function navigateGrid(direction) {
+  const ids = getVisibleTerminalIds();
+  if (ids.length === 0) return;
+
+  const currentIdx = focusedSessionId ? ids.indexOf(focusedSessionId) : -1;
+  if (currentIdx === -1) {
+    focusSession(ids[0]);
+    return;
+  }
+
+  // Infer column count from the grid's data-count attribute or computed style
+  const grid = document.getElementById('session-grid');
+  let cols = 1;
+  if (grid) {
+    const style = getComputedStyle(grid);
+    const templateCols = style.getPropertyValue('grid-template-columns').trim();
+    if (templateCols) {
+      cols = templateCols.split(/\s+/).length;
+    }
+  }
+
+  const row = Math.floor(currentIdx / cols);
+  const col = currentIdx % cols;
+  let nextIdx = currentIdx;
+
+  switch (direction) {
+    case 'ArrowLeft':
+      nextIdx = currentIdx - 1;
+      break;
+    case 'ArrowRight':
+      nextIdx = currentIdx + 1;
+      break;
+    case 'ArrowUp':
+      nextIdx = currentIdx - cols;
+      break;
+    case 'ArrowDown':
+      nextIdx = currentIdx + cols;
+      break;
+  }
+
+  // Wrap at edges
+  if (nextIdx < 0) nextIdx = ids.length - 1;
+  if (nextIdx >= ids.length) nextIdx = 0;
+
+  if (nextIdx !== currentIdx) {
+    focusSession(ids[nextIdx]);
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Prefix-mode action dispatch
+   ----------------------------------------------------------------------- */
+
+/**
+ * Enter prefix mode (Ctrl+A pressed). The next key triggers an action.
+ */
+function enterPrefixMode() {
+  prefixActive = true;
+  if (prefixTimeout) clearTimeout(prefixTimeout);
+  prefixTimeout = setTimeout(() => {
+    prefixActive = false;
+    prefixTimeout = null;
+  }, 2000);
+}
+
+/**
+ * Dispatch an action based on the key pressed after Ctrl+A.
+ * @param {KeyboardEvent} e
+ * @returns {boolean} true if action was handled
+ */
+function dispatchPrefixAction(e) {
+  prefixActive = false;
+  if (prefixTimeout) {
+    clearTimeout(prefixTimeout);
+    prefixTimeout = null;
+  }
+
+  const key = e.key;
+
+  // Ctrl+A, Ctrl+A — send literal Ctrl+A to terminal
+  if (key === 'a' && e.ctrlKey) {
+    const entry = focusedSessionId ? openTerminals.get(focusedSessionId) : null;
+    if (entry && entry.ws.readyState === WebSocket.OPEN) {
+      entry.ws.send(JSON.stringify({ type: 'input', data: '\x01' }));
+    }
+    return true;
+  }
+
+  // Ctrl+A, Enter — toggle fullscreen
+  if (key === 'Enter') {
+    if (focusedSessionId) fullscreenTerminal(focusedSessionId);
+    return true;
+  }
+
+  // Ctrl+A, Arrow keys — navigate grid
+  if (key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight') {
+    navigateGrid(key);
+    return true;
+  }
+
+  // Ctrl+A, 1-9 — jump to session by position
+  if (key >= '1' && key <= '9') {
+    const ids = getVisibleTerminalIds();
+    const idx = parseInt(key, 10) - 1;
+    if (idx < ids.length) focusSession(ids[idx]);
+    return true;
+  }
+
+  // Ctrl+A, W — close terminal panel (disconnect, keep session)
+  if (key === 'w' || key === 'W') {
+    if (focusedSessionId) {
+      removeTerminal(focusedSessionId);
+      focusedSessionId = null;
+    }
+    return true;
+  }
+
+  // Ctrl+A, X — stop session (SIGTERM via HTMX)
+  if (key === 'x' || key === 'X') {
+    if (focusedSessionId) {
+      const stopBtn = document.querySelector(`#session-${focusedSessionId} [hx-post*="/stop"]`);
+      if (stopBtn) {
+        stopBtn.click();
+      } else {
+        // Fall back: fetch the confirm dialog which has the stop button
+        const confirmBtn = document.querySelector(`#session-${focusedSessionId} [hx-get*="confirm"]`);
+        if (confirmBtn) confirmBtn.click();
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/* -----------------------------------------------------------------------
+   Document-level keyboard listener (capture phase)
+   ----------------------------------------------------------------------- */
+document.addEventListener(
+  'keydown',
+  (e) => {
+    // ESC exits fullscreen
+    if (e.key === 'Escape' && fullscreenId) {
+      exitFullscreen(fullscreenId);
+      return;
+    }
+
+    // In prefix mode — dispatch action
+    if (prefixActive) {
+      e.preventDefault();
+      e.stopPropagation();
+      dispatchPrefixAction(e);
+      return;
+    }
+
+    // Ctrl+A activates prefix mode (only if not in a regular input/textarea)
+    if (e.key === 'a' && e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      e.stopPropagation();
+      enterPrefixMode();
+      return;
+    }
+  },
+  true,
+);
+
+/* -----------------------------------------------------------------------
+   Image paste handler
+   ----------------------------------------------------------------------- */
+
+/**
+ * Handle Ctrl+V / Cmd+V: check clipboard for images, upload if found,
+ * otherwise fall back to text paste.
+ * @param {string} sessionId
+ * @returns {Promise<void>}
+ */
+async function handlePaste(sessionId) {
+  const entry = openTerminals.get(sessionId);
+  if (!entry || entry.ws.readyState !== WebSocket.OPEN) return;
+
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const imageType = item.types.find((t) => t.startsWith('image/'));
+      if (imageType) {
+        const blob = await item.getType(imageType);
+        const ext = imageType.split('/')[1] || 'png';
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const resp = await fetch('/api/upload-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ data: reader.result, filename: `paste.${ext}` }),
+            });
+            if (resp.ok) {
+              const { path } = await resp.json();
+              entry.ws.send(JSON.stringify({ type: 'input', data: path }));
+              showToast(`Image saved: ${path}`);
+            } else {
+              showToast('Image upload failed', 'error');
+            }
+          } catch {
+            showToast('Image upload failed', 'error');
+          }
+        };
+        reader.readAsDataURL(blob);
+        return;
+      }
+    }
+  } catch {
+    // clipboard.read() not available or denied — fall back to text
+  }
+
+  // No image found — paste text
+  try {
+    const text = await navigator.clipboard.readText();
+    if (text) {
+      entry.ws.send(JSON.stringify({ type: 'input', data: text }));
+    }
+  } catch {
+    // Clipboard read failed
+  }
+}
+
+// Global bindings for template onclick handlers
+window.__termFullscreen = fullscreenTerminal;
+window.__termClose = removeTerminal;
 
 /**
  * Refit a terminal after layout changes (double-rAF to let flex settle).
@@ -119,7 +433,11 @@ function removeTerminal(sessionId) {
   if (card) {
     card.classList.remove('has-terminal');
     card.classList.remove('is-hidden-by-filter');
+    card.classList.remove('is-focused');
   }
+
+  // If this was the focused session, clear focus
+  if (focusedSessionId === sessionId) focusedSessionId = null;
 
   updateFilterBar();
 }
@@ -231,17 +549,6 @@ function showAll() {
   if (window.__syncGridCount) window.__syncGridCount();
 }
 
-// ESC key exits fullscreen
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && fullscreenId) {
-    exitFullscreen(fullscreenId);
-  }
-});
-
-// Global bindings for template onclick handlers
-window.__termFullscreen = fullscreenTerminal;
-window.__termClose = removeTerminal;
-
 /**
  * Open a terminal inside the given container element and connect it to the
  * WebSocket endpoint for the specified session.
@@ -276,6 +583,44 @@ export async function openTerminal(sessionId, containerId) {
   const fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(container);
+
+  // Intercept keys before xterm processes them (Ctrl+A prefix, Ctrl+V paste)
+  term.attachCustomKeyEventHandler((e) => {
+    if (e.type !== 'keydown') return true;
+
+    // While prefix is active, swallow the next key (document listener handles it)
+    if (prefixActive) return false;
+
+    // Ctrl+A activates prefix mode
+    if (e.key === 'a' && e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      enterPrefixMode();
+      return false;
+    }
+
+    // Ctrl+V / Cmd+V — intercept for image paste support
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+      handlePaste(sessionId);
+      return false;
+    }
+
+    return true;
+  });
+
+  // Auto-copy on selection
+  term.onSelectionChange(() => {
+    const sel = term.getSelection();
+    if (sel) {
+      navigator.clipboard.writeText(sel).then(
+        () => showToast('Copied'),
+        () => {},
+      );
+    }
+  });
+
+  // Track focus: when user clicks into this terminal, mark it as focused
+  term.textarea?.addEventListener('focus', () => {
+    focusSession(sessionId);
+  });
 
   // Double-rAF: flex layout needs a frame to settle before fit() measures correctly
   requestAnimationFrame(() => {
@@ -359,6 +704,9 @@ export async function openTerminal(sessionId, containerId) {
   observer.observe(container);
 
   openTerminals.set(sessionId, { term, ws, fitAddon, observer });
+
+  // Auto-focus the newly opened terminal
+  focusSession(sessionId);
 
   updateFilterBar();
 }
