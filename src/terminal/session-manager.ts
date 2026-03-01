@@ -22,6 +22,8 @@ export interface CreateSessionOptions {
   repoRoot?: string;
   /** Whether to enable bwrap filesystem isolation for this session. Defaults to true. Only takes effect when SANDBOX_MODE=bwrap. */
   sandbox?: boolean;
+  /** Env keys to explicitly delete from the spawned process environment (overrides process.env). */
+  deleteEnv?: string[];
 }
 
 export interface ActiveSession {
@@ -98,6 +100,7 @@ export class SessionManager {
         rows: opts.rows ?? 50,
       },
       ...(opts.sandbox !== undefined ? { sandbox: opts.sandbox } : {}),
+      ...(opts.deleteEnv !== undefined ? { deleteEnv: opts.deleteEnv } : {}),
     };
 
     try {

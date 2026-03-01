@@ -70,6 +70,17 @@ export async function openTerminal(sessionId, containerId) {
     : `${proto}//${location.host}/ws/terminal/${sessionId}`;
   const ws = new WebSocket(wsUrl);
 
+  // Send an initial resize so the PTY matches the actual container dimensions
+  // right from the start, before any output is replayed. Without this, the PTY
+  // defaults to a tall size (50 rows) and the terminal shows lots of blank rows
+  // above the actual content.
+  ws.onopen = () => {
+    const dims = fitAddon.proposeDimensions();
+    if (dims) {
+      ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+    }
+  };
+
   // The server sends JSON frames: { type: 'output', data: string } or { type: 'error', message: string }
   ws.onmessage = (event) => {
     try {

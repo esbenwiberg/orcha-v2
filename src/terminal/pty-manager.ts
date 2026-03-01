@@ -106,12 +106,20 @@ export class PtyManager {
     const relevantEnvKeys = ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_USE_FOUNDRY'];
     const envStatus = relevantEnvKeys.map((k) => `${k}=${sessionEnv[k] !== undefined ? 'SET' : (process.env[k] !== undefined ? 'HOST' : 'UNSET')}`).join(' ');
     console.log(`[pty] spawn sessionId=${opts.sessionId} command=${command} args=${JSON.stringify(args)} cwd=${opts.cwd} ${envStatus}`);
+
+    // Build final env: merge process.env with session overrides, then delete any
+    // explicitly removed keys (e.g. ANTHROPIC_API_KEY for max/pro OAuth sessions).
+    const mergedEnv: Record<string, string> = { ...process.env as Record<string, string>, ...sessionEnv };
+    for (const key of opts.deleteEnv ?? []) {
+      delete mergedEnv[key];
+    }
+
     const pty = spawn(command, args, {
       name: 'xterm-256color',
       cols: opts.size?.cols ?? 80,
       rows: opts.size?.rows ?? 24,
       cwd: opts.cwd,
-      env: { ...process.env, ...opts.env },
+      env: mergedEnv,
     });
     console.log(`[pty] spawned pid=${pty.pid}`);
 

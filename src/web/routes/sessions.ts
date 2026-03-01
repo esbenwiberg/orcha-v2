@@ -156,19 +156,21 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
-      // Inject model config env vars if a model config was selected
+      // Inject model config env vars if a model config was selected.
+      // Collect keys to delete so they're truly removed from the spawned env
+      // (not just absent from opts.env — process.env would still leak through).
+      const deleteEnvKeys: string[] = [];
       if (modelConfigId) {
         const modelConfig = modelConfigStore.getConfig(modelConfigId);
         if (modelConfig) {
           const modelEnv = buildModelEnv(modelConfig);
           for (const [key, value] of Object.entries(modelEnv)) {
             if (value === ENV_DELETE) {
-              delete env[key];
+              deleteEnvKeys.push(key);
             } else {
               env[key] = value;
             }
           }
-
         }
       }
 
@@ -182,12 +184,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             const sessionHome = join('/tmp', `orcha-home-${sessionId}`);
             const claudeDir = join(sessionHome, '.claude');
             mkdirSync(claudeDir, { recursive: true });
-            // Copy shared settings.json so claude respects the permissions/settings
-            // configured via Orcha's Claude Permissions editor.
+            // Build settings.json for this session: start from shared settings,
+            // then ensure theme=dark is set so claude skips the first-run picker.
             const sharedSettings = join(homedir(), '.claude', 'settings.json');
+            let settings: Record<string, unknown> = {};
             if (existsSync(sharedSettings)) {
-              writeFileSync(join(claudeDir, 'settings.json'), readFileSync(sharedSettings));
+              try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
             }
+            if (!('theme' in settings)) settings['theme'] = 'dark';
+            writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
             writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
             env['HOME'] = sessionHome;
           } catch (err) {
@@ -205,6 +210,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         args: claudeArgs,
         env,
         sandbox,
+        ...(deleteEnvKeys.length > 0 ? { deleteEnv: deleteEnvKeys } : {}),
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;

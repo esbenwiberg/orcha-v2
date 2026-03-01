@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase, runMigrations, SessionStore, InstanceRegistry } from '@orcha/db';
 import { CredentialStore } from '../db/credential-store.js';
@@ -43,6 +44,22 @@ if (!existsSync(dbPath) && existsSync(persistentDbPath)) {
     console.error('[db] restore from backup failed:', e);
   }
 }
+
+// Ensure shared ~/.claude/settings.json has theme=dark so claude doesn't show
+// the first-run theme picker in any session (auth or regular).
+try {
+  const claudeDir = path.join(homedir(), '.claude');
+  mkdirSync(claudeDir, { recursive: true });
+  const settingsPath = path.join(claudeDir, 'settings.json');
+  let settings: Record<string, unknown> = {};
+  if (existsSync(settingsPath)) {
+    try { settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
+  }
+  if (!('theme' in settings)) {
+    settings['theme'] = 'dark';
+    writeFileSync(settingsPath, JSON.stringify(settings), 'utf8');
+  }
+} catch { /* best-effort */ }
 
 const db = openDatabase(path.dirname(dbPath));
 runMigrations(db, migrationsDir);

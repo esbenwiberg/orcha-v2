@@ -26,4 +26,6 @@ export type PtySpawnOptions = {
   sandbox?: boolean;
   /** Additional paths to grant read-write access to inside the sandbox (landlock mode only). */
   extraRwPaths?: string[];
+  /** Env keys to explicitly remove from the spawned process environment (even if present in process.env). */
+  deleteEnv?: string[];
 };
