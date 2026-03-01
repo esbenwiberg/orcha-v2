@@ -16,10 +16,38 @@ function stripAnsi(s: string): string {
 
 export function extractAuthUrl(snapshot: Buffer): string | undefined {
   const text = stripAnsi(snapshot.toString('utf8'));
-  const match = /https:\/\/claude\.ai\/oauth\/authorize\S+/.exec(text)
-    ?? /https:\/\/[^\s\r\n"'<>]+auth[^\s\r\n"'<>]*/i.exec(text)
-    ?? /https:\/\/[^\s\r\n"'<>]{40,}/.exec(text);
-  return match?.[0];
+  // Split into lines so we can rejoin wrapped URLs.
+  // When a URL is wider than the PTY, the terminal wraps it: the URL continues
+  // on the next line with no leading whitespace. We detect this by checking
+  // that the continuation line has no spaces (real sentences have spaces).
+  const lines = text.split(/\r?\n/);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    const httpIdx = line.indexOf('https://');
+    if (httpIdx === -1) continue;
+
+    // Start URL from where https:// appears on this line.
+    let url = line.slice(httpIdx).trimEnd();
+
+    // Append continuation lines caused by terminal line-wrapping.
+    for (let j = i + 1; j < Math.min(i + 20, lines.length); j++) {
+      const next = (lines[j] ?? '').trimEnd();
+      if (next.length === 0) break;             // blank line = real end
+      if (/^\s/.test(next)) break;              // leading space = new paragraph
+      if (next.includes(' ')) break;            // spaces = regular sentence, not URL
+      if (!/^[A-Za-z0-9%&=+_.,:/?@#!$'()*~-]/.test(next)) break;
+      url += next;
+    }
+
+    // Trim any trailing punctuation that might have been captured.
+    url = url.replace(/[.,;:)"']+$/, '');
+
+    // Require a minimum meaningful URL length (filters noise).
+    if (url.length > 40) return url;
+  }
+
+  return undefined;
 }
 
 export interface AuthSession {
@@ -94,9 +122,11 @@ export class AuthTerminalManager {
     spawnEnv['HOME'] = home;
 
     // Spawn claude directly — no landlock needed for a temporary auth flow.
+    // Use a wide terminal (500 cols) to prevent URL line-wrapping, which would
+    // cause the OAuth state parameter to be cut off when we extract the URL.
     const pty = spawn('claude', [], {
       name: 'xterm-256color',
-      cols: 220,
+      cols: 500,
       rows: 50,
       cwd,
       env: spawnEnv,
