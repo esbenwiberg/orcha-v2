@@ -1,5 +1,7 @@
 import { spawn } from 'node-pty';
 import type { IPty } from 'node-pty';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { EventEmitter } from 'node:events';
 import type { SessionTerminal, TerminalSize, PtySpawnOptions } from './session-terminal.js';
@@ -106,6 +108,14 @@ export class PtyManager {
     const relevantEnvKeys = ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_USE_FOUNDRY'];
     const envStatus = relevantEnvKeys.map((k) => `${k}=${sessionEnv[k] !== undefined ? 'SET' : (process.env[k] !== undefined ? 'HOST' : 'UNSET')}`).join(' ');
     console.log(`[pty] spawn sessionId=${opts.sessionId} command=${command} args=${JSON.stringify(args)} cwd=${opts.cwd} ${envStatus}`);
+
+    // Log credential file existence when HOME is set (for Max/Pro OAuth sessions)
+    const homeDir = sessionEnv['HOME'];
+    if (homeDir) {
+      const credsPath = join(homeDir, '.claude', '.credentials.json');
+      const credsExist = existsSync(credsPath);
+      console.log(`[pty] credential check sessionId=${opts.sessionId} HOME=${homeDir} credsExist=${credsExist}`);
+    }
 
     // Build final env: merge process.env with session overrides, then delete any
     // explicitly removed keys (e.g. ANTHROPIC_API_KEY for max/pro OAuth sessions).

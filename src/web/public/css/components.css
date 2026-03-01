@@ -516,6 +516,30 @@
 .cred-strip.is-expired .cred-expiry { color: var(--color-error); }
 
 /* -----------------------------------------------------------------------
+   Auth banner (session card — login URL / authenticated badge)
+   ----------------------------------------------------------------------- */
+.auth-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  margin-top: 0.375rem;
+}
+.auth-banner--login {
+  background: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  border: 1px solid var(--color-warning);
+}
+.auth-banner--success {
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
+  border: 1px solid var(--color-success);
+}
+.auth-banner--waiting { opacity: 0.6; }
+.auth-banner__icon { font-size: 0.875rem; }
+.auth-banner__text { flex: 1; }
+
+/* -----------------------------------------------------------------------
    Expiry progress bar in credentials panel
    ----------------------------------------------------------------------- */
 .cred-bar { height: 4px; background: var(--color-border); border-radius: 2px; }

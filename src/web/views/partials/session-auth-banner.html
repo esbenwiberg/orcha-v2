@@ -1,0 +1,21 @@
+<% if (it.authenticated) { %>
+<div class="auth-banner auth-banner--success">
+  <span class="auth-banner__icon">&#10003;</span>
+  <span class="auth-banner__text">Authenticated</span>
+</div>
+<% } else if (it.authUrl) { %>
+<div class="auth-banner auth-banner--login"
+     hx-get="/api/sessions/<%= it.sessionId %>/auth-url"
+     hx-trigger="every 3s"
+     hx-target="closest [id^=auth-slot-]"
+     hx-swap="innerHTML">
+  <span class="auth-banner__icon">&#128274;</span>
+  <span class="auth-banner__text">Login required</span>
+  <a class="btn btn-xs btn-primary" href="<%= it.authUrl %>" target="_blank" rel="noopener">Open URL</a>
+  <button class="btn btn-xs btn-ghost" onclick="navigator.clipboard.writeText('<%= it.authUrl %>')">Copy URL</button>
+</div>
+<% } else if (it.waiting) { %>
+<div class="auth-banner auth-banner--waiting">
+  <span class="auth-banner__text" style="color:var(--color-text-muted);font-size:0.75rem">Checking auth...</span>
+</div>
+<% } %>

@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase, runMigrations, SessionStore, InstanceRegistry } from '@orcha/db';
 import { CredentialStore } from '../db/credential-store.js';
+import { ModelConfigStore } from '../db/model-config-store.js';
 import { WorktreeManager } from '../terminal/worktree-manager.js';
 import { PtyManager } from '../terminal/pty-manager.js';
 import { SessionManager } from '../terminal/session-manager.js';
@@ -95,7 +96,8 @@ const instanceId = 'local';
 const now = new Date();
 instanceRegistry.upsertInstance({ id: instanceId, repoRoot, registeredAt: now, lastSeenAt: now });
 
-const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionStore, credentialStore, instanceId);
+const modelConfigStore = new ModelConfigStore(db);
+const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionStore, credentialStore, instanceId, modelConfigStore);
 
 const authConfig = loadAuthConfig();
 const authTerminalManager = new AuthTerminalManager();

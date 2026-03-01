@@ -11,6 +11,12 @@
   <div class="session-card__body">
     <p class="card__meta">Started <%= it.createdAt %></p>
     <p class="card__meta">Updated <%= it.updatedAt %></p>
+    <% if (it.modelProvider === 'max' && it.status === 'running') { %>
+    <div id="auth-slot-<%= it.id %>"
+         hx-get="/api/sessions/<%= it.id %>/auth-url"
+         hx-trigger="load, every 3s"
+         hx-swap="innerHTML"></div>
+    <% } %>
     <div id="confirm-slot-<%= it.id %>" style="position:relative"></div>
     <%~ include('credential-status-strip', { sessionId: it.id, credentials: it.credentials }) %>
   </div>

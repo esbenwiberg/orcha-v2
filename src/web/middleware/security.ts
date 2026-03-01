@@ -4,12 +4,14 @@ import cors from 'cors';
 
 // `unsafe-inline` is permitted for script-src because xterm.js writes inline
 // styles to the DOM and the project deliberately avoids a client-side build
-// pipeline in this phase. Remove when a bundler-based nonce strategy is added.
+// pipeline in this phase. `unsafe-eval` is required because htmx uses
+// new Function() to evaluate JS expressions in hx-on / hx-vals attributes.
+// Remove both when a bundler-based nonce strategy is added.
 const helmetMiddleware = helmet({
   contentSecurityPolicy: {
     directives: {
       'default-src': ["'self'"],
-      'script-src': ["'self'", "'unsafe-inline'"],
+      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       'script-src-attr': ["'unsafe-inline'"],
       'style-src': ["'self'", "'unsafe-inline'"],
       'connect-src': ["'self'", 'wss:', 'ws:'],

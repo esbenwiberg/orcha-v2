@@ -11,6 +11,7 @@ import { CredentialStore } from '../../db/credential-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
+import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
 import type { Session } from '@orcha/domain';
 import { formatRelativeTime } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
@@ -44,9 +45,15 @@ interface SessionCardViewModel {
   createdAt: string;
   updatedAt: string;
   credentials?: CredStripViewModel;
+  /** Model provider type — used to show auth URL polling slot for 'max' sessions. */
+  modelProvider?: string;
 }
 
-function toViewModel(session: Session, creds?: import('../../credentials/types.js').ActiveCredentials): SessionCardViewModel {
+function toViewModel(
+  session: Session,
+  creds?: import('../../credentials/types.js').ActiveCredentials,
+  modelProvider?: string,
+): SessionCardViewModel {
   let credentials: CredStripViewModel | undefined;
   if (creds && !creds.revokedAt) {
     const remainingMs = creds.expiresAt.getTime() - Date.now();
@@ -66,6 +73,7 @@ function toViewModel(session: Session, creds?: import('../../credentials/types.j
     createdAt: formatRelativeTime(session.createdAt),
     updatedAt: formatRelativeTime(session.updatedAt),
     ...(credentials !== undefined ? { credentials } : {}),
+    ...(modelProvider !== undefined ? { modelProvider } : {}),
   };
 }
 
@@ -193,8 +201,23 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             }
             if (!('theme' in settings)) settings['theme'] = 'dark';
             writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
-            writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
+
+            const credsPath = join(claudeDir, '.credentials.json');
+            writeFileSync(credsPath, modelConfig.credentialsJson, 'utf8');
+
+            // Diagnostic: verify credentials were written and check expiry
+            try {
+              const readback = readFileSync(credsPath, 'utf8');
+              const parsed = JSON.parse(readback) as Record<string, unknown>;
+              const expiresAt = parsed['expiresAt'] as string | undefined;
+              const isExpired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : 'no-expiry';
+              console.log(`[sessions] credentials injected sessionId=${sessionId} path=${credsPath} expired=${isExpired} expiresAt=${expiresAt ?? 'none'} provider=${modelConfig.provider}`);
+            } catch (readErr) {
+              console.warn(`[sessions] credentials readback failed sessionId=${sessionId}:`, readErr);
+            }
+
             env['HOME'] = sessionHome;
+            console.log(`[sessions] per-session HOME=${sessionHome} sessionId=${sessionId}`);
           } catch (err) {
             console.warn('[sessions] Failed to create per-session home dir:', err);
           }
@@ -203,6 +226,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       // Create a real session with worktree + PTY via the session engine
       const claudeArgs = skipPermissions ? ['--dangerously-skip-permissions'] : [];
+      const sessionHome = env['HOME'];
+      const modelConfig = modelConfigId ? modelConfigStore.getConfig(modelConfigId) : undefined;
       const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
         sessionId,
         branch,
@@ -211,6 +236,9 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         env,
         sandbox,
         ...(deleteEnvKeys.length > 0 ? { deleteEnv: deleteEnvKeys } : {}),
+        ...(sessionHome !== undefined ? { homeDir: sessionHome } : {}),
+        ...(modelConfigId ? { modelConfigId } : {}),
+        ...(modelConfig !== undefined ? { modelProvider: modelConfig.provider } : {}),
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;
@@ -396,7 +424,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   router.get('/sessions/cards', (_req, res, next) => {
     try {
       const sessions = store.listSessions();
-      const viewModels = sessions.map((s) => toViewModel(s, credStore.getBySessionId(s.id)));
+      const viewModels = sessions.map((s) => {
+        const active = deps.sessionEngine.getSessionByDbId(s.id);
+        return toViewModel(s, credStore.getBySessionId(s.id), active?.modelProvider);
+      });
       const html = eta.render('partials/session-grid', { sessions: viewModels });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -417,9 +448,87 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
+      const active = deps.sessionEngine.getSessionByDbId(id);
       const creds = credStore.getBySessionId(id);
-      const html = eta.render('partials/session-card', toViewModel(session, creds));
+      const html = eta.render('partials/session-card', toViewModel(session, creds, active?.modelProvider));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/auth-url — poll for auth URL or credential capture
+  router.get('/sessions/:id/auth-url', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+
+      const active = deps.sessionEngine.getSessionByDbId(id);
+      if (!active) {
+        // Session exited or not found — stop polling
+        res.status(200).send('');
+        return;
+      }
+
+      // Tier 3: Check if credentials were refreshed after in-session auth
+      if (active.homeDir && active.modelConfigId) {
+        const credsPath = join(active.homeDir, '.claude', '.credentials.json');
+        if (existsSync(credsPath)) {
+          try {
+            const credsJson = readFileSync(credsPath, 'utf8');
+            const parsed = JSON.parse(credsJson) as Record<string, unknown>;
+            const expiresAt = parsed['expiresAt'] as string | undefined;
+
+            // Check if these are fresh credentials (expiresAt in the future)
+            if (expiresAt && new Date(expiresAt).getTime() > Date.now()) {
+              // Compare with what's stored in the model config
+              const currentConfig = modelConfigStore.getConfig(active.modelConfigId);
+              let isNew = true;
+              if (currentConfig?.credentialsJson) {
+                try {
+                  const existing = JSON.parse(currentConfig.credentialsJson) as Record<string, unknown>;
+                  isNew = existing['expiresAt'] !== expiresAt;
+                } catch { /* treat as new */ }
+              }
+
+              if (isNew) {
+                // Capture refreshed credentials back to model config
+                modelConfigStore.updateConfig(active.modelConfigId, { credentialsJson: credsJson });
+                console.log(`[sessions] captured refreshed credentials sessionId=${id} modelConfigId=${active.modelConfigId} expiresAt=${expiresAt}`);
+              }
+
+              // Authenticated — render success badge, stop polling
+              const html = eta.render('partials/session-auth-banner', { authenticated: true });
+              res.status(200).send(html);
+              return;
+            }
+          } catch {
+            // Ignore parse errors, fall through to URL detection
+          }
+        }
+      }
+
+      // Tier 2: Check terminal output for login URL
+      const snapshot = active.outputBuffer.snapshot();
+      const authUrl = extractAuthUrl(snapshot);
+
+      if (authUrl) {
+        const html = eta.render('partials/session-auth-banner', { authenticated: false, authUrl, sessionId: id });
+        res.status(200).send(html);
+        return;
+      }
+
+      // No URL found yet — return empty, keep polling
+      const ageMs = Date.now() - active.createdAt.getTime();
+      if (ageMs > 60_000 && active.terminal.exitCode !== undefined) {
+        // Session exited without auth URL — stop polling
+        res.status(200).send('');
+        return;
+      }
+
+      // Still waiting — return polling stub
+      const html = eta.render('partials/session-auth-banner', { waiting: true });
       res.status(200).send(html);
     } catch (err) {
       next(err);

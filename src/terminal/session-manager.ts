@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { WorktreeManager } from './worktree-manager.js';
 import type { WorktreeInfo } from './worktree-manager.js';
@@ -8,6 +8,7 @@ import type { SessionTerminal, PtySpawnOptions } from './session-terminal.js';
 import { OutputBuffer } from './output-buffer.js';
 import { SessionStore } from '@orcha/db';
 import { CredentialStore } from '../db/credential-store.js';
+import { ModelConfigStore } from '../db/model-config-store.js';
 import { credentialManager } from '../credentials/credential-manager.js';
 
 export interface CreateSessionOptions {
@@ -24,6 +25,12 @@ export interface CreateSessionOptions {
   sandbox?: boolean;
   /** Env keys to explicitly delete from the spawned process environment (overrides process.env). */
   deleteEnv?: string[];
+  /** Per-session isolated HOME directory (for Max/Pro OAuth credential injection). */
+  homeDir?: string;
+  /** Model config ID used for this session (for credential capture). */
+  modelConfigId?: string;
+  /** Model provider type (e.g. 'max', 'anthropic'). */
+  modelProvider?: string;
 }
 
 export interface ActiveSession {
@@ -36,6 +43,12 @@ export interface ActiveSession {
   createdAt: Date;
   /** The repo root override used for this session's worktree, if any. */
   repoRoot?: string;
+  /** Per-session isolated HOME directory (for credential capture). */
+  homeDir?: string;
+  /** Model config ID used for this session (for credential capture). */
+  modelConfigId?: string;
+  /** Model provider type (e.g. 'max', 'anthropic'). */
+  modelProvider?: string;
 }
 
 export class SessionError extends Error {
@@ -63,6 +76,7 @@ export class SessionManager {
     private readonly _sessionStore: SessionStore,
     private readonly _credentialStore?: CredentialStore,
     private readonly _instanceId: string = 'local',
+    private readonly _modelConfigStore?: ModelConfigStore,
   ) {}
 
   async createSession(opts: CreateSessionOptions): Promise<ActiveSession> {
@@ -176,6 +190,9 @@ export class SessionManager {
       outputBuffer,
       createdAt: new Date(),
       ...(opts.repoRoot !== undefined ? { repoRoot: opts.repoRoot } : {}),
+      ...(opts.homeDir !== undefined ? { homeDir: opts.homeDir } : {}),
+      ...(opts.modelConfigId !== undefined ? { modelConfigId: opts.modelConfigId } : {}),
+      ...(opts.modelProvider !== undefined ? { modelProvider: opts.modelProvider } : {}),
     };
 
     this._active.set(sessionId, activeSession);
@@ -211,6 +228,34 @@ export class SessionManager {
           credentialManager.revoke(activeCreds).catch(() => {});
           this._credentialStore.markRevoked(activeCreds.id);
         }
+      }
+    }
+
+    // Capture refreshed credentials before cleaning up the home dir (Tier 3)
+    if (session?.homeDir && session.modelConfigId && this._modelConfigStore) {
+      try {
+        const credsPath = join(session.homeDir, '.claude', '.credentials.json');
+        if (existsSync(credsPath)) {
+          const credsJson = readFileSync(credsPath, 'utf8');
+          const parsed = JSON.parse(credsJson) as Record<string, unknown>;
+          const expiresAt = parsed['expiresAt'] as string | undefined;
+          if (expiresAt && new Date(expiresAt).getTime() > Date.now()) {
+            const current = this._modelConfigStore.getConfig(session.modelConfigId);
+            let isNew = true;
+            if (current?.credentialsJson) {
+              try {
+                const existing = JSON.parse(current.credentialsJson) as Record<string, unknown>;
+                isNew = existing['expiresAt'] !== expiresAt;
+              } catch { /* treat as new */ }
+            }
+            if (isNew) {
+              this._modelConfigStore.updateConfig(session.modelConfigId, { credentialsJson: credsJson });
+              console.log(`[session] captured credentials at exit sessionId=${sessionId} modelConfigId=${session.modelConfigId} expiresAt=${expiresAt}`);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`[session] credential capture failed sessionId=${sessionId}:`, err);
       }
     }
 
