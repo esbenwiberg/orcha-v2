@@ -13,6 +13,7 @@ import { ModelConfigStore } from '../../db/model-config-store.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
+import { executeGit } from '../utils/git-utils.js';
 import type { Session } from '@orcha/domain';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
@@ -1011,6 +1012,248 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       writeFileSync(absPath, content, 'utf8');
       res.json({ ok: true, path: userPath });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── Diff browser endpoints ────────────────────────────────────────────
+
+  /** Regex for allowed git ref characters. */
+  const GIT_REF_RE = /^[a-zA-Z0-9/_.\-]+$/;
+
+  /** Validate a base ref string (branch/tag name). */
+  function validateBaseRef(ref: string): string | null {
+    if (!ref || !GIT_REF_RE.test(ref) || ref.includes('..')) return null;
+    return ref;
+  }
+
+  /** Validate a file path for diff (no null bytes, no ..). */
+  function validateDiffPath(p: string): string | null {
+    if (!p || p.includes('\0') || p.includes('..')) return null;
+    return p;
+  }
+
+  // GET /api/sessions/:id/diff-browser — render the diff browser overlay
+  router.get('/sessions/:id/diff-browser', async (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const session = store.getSession(id);
+      if (!session) { res.status(404).send(''); return; }
+
+      const wt = session.worktree.worktreePath;
+      if (!existsSync(wt)) {
+        res.status(404).send('<div class="badge badge--failed">Worktree not found</div>');
+        return;
+      }
+
+      // Discover branches
+      let branches: string[] = [];
+      try {
+        const { stdout } = await executeGit(
+          ['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin/'],
+          wt,
+        );
+        branches = stdout.trim().split('\n').filter(Boolean);
+      } catch {
+        // No remotes — that's OK
+      }
+
+      // Determine default base ref: the branch the worktree was created from
+      const sessionBranch = session.worktree.branch;
+      let defaultBase = 'origin/main';
+      // Try origin/<branch>, fall back to origin/main, then first available
+      if (branches.includes(`origin/${sessionBranch}`)) {
+        defaultBase = `origin/${sessionBranch}`;
+      } else if (branches.includes('origin/main')) {
+        defaultBase = 'origin/main';
+      } else if (branches.includes('origin/master')) {
+        defaultBase = 'origin/master';
+      } else if (branches.length > 0) {
+        defaultBase = branches[0]!;
+      }
+
+      const html = eta.render('partials/diff-browser', {
+        sessionId: id,
+        branches,
+        defaultBase,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/diff/files?base= — file list partial
+  router.get('/sessions/:id/diff/files', async (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const base = validateBaseRef(typeof req.query['base'] === 'string' ? req.query['base'] : '');
+      if (!base) { res.status(400).send('Invalid base ref'); return; }
+
+      const session = store.getSession(id);
+      if (!session) { res.status(404).send(''); return; }
+      const wt = session.worktree.worktreePath;
+
+      // Get numstat (+/- per file)
+      let numstatLines: string[] = [];
+      try {
+        const { stdout } = await executeGit(['diff', '--numstat', `${base}...HEAD`], wt);
+        numstatLines = stdout.trim().split('\n').filter(Boolean);
+      } catch { /* empty diff */ }
+
+      // Get name-status (A/M/D/R per file)
+      let statusLines: string[] = [];
+      try {
+        const { stdout } = await executeGit(['diff', '--name-status', `${base}...HEAD`], wt);
+        statusLines = stdout.trim().split('\n').filter(Boolean);
+      } catch { /* empty diff */ }
+
+      // Build file list
+      interface DiffFile {
+        path: string;
+        status: string; // A, M, D, R
+        added: number;
+        deleted: number;
+      }
+      const statusMap = new Map<string, string>();
+      for (const line of statusLines) {
+        const parts = line.split('\t');
+        const st = parts[0]?.[0] ?? 'M';
+        const filePath = parts[parts.length - 1] ?? '';
+        if (filePath) statusMap.set(filePath, st);
+      }
+
+      const files: DiffFile[] = [];
+      let totalAdded = 0;
+      let totalDeleted = 0;
+      for (const line of numstatLines) {
+        const parts = line.split('\t');
+        const added = parseInt(parts[0] ?? '0', 10) || 0;
+        const deleted = parseInt(parts[1] ?? '0', 10) || 0;
+        const filePath = parts[2] ?? '';
+        if (!filePath) continue;
+        totalAdded += added;
+        totalDeleted += deleted;
+        files.push({
+          path: filePath,
+          status: statusMap.get(filePath) ?? 'M',
+          added,
+          deleted,
+        });
+      }
+
+      const html = eta.render('partials/diff-file-list', {
+        files,
+        totalAdded,
+        totalDeleted,
+        sessionId: id,
+        base,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/diff/content?base=&path= — diff content as JSON
+  router.get('/sessions/:id/diff/content', async (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const base = validateBaseRef(typeof req.query['base'] === 'string' ? req.query['base'] : '');
+      if (!base) { res.status(400).json({ error: 'Invalid base ref' }); return; }
+
+      const filePath = typeof req.query['path'] === 'string' ? req.query['path'] : '';
+
+      const session = store.getSession(id);
+      if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
+      const wt = session.worktree.worktreePath;
+
+      const args = ['diff', '--no-color', `${base}...HEAD`];
+      if (filePath) {
+        const safe = validateDiffPath(filePath);
+        if (!safe) { res.status(400).json({ error: 'Invalid file path' }); return; }
+        args.push('--', safe);
+      }
+
+      let diff = '';
+      try {
+        const result = await executeGit(args, wt);
+        diff = result.stdout;
+      } catch {
+        // Empty diff or invalid range
+      }
+
+      res.json({ diff });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/diff/commits?base= — commit log as JSON
+  router.get('/sessions/:id/diff/commits', async (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const base = validateBaseRef(typeof req.query['base'] === 'string' ? req.query['base'] : '');
+      if (!base) { res.status(400).json({ error: 'Invalid base ref' }); return; }
+
+      const session = store.getSession(id);
+      if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
+      const wt = session.worktree.worktreePath;
+
+      let count = 0;
+      const commits: { sha: string; author: string; date: string; message: string }[] = [];
+
+      try {
+        const countResult = await executeGit(['rev-list', '--count', `${base}..HEAD`], wt);
+        count = parseInt(countResult.stdout.trim(), 10) || 0;
+      } catch { /* no commits */ }
+
+      if (count > 0) {
+        try {
+          const logResult = await executeGit(
+            ['log', '--format=%H|%an|%aI|%s', `${base}..HEAD`],
+            wt,
+          );
+          for (const line of logResult.stdout.trim().split('\n')) {
+            if (!line) continue;
+            const [sha, author, date, ...rest] = line.split('|');
+            commits.push({
+              sha: sha ?? '',
+              author: author ?? '',
+              date: date ?? '',
+              message: rest.join('|'),
+            });
+          }
+        } catch { /* ignore */ }
+      }
+
+      res.json({ count, commits });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/diff/branches — list remote branches as JSON
+  router.get('/sessions/:id/diff/branches', async (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const session = store.getSession(id);
+      if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
+      const wt = session.worktree.worktreePath;
+
+      let branches: string[] = [];
+      try {
+        const { stdout } = await executeGit(
+          ['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin/'],
+          wt,
+        );
+        branches = stdout.trim().split('\n').filter(Boolean);
+      } catch { /* no remotes */ }
+
+      res.json({ branches });
     } catch (err) {
       next(err);
     }

@@ -1,0 +1,29 @@
+<button
+  class="diff-file-entry diff-file-entry--all diff-file-entry--active"
+  onclick="window.__diffSelectFile(this)"
+  data-path=""
+>
+  <span class="diff-file-entry__status diff-file-entry__status--all">*</span>
+  <span class="diff-file-entry__name">All changes</span>
+  <span class="diff-file-entry__stats">
+    <span class="diff-file-entry__added">+<%= it.totalAdded %></span>
+    <span class="diff-file-entry__deleted">-<%= it.totalDeleted %></span>
+  </span>
+</button>
+<% for (const file of it.files) { %>
+<button
+  class="diff-file-entry"
+  onclick="window.__diffSelectFile(this)"
+  data-path="<%= file.path %>"
+>
+  <span class="diff-file-entry__status diff-file-entry__status--<%= file.status === 'A' ? 'added' : file.status === 'D' ? 'deleted' : file.status === 'R' ? 'renamed' : 'modified' %>"><%= file.status %></span>
+  <span class="diff-file-entry__name" dir="rtl"><bdi><%= file.path %></bdi></span>
+  <span class="diff-file-entry__stats">
+    <% if (file.added > 0) { %><span class="diff-file-entry__added">+<%= file.added %></span><% } %>
+    <% if (file.deleted > 0) { %><span class="diff-file-entry__deleted">-<%= file.deleted %></span><% } %>
+  </span>
+</button>
+<% } %>
+<% if (it.files.length === 0) { %>
+<div class="diff-file-entry__empty">No changes found</div>
+<% } %>

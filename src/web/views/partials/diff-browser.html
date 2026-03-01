@@ -1,0 +1,55 @@
+<div class="diff-browser-overlay" id="diff-browser-overlay" onclick="if(event.target===this)window.__diffBrowserClose()">
+  <div class="diff-browser">
+    <div class="diff-browser__toolbar">
+      <div class="diff-branch-picker" id="diff-branch-picker">
+        <button class="diff-branch-picker__trigger" onclick="window.__diffBranchToggle()">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="4" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><path d="M5 6v4M10 6l-5 4"/></svg>
+          <span class="diff-branch-picker__label" id="diff-branch-label"><%= it.defaultBase %></span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="diff-branch-picker__dropdown" id="diff-branch-dropdown" style="display:none">
+          <input class="diff-branch-picker__search" id="diff-branch-search" type="text" placeholder="Filter branches..." autocomplete="off" />
+          <div class="diff-branch-picker__list" id="diff-branch-list">
+            <% for (const branch of it.branches) { %>
+            <button
+              class="diff-branch-picker__item<%= branch === it.defaultBase ? ' diff-branch-picker__item--active' : '' %>"
+              data-ref="<%= branch %>"
+              onclick="window.__diffSelectBranch(this)"
+            ><%= branch %></button>
+            <% } %>
+          </div>
+        </div>
+      </div>
+      <div class="diff-browser__stats" id="diff-stats">
+        <span class="diff-browser__stat" id="diff-stat-commits">…</span>
+        <span class="diff-browser__stat" id="diff-stat-files">…</span>
+      </div>
+      <div class="diff-browser__toolbar-actions">
+        <div class="diff-view-toggle" id="diff-view-toggle">
+          <button class="diff-view-toggle__btn diff-view-toggle__btn--active" data-mode="unified" onclick="window.__diffSetViewMode('unified')">Unified</button>
+          <button class="diff-view-toggle__btn" data-mode="split" onclick="window.__diffSetViewMode('split')">Split</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="window.__diffBrowserClose()">Close</button>
+      </div>
+    </div>
+    <div class="diff-browser__body">
+      <div class="diff-browser__file-pane" id="diff-file-pane">
+        <div class="diff-file-list" id="diff-file-list"
+          hx-get="/api/sessions/<%= it.sessionId %>/diff/files?base=<%= encodeURIComponent(it.defaultBase) %>"
+          hx-trigger="load"
+          hx-swap="innerHTML">
+        </div>
+      </div>
+      <div class="diff-browser__diff-pane" id="diff-diff-pane">
+        <div class="diff-browser__diff-empty" id="diff-empty">
+          <svg width="48" height="48" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.3"><circle cx="5" cy="4" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><path d="M5 6v4M10 6l-5 4"/></svg>
+          <p>Loading diff…</p>
+        </div>
+        <div class="diff-browser__diff-content" id="diff-content" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<link rel="stylesheet" href="https://esm.sh/diff2html@3/bundles/css/diff2html.min.css" />
+<script src="/js/diff-browser.js"></script>
+<script>window.__diffBrowserInit('<%= it.sessionId %>', '<%= it.defaultBase %>')</script>
