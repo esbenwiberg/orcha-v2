@@ -885,9 +885,53 @@ body {
     background-color: var(--color-surface-raised);
   }
 
+  .action-sheet-btn--docs:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 25%, var(--color-surface-raised));
+  }
+
   .preset-chip:hover:not(:disabled) {
     background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
+}
+
+/* -----------------------------------------------------------------------
+   Docs button — neutral accent style for info panel
+   ----------------------------------------------------------------------- */
+.action-sheet-btn--docs {
+  background-color: color-mix(in srgb, var(--color-accent) 15%, var(--color-surface-raised));
+  color: var(--color-accent);
+}
+
+.action-sheet-btn--docs:active {
+  background-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-surface-raised));
+}
+
+/* -----------------------------------------------------------------------
+   Markdown browser — mobile overrides
+   ----------------------------------------------------------------------- */
+.md-browser-overlay {
+  padding: 0;
+}
+
+.md-browser {
+  max-height: 100vh;
+  max-height: 100dvh;
+  height: 100%;
+  border-radius: 0;
+  border: none;
+}
+
+.md-browser__toolbar {
+  padding: 10px 12px;
+  padding-top: max(10px, env(safe-area-inset-top));
+}
+
+.md-browser__content {
+  padding: 16px;
+}
+
+.md-file-edit__textarea {
+  min-height: 200px;
 }
 
 /* -----------------------------------------------------------------------
