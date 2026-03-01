@@ -102,6 +102,29 @@ export class ModelConfigStore {
     return this.getConfig(id);
   }
 
+  updateConfigFull(id: string, updates: Partial<CreateModelConfigInput>): ModelConfig | undefined {
+    const existing = this.getConfig(id);
+    if (existing === undefined) return undefined;
+
+    const name = updates.name ?? existing.name;
+    const provider = updates.provider ?? existing.provider;
+
+    const merged = { ...existing, ...updates };
+    const configJson: Record<string, unknown> = {};
+    if (merged.apiKey !== undefined) configJson['apiKey'] = merged.apiKey;
+    if (merged.baseUrl !== undefined) configJson['baseUrl'] = merged.baseUrl;
+    if (merged.modelId !== undefined) configJson['modelId'] = merged.modelId;
+    if (merged.foundryResource !== undefined) configJson['foundryResource'] = merged.foundryResource;
+    if (merged.extraEnv !== undefined) configJson['extraEnv'] = merged.extraEnv;
+    if (merged.credentialsJson !== undefined) configJson['credentialsJson'] = merged.credentialsJson;
+
+    this.#db
+      .prepare('UPDATE model_configs SET name = ?, provider = ?, config_json = ? WHERE id = ?')
+      .run(name, provider, JSON.stringify(configJson), id);
+
+    return this.getConfig(id);
+  }
+
   deleteConfig(id: string): void {
     this.#db.prepare('DELETE FROM model_configs WHERE id = ?').run(id);
   }

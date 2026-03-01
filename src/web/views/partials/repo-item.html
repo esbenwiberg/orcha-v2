@@ -23,6 +23,15 @@
     <% } %>
   </td>
   <td class="data-table__actions">
+    <% if (it.repo.status === 'ready') { %>
+      <button
+        class="btn btn-ghost btn-xs"
+        hx-get="/api/repos/<%= it.repo.id %>/edit-form"
+        hx-target="#form-panel-slot"
+        hx-swap="innerHTML"
+        onclick="document.getElementById('form-panel').classList.add('is-open')"
+      >Edit</button>
+    <% } %>
     <% if (it.repo.status === 'error') { %>
       <button
         class="btn btn-ghost btn-xs"

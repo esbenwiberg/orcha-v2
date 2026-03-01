@@ -105,6 +105,90 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // GET /api/presets/:id/edit-form — render edit form with pre-populated values
+  router.get('/presets/:id/edit-form', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const preset = store.getPreset(id);
+
+      if (preset === undefined) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(404).send('<div class="badge badge--failed">Preset not found</div>');
+        return;
+      }
+
+      const repos = repoStore.listRepos();
+      const credentialProfiles = credStore.listProfiles();
+      const modelConfigs = modelConfigStore.listConfigs();
+      const html = eta.render('partials/save-preset-form', {
+        editId: preset.id,
+        name: preset.name,
+        repoId: preset.repoId,
+        credentialProfileId: preset.credentialProfileId,
+        modelConfigId: preset.modelConfigId,
+        repos,
+        credentialProfiles,
+        modelConfigs,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PUT /api/presets/:id — update a preset
+  router.put('/presets/:id', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const name = (typeof req.body['name'] === 'string' ? req.body['name'] : '').trim();
+      const repoId = (typeof req.body['repoId'] === 'string' ? req.body['repoId'] : '').trim();
+      const credentialProfileId = (
+        typeof req.body['credentialProfileId'] === 'string' ? req.body['credentialProfileId'] : ''
+      ).trim();
+      const modelConfigId = (
+        typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : ''
+      ).trim();
+
+      const errors: string[] = [];
+
+      if (name.length === 0) {
+        errors.push('Preset name is required.');
+      } else if (name.length > 64) {
+        errors.push('Preset name must be 64 characters or fewer.');
+      }
+
+      if (errors.length > 0) {
+        const repos = repoStore.listRepos();
+        const credentialProfiles = credStore.listProfiles();
+        const modelConfigs = modelConfigStore.listConfigs();
+        const formHtml = eta.render('partials/save-preset-form', {
+          editId: id,
+          name,
+          repoId,
+          credentialProfileId,
+          modelConfigId,
+          repos,
+          credentialProfiles,
+          modelConfigs,
+        });
+        const html = eta.render('partials/form-error', { errors, formHtml });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(422).send(html);
+        return;
+      }
+
+      store.updatePreset(id, { name, repoId, credentialProfileId, modelConfigId });
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('HX-Trigger', 'close-panel');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-preset-list');
+      res.status(200).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // GET /api/presets/:id/load — load a preset and pre-fill the new-session form
   router.get('/presets/:id/load', (req, res, next) => {
     try {

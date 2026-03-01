@@ -30,6 +30,65 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // GET /api/repos/:id/edit-form — render edit form for display name
+  router.get('/repos/:id/edit-form', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const repo = store.getRepo(id);
+
+      if (repo === undefined) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(404).send('<div class="badge badge--failed">Repo not found</div>');
+        return;
+      }
+
+      const html = eta.render('partials/add-repo-form', {
+        editId: repo.id,
+        url: repo.url,
+        displayName: repo.displayName,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PUT /api/repos/:id — update display name
+  router.put('/repos/:id', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const displayName = (typeof req.body['displayName'] === 'string' ? req.body['displayName'] : '').trim();
+
+      const errors: string[] = [];
+      if (displayName.length === 0) {
+        errors.push('Display name is required.');
+      }
+
+      if (errors.length > 0) {
+        const repo = store.getRepo(id);
+        const formHtml = eta.render('partials/add-repo-form', {
+          editId: id,
+          url: repo?.url ?? '',
+          displayName,
+        });
+        const html = eta.render('partials/form-error', { errors, formHtml });
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(422).send(html);
+        return;
+      }
+
+      store.updateDisplayName(id, displayName);
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('HX-Trigger', 'close-panel');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-repo-list');
+      res.status(200).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // POST /api/repos — validate URL, insert repo, fire-and-forget ensureBareRepo
   router.post('/repos', (req, res, next) => {
     try {

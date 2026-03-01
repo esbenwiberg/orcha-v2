@@ -144,6 +144,104 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // GET /api/credential-profiles/:id/edit-form — render edit form pre-populated
+  router.get('/credential-profiles/:id/edit-form', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const profile = store.getProfile(id);
+
+      if (!profile) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(404).send('<div class="badge badge--failed">Profile not found</div>');
+        return;
+      }
+
+      const html = eta.render('partials/credential-profile-form', {
+        editId: profile.id,
+        name: profile.name,
+        durationHours: profile.durationHours,
+        azure: profile.azure,
+        github: profile.github,
+        devops: profile.devops,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PUT /api/credential-profiles/:id — update a profile
+  router.put('/credential-profiles/:id', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const body = req.body as Record<string, string>;
+      const name = (body['name'] ?? '').trim();
+      const durationHours = parseInt(body['durationHours'] ?? '4', 10);
+
+      if (!name) {
+        res.status(422).send('<div class="badge badge--failed">Name is required</div>');
+        return;
+      }
+
+      // Azure
+      let azure: { subscriptionId: string; resourceGroups: string[]; role: string } | undefined;
+      const azSub = (body['azureSubscriptionId'] ?? '').trim();
+      if (azSub) {
+        azure = {
+          subscriptionId: azSub,
+          resourceGroups: (body['azureResourceGroups'] ?? '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean),
+          role: (body['azureRole'] ?? 'Contributor').trim(),
+        };
+      }
+
+      // GitHub
+      let github: { repos: string[]; permissions: string[] } | undefined;
+      const ghRepos = (body['githubRepos'] ?? '').trim();
+      if (ghRepos) {
+        github = {
+          repos: ghRepos.split(',').map((s) => s.trim()).filter(Boolean),
+          permissions: (body['githubPermissions'] ?? '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean),
+        };
+      }
+
+      // DevOps
+      let devops: { org: string; project: string; scopes: string[] } | undefined;
+      const adoOrg = (body['devopsOrg'] ?? '').trim();
+      if (adoOrg) {
+        devops = {
+          org: adoOrg,
+          project: (body['devopsProject'] ?? '').trim(),
+          scopes: (body['devopsScopes'] ?? '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean),
+        };
+      }
+
+      store.updateProfile(id, {
+        name,
+        durationHours,
+        ...(azure !== undefined ? { azure } : {}),
+        ...(github !== undefined ? { github } : {}),
+        ...(devops !== undefined ? { devops } : {}),
+      });
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('HX-Trigger', 'close-panel');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-cred-list');
+      res.status(200).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // DELETE /api/credential-profiles/:id — delete a profile
   router.delete('/credential-profiles/:id', (req, res, next) => {
     try {

@@ -115,6 +115,18 @@ export class RepoStore {
     return this.getRepo(id)!;
   }
 
+  updateDisplayName(id: string, displayName: string): Repo | undefined {
+    const existing = this.getRepo(id);
+    if (existing === undefined) return undefined;
+
+    const now = new Date().toISOString();
+    this.#db
+      .prepare('UPDATE repos SET display_name = ?, updated_at = ? WHERE id = ?')
+      .run(displayName, now, id);
+
+    return this.getRepo(id);
+  }
+
   updateStatus(id: string, status: RepoStatus, extra?: { barePath?: string; error?: string }): Repo {
     const now = new Date().toISOString();
 

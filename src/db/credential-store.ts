@@ -65,6 +65,32 @@ export class CredentialStore {
     return this.getProfile(id)!;
   }
 
+  updateProfile(id: string, input: Partial<CreateCredentialProfileInput>): CredentialProfile | undefined {
+    const existing = this.getProfile(id);
+    if (existing === undefined) return undefined;
+
+    const name = input.name ?? existing.name;
+    const durationHours = input.durationHours ?? existing.durationHours;
+    const azure = input.azure !== undefined ? input.azure : existing.azure;
+    const github = input.github !== undefined ? input.github : existing.github;
+    const devops = input.devops !== undefined ? input.devops : existing.devops;
+
+    this.#db
+      .prepare(
+        `UPDATE credential_profiles SET name = ?, duration_hours = ?, azure_json = ?, github_json = ?, devops_json = ? WHERE id = ?`,
+      )
+      .run(
+        name,
+        durationHours,
+        azure ? JSON.stringify(azure) : null,
+        github ? JSON.stringify(github) : null,
+        devops ? JSON.stringify(devops) : null,
+        id,
+      );
+
+    return this.getProfile(id);
+  }
+
   deleteProfile(id: string): void {
     this.#db.prepare('DELETE FROM credential_profiles WHERE id = ?').run(id);
   }

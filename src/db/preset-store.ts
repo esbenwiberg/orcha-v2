@@ -64,6 +64,24 @@ export class PresetStore {
     return this.getPreset(id)!;
   }
 
+  updatePreset(id: string, input: Partial<CreatePresetInput>): Preset | undefined {
+    const existing = this.getPreset(id);
+    if (existing === undefined) return undefined;
+
+    const name = input.name ?? existing.name;
+    const repoId = input.repoId ?? existing.repoId;
+    const credentialProfileId = input.credentialProfileId ?? existing.credentialProfileId;
+    const modelConfigId = input.modelConfigId ?? existing.modelConfigId;
+
+    this.#db
+      .prepare(
+        `UPDATE presets SET name = ?, repo_id = ?, credential_profile_id = ?, model_config_id = ? WHERE id = ?`,
+      )
+      .run(name, repoId || null, credentialProfileId || null, modelConfigId || null, id);
+
+    return this.getPreset(id);
+  }
+
   deletePreset(id: string): void {
     this.#db.prepare('DELETE FROM presets WHERE id = ?').run(id);
   }

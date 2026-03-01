@@ -1,9 +1,13 @@
 <form
-  hx-post="/api/presets"
+  <% if (it.editId) { %>
+    hx-put="/api/presets/<%= it.editId %>"
+  <% } else { %>
+    hx-post="/api/presets"
+  <% } %>
   hx-target="#form-panel-slot"
   hx-swap="innerHTML"
 >
-  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;">Save Preset</h2>
+  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;"><%= it.editId ? 'Edit Preset' : 'Save Preset' %></h2>
 
   <div class="form-group">
     <label for="sp-name">Preset Name</label>
@@ -66,7 +70,7 @@
   </div>
 
   <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
-    <button type="submit" class="btn btn-primary">Save</button>
+    <button type="submit" class="btn btn-primary"><%= it.editId ? 'Update' : 'Save' %></button>
     <button
       type="button"
       class="btn btn-ghost"

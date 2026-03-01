@@ -26,6 +26,13 @@
             <span class="text-xs text-muted"><%= c.modelId ?? '—' %></span>
           </td>
           <td class="data-table__actions">
+            <button
+              class="btn btn-ghost btn-xs"
+              hx-get="/api/model-configs/<%= c.id %>/edit-form"
+              hx-target="#form-panel-slot"
+              hx-swap="innerHTML"
+              onclick="document.getElementById('form-panel').classList.add('is-open')"
+            >Edit</button>
             <% if (c.provider === 'max') { %>
             <button
               class="btn btn-ghost btn-xs"

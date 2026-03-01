@@ -1,37 +1,61 @@
 <form
-  hx-post="/api/repos"
+  <% if (it.editId) { %>
+    hx-put="/api/repos/<%= it.editId %>"
+  <% } else { %>
+    hx-post="/api/repos"
+  <% } %>
   hx-target="#form-panel-slot"
   hx-swap="innerHTML"
 >
-  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;">Add Repository</h2>
+  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;"><%= it.editId ? 'Edit Repository' : 'Add Repository' %></h2>
 
-  <div class="form-group">
-    <label for="ar-url">Repository URL</label>
-    <input
-      id="ar-url"
-      type="text"
-      name="url"
-      required
-      placeholder="https://github.com/owner/repo.git"
-      autocomplete="off"
-      value="<%= it.url ?? '' %>"
-    />
-  </div>
+  <% if (it.editId) { %>
+    <div class="form-group">
+      <label>Repository URL</label>
+      <span class="font-mono text-xs text-muted" style="padding:0.5rem 0"><%= it.url ?? '' %></span>
+    </div>
 
-  <div class="form-group">
-    <label for="ar-token">Git Token <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--color-text-muted)">(optional — for private repos)</span></label>
-    <input
-      id="ar-token"
-      type="password"
-      name="gitToken"
-      placeholder="ghp_… or Azure DevOps PAT"
-      autocomplete="off"
-    />
-    <span style="font-size:11px;color:var(--color-text-muted);margin-top:2px">Token is used only for cloning and is not stored.</span>
-  </div>
+    <div class="form-group">
+      <label for="ar-display-name">Display Name</label>
+      <input
+        id="ar-display-name"
+        type="text"
+        name="displayName"
+        required
+        placeholder="owner/repo"
+        autocomplete="off"
+        value="<%= it.displayName ?? '' %>"
+      />
+    </div>
+  <% } else { %>
+    <div class="form-group">
+      <label for="ar-url">Repository URL</label>
+      <input
+        id="ar-url"
+        type="text"
+        name="url"
+        required
+        placeholder="https://github.com/owner/repo.git"
+        autocomplete="off"
+        value="<%= it.url ?? '' %>"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="ar-token">Git Token <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--color-text-muted)">(optional — for private repos)</span></label>
+      <input
+        id="ar-token"
+        type="password"
+        name="gitToken"
+        placeholder="ghp_… or Azure DevOps PAT"
+        autocomplete="off"
+      />
+      <span style="font-size:11px;color:var(--color-text-muted);margin-top:2px">Token is used only for cloning and is not stored.</span>
+    </div>
+  <% } %>
 
   <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
-    <button type="submit" class="btn btn-primary">Add</button>
+    <button type="submit" class="btn btn-primary"><%= it.editId ? 'Update' : 'Add' %></button>
     <button
       type="button"
       class="btn btn-ghost"

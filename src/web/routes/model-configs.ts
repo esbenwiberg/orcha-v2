@@ -102,6 +102,99 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // GET /api/model-configs/:id/edit-form — render edit form pre-populated
+  router.get('/model-configs/:id/edit-form', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const config = store.getConfig(id);
+
+      if (config === undefined) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(404).send('<div class="badge badge--failed">Config not found</div>');
+        return;
+      }
+
+      const html = eta.render('partials/model-config-form', {
+        editId: config.id,
+        name: config.name,
+        provider: config.provider,
+        apiKey: config.apiKey,
+        baseUrl: config.baseUrl,
+        modelId: config.modelId,
+        foundryResource: config.foundryResource,
+        extraEnv: config.extraEnv,
+        credentialsJson: config.credentialsJson,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PUT /api/model-configs/:id — update a model config
+  router.put('/model-configs/:id', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const body = req.body as Record<string, unknown>;
+      const getField = (key: string): string => {
+        const v = body[key];
+        if (Array.isArray(v)) return (v as string[]).find((s) => typeof s === 'string' && s.length > 0) ?? '';
+        return typeof v === 'string' ? v : '';
+      };
+      const name = getField('name').trim();
+      const provider = getField('provider').trim();
+
+      if (!name) {
+        res.status(422).send('<div class="badge badge--failed">Name is required</div>');
+        return;
+      }
+      if (!VALID_PROVIDERS.has(provider)) {
+        res.status(422).send('<div class="badge badge--failed">Invalid provider</div>');
+        return;
+      }
+
+      const apiKey = getField('apiKey').trim() || undefined;
+      const baseUrl = getField('baseUrl').trim() || undefined;
+      const modelId = getField('modelId').trim() || undefined;
+      const foundryResource = getField('foundryResource').trim() || undefined;
+
+      let extraEnv: Record<string, string> | undefined;
+      const extraEnvRaw = getField('extraEnv').trim();
+      if (extraEnvRaw && provider === 'custom') {
+        extraEnv = {};
+        for (const line of extraEnvRaw.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          const eqIdx = trimmed.indexOf('=');
+          if (eqIdx > 0) {
+            extraEnv[trimmed.slice(0, eqIdx).trim()] = trimmed.slice(eqIdx + 1).trim();
+          }
+        }
+      }
+
+      const credentialsJson = provider === 'max' ? (getField('credentialsJson').trim() || undefined) : undefined;
+
+      store.updateConfigFull(id, {
+        name,
+        provider: provider as ModelProvider,
+        ...(apiKey !== undefined ? { apiKey } : {}),
+        ...(baseUrl !== undefined ? { baseUrl } : {}),
+        ...(modelId !== undefined ? { modelId } : {}),
+        ...(foundryResource !== undefined ? { foundryResource } : {}),
+        ...(extraEnv !== undefined ? { extraEnv } : {}),
+        ...(credentialsJson !== undefined ? { credentialsJson } : {}),
+      });
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('HX-Trigger', 'close-panel');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-model-list');
+      res.status(200).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // DELETE /api/model-configs/:id — delete a model config
   router.delete('/model-configs/:id', (req, res, next) => {
     try {

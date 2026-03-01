@@ -17,7 +17,7 @@ body {
 body {
   background-color: var(--color-bg);
   color: var(--color-text-primary);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -70,18 +70,19 @@ body {
 
 .orcha-sidebar__nav {
   flex: 1;
-  padding: 12px 0;
+  padding: 12px 8px;
 }
 
 .orcha-sidebar__nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 20px;
+  padding: 9px 12px;
+  margin: 0;
   color: var(--color-text-muted);
   text-decoration: none;
   font-size: 14px;
-  border-left: 3px solid transparent;
+  border-radius: 6px;
   transition: color 0.15s, background-color 0.15s;
 }
 
@@ -92,7 +93,6 @@ body {
 
 .orcha-sidebar__nav-item--active {
   color: var(--color-accent);
-  border-left-color: var(--color-accent);
   background-color: var(--color-accent-dim);
 }
 
@@ -154,13 +154,6 @@ body {
   justify-content: center;
   padding: 10px;
   gap: 0;
-  border-left-width: 0;
-  border-bottom: 2px solid transparent;
-}
-
-.orcha-layout.sidebar-collapsed .orcha-sidebar__nav-item--active {
-  border-left-color: transparent;
-  border-bottom-color: var(--color-accent);
 }
 
 .orcha-layout.sidebar-collapsed .orcha-sidebar__nav-item-text {
