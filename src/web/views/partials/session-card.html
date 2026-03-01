@@ -43,10 +43,6 @@
     >Kill</button>
     <button
       class="btn btn-ghost btn-sm"
-      onclick="this.closest('.session-card').classList.toggle('is-focused')"
-    >Focus</button>
-    <button
-      class="btn btn-ghost btn-sm"
       style="color:var(--color-error)"
       hx-delete="/api/sessions/<%= it.id %>"
       hx-target="#session-<%= it.id %>"

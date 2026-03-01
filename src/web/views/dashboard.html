@@ -1,5 +1,6 @@
 <div class="terminal-filter-bar" id="terminal-filter-bar">
-  <button class="terminal-filter-chip terminal-filter-chip--all"
+  <span id="filter-chips"></span>
+  <button id="compact-toggle" class="terminal-filter-chip"
     style="margin-left:auto"
     onclick="document.getElementById('session-grid').classList.toggle('compact-cards');this.textContent=this.textContent==='Compact'?'Expanded':'Compact'"
   >Compact</button>

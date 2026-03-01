@@ -531,14 +531,21 @@ body.has-fullscreen-terminal {
 }
 
 /* -----------------------------------------------------------------------
-   Compact card mode — single-line header only, hide body/footer
+   Compact card mode — collapse non-terminal cards to header + inline footer
+   Cards with open terminals are NOT affected.
    ----------------------------------------------------------------------- */
-.compact-cards .session-card__header {
+.compact-cards .session-card:not(.has-terminal) {
+  min-height: auto;
+}
+.compact-cards .session-card:not(.has-terminal) .session-card__header {
   border-bottom: none;
 }
-.compact-cards .session-card__body,
-.compact-cards .session-card__footer {
+.compact-cards .session-card:not(.has-terminal) .session-card__body {
   display: none;
+}
+.compact-cards .session-card:not(.has-terminal) .session-card__footer {
+  border-top: none;
+  padding: 0 1rem 0.5rem;
 }
 
 /* -----------------------------------------------------------------------

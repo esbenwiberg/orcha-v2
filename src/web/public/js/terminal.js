@@ -14,6 +14,230 @@
 /** @type {Map<string, {term: object, ws: WebSocket, fitAddon: object, observer: ResizeObserver}>} */
 const openTerminals = new Map();
 
+/** Currently fullscreened session id (only one at a time). */
+let fullscreenId = null;
+
+/**
+ * Refit a terminal after layout changes (double-rAF to let flex settle).
+ * @param {string} sessionId
+ */
+function refitTerminal(sessionId) {
+  const entry = openTerminals.get(sessionId);
+  if (!entry) return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      entry.fitAddon.fit();
+      if (entry.ws.readyState === WebSocket.OPEN) {
+        const dims = entry.fitAddon.proposeDimensions();
+        if (dims) {
+          entry.ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+        }
+      }
+    });
+  });
+}
+
+/**
+ * Toggle fullscreen for a terminal panel.
+ * @param {string} sessionId
+ */
+function fullscreenTerminal(sessionId) {
+  const panel = document.getElementById(`terminal-panel-${sessionId}`);
+  if (!panel) return;
+
+  const isCurrentlyFullscreen = panel.classList.contains('is-fullscreen');
+
+  // If another terminal is fullscreen, exit it first
+  if (fullscreenId && fullscreenId !== sessionId) {
+    exitFullscreen(fullscreenId);
+  }
+
+  if (isCurrentlyFullscreen) {
+    exitFullscreen(sessionId);
+  } else {
+    panel.classList.add('is-fullscreen');
+    document.body.classList.add('has-fullscreen-terminal');
+    fullscreenId = sessionId;
+
+    // Swap icon to collapse
+    const btn = panel.querySelector('.terminal-header__btn[title="Fullscreen"]');
+    if (btn) {
+      btn.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 4 4 4 1" /><polyline points="15 4 12 4 12 1" />
+        <polyline points="1 12 4 12 4 15" /><polyline points="15 12 12 12 12 15" />
+      </svg>`;
+      btn.title = 'Exit fullscreen';
+    }
+
+    refitTerminal(sessionId);
+  }
+}
+
+/**
+ * Exit fullscreen for a specific terminal.
+ * @param {string} sessionId
+ */
+function exitFullscreen(sessionId) {
+  const panel = document.getElementById(`terminal-panel-${sessionId}`);
+  if (!panel) return;
+
+  panel.classList.remove('is-fullscreen');
+  document.body.classList.remove('has-fullscreen-terminal');
+  if (fullscreenId === sessionId) fullscreenId = null;
+
+  // Swap icon back to expand
+  const btn = panel.querySelector('.terminal-header__btn[title="Exit fullscreen"]');
+  if (btn) {
+    btn.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="4 1 1 1 1 4" /><polyline points="12 1 15 1 15 4" />
+      <polyline points="4 15 1 15 1 12" /><polyline points="12 15 15 15 15 12" />
+    </svg>`;
+    btn.title = 'Fullscreen';
+  }
+
+  refitTerminal(sessionId);
+}
+
+/**
+ * Remove a terminal: exit fullscreen, close WS/PTY, remove DOM, update filter bar.
+ * @param {string} sessionId
+ */
+function removeTerminal(sessionId) {
+  // Exit fullscreen if this terminal is fullscreened
+  if (fullscreenId === sessionId) {
+    exitFullscreen(sessionId);
+  }
+
+  closeTerminal(sessionId);
+
+  // Clear the terminal slot HTML
+  const slot = document.getElementById(`terminal-slot-${sessionId}`);
+  if (slot) slot.innerHTML = '';
+
+  // Remove has-terminal from the card
+  const card = document.getElementById(`session-${sessionId}`);
+  if (card) {
+    card.classList.remove('has-terminal');
+    card.classList.remove('is-hidden-by-filter');
+  }
+
+  updateFilterBar();
+}
+
+/**
+ * Scan all open terminals and sync the filter bar chips.
+ */
+function updateFilterBar() {
+  const slot = document.getElementById('filter-chips');
+  if (!slot) return;
+
+  const cards = document.querySelectorAll('.session-card.has-terminal');
+
+  // If 0 or 1 terminals, clear chips (no filtering needed)
+  if (cards.length <= 1) {
+    slot.innerHTML = '';
+    return;
+  }
+
+  // Build set of session IDs that have terminals
+  const terminalSessionIds = new Set();
+  cards.forEach((card) => {
+    const id = card.id.replace('session-', '');
+    terminalSessionIds.add(id);
+  });
+
+  // Collect existing chip IDs
+  const existingChips = slot.querySelectorAll('.terminal-filter-chip[data-session-id]');
+  const existingIds = new Set();
+  existingChips.forEach((chip) => {
+    const chipId = chip.getAttribute('data-session-id');
+    if (!terminalSessionIds.has(chipId)) {
+      chip.remove();
+    } else {
+      existingIds.add(chipId);
+    }
+  });
+
+  // Ensure "All" chip exists
+  let allChip = slot.querySelector('.terminal-filter-chip--all');
+  if (!allChip) {
+    allChip = document.createElement('button');
+    allChip.className = 'terminal-filter-chip terminal-filter-chip--all is-active';
+    allChip.textContent = 'All';
+    allChip.onclick = showAll;
+    slot.prepend(allChip);
+  }
+
+  // Add chips for new terminals
+  cards.forEach((card) => {
+    const id = card.id.replace('session-', '');
+    if (existingIds.has(id)) return;
+
+    const branchEl = card.querySelector('.card__meta');
+    const branchText = branchEl ? branchEl.textContent.trim() : id.slice(0, 8);
+
+    const chip = document.createElement('button');
+    chip.className = 'terminal-filter-chip is-active';
+    chip.setAttribute('data-session-id', id);
+    chip.textContent = branchText;
+    chip.onclick = () => toggleFilter(id);
+    slot.appendChild(chip);
+  });
+}
+
+/**
+ * Toggle visibility of a session card via the filter bar.
+ * @param {string} sessionId
+ */
+function toggleFilter(sessionId) {
+  const card = document.getElementById(`session-${sessionId}`);
+  const chip = document.querySelector(`.terminal-filter-chip[data-session-id="${sessionId}"]`);
+  if (!card || !chip) return;
+
+  const isHidden = card.classList.toggle('is-hidden-by-filter');
+  chip.classList.toggle('is-active', !isHidden);
+
+  // Update "All" chip state: active only if all chips are active
+  const filterSlot = document.getElementById('filter-chips');
+  const allChip = filterSlot && filterSlot.querySelector('.terminal-filter-chip--all');
+  if (allChip) {
+    const allChips = filterSlot.querySelectorAll('.terminal-filter-chip[data-session-id]');
+    const allActive = Array.from(allChips).every((c) => c.classList.contains('is-active'));
+    allChip.classList.toggle('is-active', allActive);
+  }
+
+  // Refit visible terminals (hidden ones don't need it)
+  if (!isHidden) {
+    refitTerminal(sessionId);
+  }
+}
+
+/**
+ * Show all terminals (reset filter).
+ */
+function showAll() {
+  document.querySelectorAll('.session-card.is-hidden-by-filter').forEach((card) => {
+    card.classList.remove('is-hidden-by-filter');
+  });
+  document.querySelectorAll('.terminal-filter-chip').forEach((chip) => {
+    chip.classList.add('is-active');
+  });
+
+  // Refit all visible terminals
+  openTerminals.forEach((_entry, id) => refitTerminal(id));
+}
+
+// ESC key exits fullscreen
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && fullscreenId) {
+    exitFullscreen(fullscreenId);
+  }
+});
+
+// Global bindings for template onclick handlers
+window.__termFullscreen = fullscreenTerminal;
+window.__termClose = removeTerminal;
+
 /**
  * Open a terminal inside the given container element and connect it to the
  * WebSocket endpoint for the specified session.
@@ -48,7 +272,13 @@ export async function openTerminal(sessionId, containerId) {
   const fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(container);
-  fitAddon.fit();
+
+  // Double-rAF: flex layout needs a frame to settle before fit() measures correctly
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      fitAddon.fit();
+    });
+  });
 
   // Fetch a one-time auth ticket (needed when the server runs in OIDC mode,
   // where session cookies aren't available at the WS upgrade layer).
@@ -125,6 +355,8 @@ export async function openTerminal(sessionId, containerId) {
   observer.observe(container);
 
   openTerminals.set(sessionId, { term, ws, fitAddon, observer });
+
+  updateFilterBar();
 }
 
 /**
