@@ -187,6 +187,10 @@ export class SessionManager {
           prompt: '',
           env: opts.env ?? {},
           maxRuntimeSeconds: 0,
+          ...(opts.args !== undefined ? { args: opts.args } : {}),
+          ...(opts.deleteEnv !== undefined ? { deleteEnv: opts.deleteEnv } : {}),
+          ...(opts.modelConfigId !== undefined ? { modelConfigId: opts.modelConfigId } : {}),
+          ...(opts.modelProvider !== undefined ? { modelProvider: opts.modelProvider } : {}),
         },
         {
           worktreePath: worktree.path,
@@ -239,7 +243,7 @@ export class SessionManager {
     if (session?.dbSessionId !== undefined) {
       const dbId = session.dbSessionId;
       try {
-        this._sessionStore.updateStatus(dbId, 'completed');
+        this._sessionStore.updateStatus(dbId, exitCode === 0 ? 'completed' : 'failed');
         this._sessionStore.updateSession(dbId, { exitCode });
       } catch {
         // Best-effort: session may not exist in DB or transition may be invalid
@@ -291,7 +295,7 @@ export class SessionManager {
       throw new SessionError(`Session '${dbSessionId}' not found`, 'NOT_FOUND');
     }
 
-    if (dbSession.status !== 'failed' && dbSession.status !== 'cancelled') {
+    if (dbSession.status !== 'failed' && dbSession.status !== 'cancelled' && dbSession.status !== 'completed') {
       throw new SessionError(
         `Cannot reopen session in '${dbSession.status}' state`,
         'NOT_FOUND',
@@ -318,14 +322,25 @@ export class SessionManager {
       );
     }
 
-    // Step 3: Spawn PTY in existing worktree
+    // Step 3: Restore original args (with --continue appended) and env
+    const originalArgs = dbSession.config.args ?? [];
+    const reopenArgs = [...originalArgs, '--continue'];
+    const originalEnv = dbSession.config.env ?? {};
+    const homeDir = originalEnv['HOME'];
+    const modelConfigId = dbSession.config.modelConfigId;
+    const modelProvider = dbSession.config.modelProvider;
+
+    // Step 4: Spawn PTY in existing worktree with full context
     let terminal: SessionTerminal;
     const spawnOpts: PtySpawnOptions = {
       sessionId,
       cwd: worktreePath,
       command: 'claude',
+      args: reopenArgs,
+      env: originalEnv,
       size: { cols: 220, rows: 50 },
       ...(opts?.sandbox !== undefined ? { sandbox: opts.sandbox } : {}),
+      ...(dbSession.config.deleteEnv !== undefined ? { deleteEnv: dbSession.config.deleteEnv } : {}),
     };
 
     try {
@@ -338,14 +353,27 @@ export class SessionManager {
       );
     }
 
-    // Step 4: Set up output buffer + exit handler
+    // Step 5: Set up output buffer + exit handler
     const outputBuffer = new OutputBuffer();
     outputBuffer.push('\r\n\x1b[33mReopening session...\x1b[0m\r\n');
+    let firstChunkLogged = false;
     terminal.output.on('data', (chunk: Buffer | string) => {
       outputBuffer.push(chunk);
+      if (!firstChunkLogged) {
+        firstChunkLogged = true;
+        // Max/Pro sessions: auto-dismiss first-run prompts on reopen too
+        if (modelProvider === 'max') {
+          setTimeout(() => {
+            try { terminal.write('\r'); } catch { /* may have exited */ }
+          }, 600);
+          setTimeout(() => {
+            try { terminal.write('\r'); } catch { /* may have exited */ }
+          }, 2000);
+        }
+      }
     });
 
-    // Step 5: Transition status and clear stale data
+    // Step 6: Transition status and clear stale data
     try {
       this._sessionStore.resetForReopen(dbSessionId);
       this._sessionStore.updateStatus(dbSessionId, 'starting');
@@ -354,7 +382,7 @@ export class SessionManager {
       console.error('[session-manager] DB status transition failed for reopen', dbSessionId, err);
     }
 
-    // Step 6: Build ActiveSession and add to active map
+    // Step 7: Build ActiveSession and add to active map
     const worktreeInfo: WorktreeInfo = {
       id: sessionId,
       path: worktreePath,
@@ -370,6 +398,9 @@ export class SessionManager {
       terminal,
       outputBuffer,
       createdAt: new Date(),
+      ...(homeDir !== undefined ? { homeDir } : {}),
+      ...(modelConfigId !== undefined ? { modelConfigId } : {}),
+      ...(modelProvider !== undefined ? { modelProvider } : {}),
     };
 
     this._active.set(sessionId, activeSession);

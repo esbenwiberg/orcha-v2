@@ -8,8 +8,8 @@
 </div>
 <script>
 (function() {
-  var fp = document.getElementById('md-browser-filepath');
-  if (fp) fp.textContent = '<%= it.filePath %>';
+  var label = document.getElementById('md-picker-label');
+  if (label) label.textContent = '<%= it.filePath %>';
   var toggleBtn = document.getElementById('md-edit-toggle-btn');
   var saveBtn = document.getElementById('md-save-btn');
   if (toggleBtn) toggleBtn.textContent = 'Edit';

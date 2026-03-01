@@ -1,48 +1,104 @@
 <div class="md-browser-overlay" id="md-browser-overlay" onclick="if(event.target===this)this.remove()">
   <div class="md-browser">
-    <div class="md-browser__sidebar">
-      <div class="md-browser__sidebar-header">Files</div>
-      <div class="md-browser__file-list">
-        <% for (const file of it.files) { %>
-        <button
-          class="md-browser__file-item<%= file === it.initialFile ? ' md-browser__file-item--active' : '' %>"
-          hx-get="/api/sessions/<%= it.sessionId %>/md-file?path=<%= encodeURIComponent(file) %>"
-          hx-target="#md-browser-content"
-          hx-swap="innerHTML"
-          onclick="document.querySelectorAll('.md-browser__file-item').forEach(b=>b.classList.remove('md-browser__file-item--active'));this.classList.add('md-browser__file-item--active')"
-        ><%= file %></button>
-        <% } %>
-        <% if (it.files.length === 0) { %>
-        <div class="md-browser__empty">No .md files found</div>
-        <% } %>
-      </div>
-    </div>
-    <div class="md-browser__main">
-      <div class="md-browser__toolbar">
-        <span class="md-browser__filepath" id="md-browser-filepath"><%= it.initialFile %></span>
-        <div class="md-browser__toolbar-actions">
-          <button class="btn btn-ghost btn-sm" onclick="window.__mdToggleEdit('<%= it.sessionId %>')" id="md-edit-toggle-btn">Edit</button>
-          <button class="btn btn-primary btn-sm" onclick="window.__mdSave('<%= it.sessionId %>')" id="md-save-btn" style="display:none">Save</button>
-          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('md-browser-overlay').remove()">Close</button>
+    <div class="md-browser__toolbar">
+      <div class="md-picker" id="md-picker">
+        <button class="md-picker__trigger" id="md-picker-trigger" onclick="window.__mdPickerToggle()">
+          <span class="md-picker__label" id="md-picker-label"><%= it.initialFile || 'Select file...' %></span>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="md-picker__dropdown" id="md-picker-dropdown" style="display:none">
+          <input class="md-picker__search" id="md-picker-search" type="text" placeholder="Filter files..." autocomplete="off" />
+          <div class="md-picker__list" id="md-picker-list">
+            <% for (const file of it.files) { %>
+            <button
+              class="md-picker__item<%= file === it.initialFile ? ' md-picker__item--active' : '' %>"
+              data-path="<%= file %>"
+              hx-get="/api/sessions/<%= it.sessionId %>/md-file?path=<%= encodeURIComponent(file) %>"
+              hx-target="#md-browser-content"
+              hx-swap="innerHTML"
+              onclick="window.__mdPickerSelect(this)"
+            ><%= file %></button>
+            <% } %>
+            <% if (it.files.length === 0) { %>
+            <div class="md-picker__empty">No .md files found</div>
+            <% } %>
+          </div>
         </div>
       </div>
-      <div class="md-browser__content" id="md-browser-content">
-        <% if (it.initialContent) { %>
-        <%~ include('md-file-view', { sessionId: it.sessionId, filePath: it.initialFile, rendered: it.initialContent, raw: it.initialRaw }) %>
-        <% } else if (it.files.length === 0) { %>
-        <div class="md-browser__empty">No markdown files found in this worktree.</div>
-        <% } %>
+      <div class="md-browser__toolbar-actions">
+        <button class="btn btn-ghost btn-sm" onclick="window.__mdToggleEdit('<%= it.sessionId %>')" id="md-edit-toggle-btn">Edit</button>
+        <button class="btn btn-primary btn-sm" onclick="window.__mdSave('<%= it.sessionId %>')" id="md-save-btn" style="display:none">Save</button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('md-browser-overlay').remove()">Close</button>
       </div>
+    </div>
+    <div class="md-browser__content" id="md-browser-content">
+      <% if (it.initialContent) { %>
+      <%~ include('md-file-view', { sessionId: it.sessionId, filePath: it.initialFile, rendered: it.initialContent, raw: it.initialRaw }) %>
+      <% } else if (it.files.length === 0) { %>
+      <div class="md-browser__empty">No markdown files found in this worktree.</div>
+      <% } %>
     </div>
   </div>
 </div>
 <script>
 (function() {
   var overlay = document.getElementById('md-browser-overlay');
+  var dropdown = document.getElementById('md-picker-dropdown');
+  var search = document.getElementById('md-picker-search');
+  var label = document.getElementById('md-picker-label');
+
   function onKey(e) {
-    if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); }
+    if (e.key === 'Escape') {
+      if (dropdown.style.display !== 'none') {
+        dropdown.style.display = 'none';
+      } else {
+        overlay.remove();
+        document.removeEventListener('keydown', onKey);
+      }
+    }
   }
   document.addEventListener('keydown', onKey);
+
+  // Close dropdown when clicking outside
+  overlay.addEventListener('click', function(e) {
+    if (!e.target.closest('#md-picker')) {
+      dropdown.style.display = 'none';
+    }
+  });
+
+  window.__mdPickerToggle = function() {
+    var open = dropdown.style.display === 'none';
+    dropdown.style.display = open ? '' : 'none';
+    if (open) {
+      search.value = '';
+      search.dispatchEvent(new Event('input'));
+      search.focus();
+    }
+  };
+
+  window.__mdPickerSelect = function(btn) {
+    // Update active state
+    document.querySelectorAll('.md-picker__item').forEach(function(b) { b.classList.remove('md-picker__item--active'); });
+    btn.classList.add('md-picker__item--active');
+    // Update label
+    label.textContent = btn.getAttribute('data-path');
+    // Close dropdown
+    dropdown.style.display = 'none';
+    // Reset edit mode
+    var toggleBtn = document.getElementById('md-edit-toggle-btn');
+    var saveBtn = document.getElementById('md-save-btn');
+    if (toggleBtn) toggleBtn.textContent = 'Edit';
+    if (saveBtn) saveBtn.style.display = 'none';
+  };
+
+  // Filter logic
+  search.addEventListener('input', function() {
+    var q = search.value.toLowerCase();
+    document.querySelectorAll('.md-picker__item').forEach(function(btn) {
+      var path = btn.getAttribute('data-path').toLowerCase();
+      btn.style.display = path.includes(q) ? '' : 'none';
+    });
+  });
 
   window.__mdToggleEdit = function(sessionId) {
     var content = document.getElementById('md-browser-content');

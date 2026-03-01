@@ -5,7 +5,7 @@ export const VALID_TRANSITIONS: ReadonlyMap<SessionStatus, ReadonlySet<SessionSt
   ['starting', new Set<SessionStatus>(['running', 'failed', 'cancelled'])],
   ['running', new Set<SessionStatus>(['paused', 'completed', 'failed', 'cancelled'])],
   ['paused', new Set<SessionStatus>(['running', 'cancelled'])],
-  ['completed', new Set<SessionStatus>()],
+  ['completed', new Set<SessionStatus>(['starting'])],
   ['failed', new Set<SessionStatus>(['starting'])],
   ['cancelled', new Set<SessionStatus>(['starting'])],
 ]);

@@ -23,6 +23,10 @@ export interface SessionConfig {
   prompt: string;
   env: Record<string, string>;
   maxRuntimeSeconds: number;
+  args?: string[];
+  deleteEnv?: string[];
+  modelConfigId?: string;
+  modelProvider?: string;
 }
 
 export interface Session {

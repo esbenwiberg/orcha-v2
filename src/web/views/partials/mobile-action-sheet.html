@@ -14,7 +14,7 @@
         hx-on::after-request="window._onActionSheetResult(event)"
       >Stop Session</button>
       <% } %>
-      <% if (it.status === 'failed' || it.status === 'cancelled') { %>
+      <% if (it.status === 'failed' || it.status === 'cancelled' || it.status === 'completed') { %>
       <button
         class="action-sheet-btn action-sheet-btn--success"
         hx-post="/api/sessions/<%= it.sessionId %>/reopen"

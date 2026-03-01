@@ -16,6 +16,8 @@ let _activeTerm = null;
 let _activeWs = null;
 let _activeFitAddon = null;
 let _activeObserver = null;
+/** The DOM element we already booted a terminal for — prevents re-creation on unrelated HTMX swaps. */
+let _bootedFrame = null;
 
 /**
  * Update the #conn-badge element to reflect the current WebSocket state.
@@ -224,6 +226,7 @@ function _disposeMobileTerminal() {
     _activeTerm = null;
   }
   _activeFitAddon = null;
+  _bootedFrame = null;
 }
 
 /**
@@ -481,8 +484,10 @@ document.addEventListener('click', (e) => {
  */
 document.addEventListener('htmx:afterSwap', (event) => {
   // --- Terminal frame boot ---
+  // Only boot when a *new* frame element appears (skip unrelated swaps like SSE badge updates)
   const frame = document.getElementById('terminal-frame');
-  if (frame) {
+  if (frame && frame !== _bootedFrame) {
+    _bootedFrame = frame;
     const sessionId = frame.dataset.sessionId;
     const wsUrl = frame.dataset.wsUrl;
 

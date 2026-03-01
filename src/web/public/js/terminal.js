@@ -378,8 +378,8 @@ function showCloseMenu(sessionId, anchorBtn) {
     menu.appendChild(stopItem);
   }
 
-  // Reopen — only if session is failed or cancelled
-  if (status === 'failed' || status === 'cancelled') {
+  // Reopen — only if session is failed, cancelled, or completed
+  if (status === 'failed' || status === 'cancelled' || status === 'completed') {
     const reopenItem = document.createElement('button');
     reopenItem.className = 'term-close-menu__item term-close-menu__item--success';
     reopenItem.textContent = 'Reopen session';

@@ -128,7 +128,7 @@ describe('Business invariants', () => {
     expect(store.getSession(session.id)?.status).toBe('pending');
   });
 
-  it('Terminal status is final: no further transitions from completed', () => {
+  it('Terminal status is final: no further transitions from completed (except reopen)', () => {
     registry.registerInstance({
       id: testInstanceId,
       repoRoot: '/repo',
@@ -144,19 +144,21 @@ describe('Business invariants', () => {
     store.updateStatus(session.id, 'running');
     store.updateStatus(session.id, 'completed');
 
-    const otherStatuses: SessionStatus[] = [
+    // completed → starting is valid (reopen), everything else should throw
+    const invalidStatuses: SessionStatus[] = [
       'pending',
-      'starting',
       'running',
       'paused',
       'failed',
       'cancelled',
     ];
-    for (const status of otherStatuses) {
+    for (const status of invalidStatuses) {
       expect(() => store.updateStatus(session.id, status)).toThrow(TypeError);
     }
 
-    expect(store.getSession(session.id)?.status).toBe('completed');
+    // completed → starting is allowed (reopen flow)
+    expect(() => store.updateStatus(session.id, 'starting')).not.toThrow();
+    expect(store.getSession(session.id)?.status).toBe('starting');
   });
 
   it('Status events are recorded for every valid transition', () => {

@@ -2,11 +2,11 @@
   <span id="filter-chips"></span>
   <button id="compact-toggle" class="terminal-filter-chip"
     style="margin-left:auto"
-    onclick="document.getElementById('session-grid').classList.toggle('compact-cards');this.textContent=this.textContent==='Compact'?'Expanded':'Compact'"
-  >Compact</button>
+    onclick="document.getElementById('session-grid').classList.toggle('compact-cards');this.textContent=this.textContent==='Expanded'?'Compact':'Expanded'"
+  >Expanded</button>
 </div>
 <div
-  class="session-grid"
+  class="session-grid compact-cards"
   id="session-grid"
   hx-get="/api/sessions/cards"
   hx-trigger="load"

@@ -397,7 +397,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      if (existing.status !== 'failed' && existing.status !== 'cancelled') {
+      if (existing.status !== 'failed' && existing.status !== 'cancelled' && existing.status !== 'completed') {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send('<div class="badge badge--failed">Session cannot be reopened</div>');
         return;
@@ -625,6 +625,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   // ── Markdown browser endpoints ─────────────────────────────────────────
 
   /** Recursively collect *.md files up to a max depth, relative to root. */
+  const MD_SKIP_DIRS = new Set(['node_modules', 'vendor', 'dist', '__pycache__', '.venv', 'venv']);
+
   function collectMdFiles(root: string, dir: string, depth: number, max: number): string[] {
     if (depth > 4) return [];
     const results: string[] = [];
@@ -633,6 +635,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     for (const entry of entries) {
       if (results.length >= max) break;
       if (entry.startsWith('.') && entry !== '.claude') continue;
+      if (MD_SKIP_DIRS.has(entry)) continue;
       const full = join(dir, entry);
       let st;
       try { st = statSync(full); } catch { continue; }

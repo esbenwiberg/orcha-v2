@@ -53,7 +53,7 @@
       hx-on::after-request="window._onInfoPanelAction(event)"
     >Stop Session</button>
     <% } %>
-    <% if (it.session.status === 'failed' || it.session.status === 'cancelled') { %>
+    <% if (it.session.status === 'failed' || it.session.status === 'cancelled' || it.session.status === 'completed') { %>
     <button
       class="action-sheet-btn action-sheet-btn--success"
       hx-post="/api/sessions/<%= it.session.id %>/reopen"
