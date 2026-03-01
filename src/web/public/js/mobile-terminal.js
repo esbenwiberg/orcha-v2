@@ -508,10 +508,24 @@ document.addEventListener('htmx:afterSwap', (event) => {
       // Wire up on-screen key buttons
       const keysBar = document.getElementById('mobile-keys');
       if (keysBar) {
+        // Map semantic key names to actual terminal escape sequences.
+        // HTML data-* attributes cannot carry raw control bytes — \x1b in HTML
+        // is the literal string "\x1b", not the escape char.
+        const KEY_MAP = {
+          'esc': '\x1b',
+          'tab': '\t',
+          'ctrl-c': '\x03',
+          'ctrl-d': '\x04',
+          'ctrl-z': '\x1a',
+          'arrow-up': '\x1b[A',
+          'arrow-down': '\x1b[B',
+        };
+
         keysBar.addEventListener('click', (e) => {
           const btn = e.target.closest('.mobile-key');
           if (!btn) return;
-          const data = btn.dataset.key;
+          const keyName = btn.dataset.key;
+          const data = KEY_MAP[keyName];
           if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
             _activeWs.send(JSON.stringify({ type: 'input', data }));
           }
