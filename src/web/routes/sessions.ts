@@ -477,6 +477,20 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       active.terminal.write(text + '\r');
       console.log(`[sessions] send-input sessionId=${id} length=${text.length}`);
+
+      // After pasting an auth code, Claude shows a disclaimer then a
+      // "trust this folder" prompt. Auto-dismiss both with staggered Enters.
+      if (active.modelProvider === 'max') {
+        setTimeout(() => {
+          try { active.terminal.write('\r'); } catch { /* exited */ }
+          console.log(`[sessions] post-auth auto-dismiss #1 (disclaimer) sessionId=${id}`);
+        }, 3000);
+        setTimeout(() => {
+          try { active.terminal.write('\r'); } catch { /* exited */ }
+          console.log(`[sessions] post-auth auto-dismiss #2 (trust folder) sessionId=${id}`);
+        }, 5000);
+      }
+
       res.status(200).send('');
     } catch (err) {
       next(err);
