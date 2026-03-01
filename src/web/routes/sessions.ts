@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, statSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, statSync, realpathSync } from 'node:fs';
 import { basename, join, resolve, relative, extname } from 'node:path';
 import { marked } from 'marked';
 import type { Eta } from 'eta';
@@ -796,6 +796,221 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── File browser endpoints ──────────────────────────────────────────
+
+  const FILE_SKIP_DIRS = new Set(['node_modules', '.git', '__pycache__', '.venv', 'venv', 'dist', '.next', '.nuxt']);
+  const FILE_MAX_BYTES = 2 * 1024 * 1024; // 2MB
+  const FILE_MAX_ENTRIES = 500;
+
+  /** Validate a user-supplied relative path resolves inside the worktree. */
+  function validateFilePath(worktreePath: string, userPath: string): string | null {
+    if (!userPath || userPath.includes('\0')) return null;
+    const resolved = resolve(worktreePath, userPath);
+    if (!resolved.startsWith(worktreePath + '/') && resolved !== worktreePath) return null;
+    // Catch symlink escapes
+    try {
+      const real = realpathSync(resolved);
+      if (!real.startsWith(worktreePath + '/') && real !== worktreePath) return null;
+    } catch {
+      // File might not exist yet (for new file saves) — allow if resolve passed
+    }
+    return resolved;
+  }
+
+  /** Detect binary content by checking for null bytes in the first 8KB. */
+  function isBinaryBuffer(buf: Buffer): boolean {
+    const check = buf.subarray(0, 8192);
+    return check.includes(0);
+  }
+
+  /** Map file extension to a CodeMirror language hint. */
+  function extToLanguage(ext: string): string {
+    const map: Record<string, string> = {
+      '.js': 'javascript', '.mjs': 'javascript', '.cjs': 'javascript',
+      '.ts': 'typescript', '.mts': 'typescript', '.cts': 'typescript',
+      '.jsx': 'jsx', '.tsx': 'tsx',
+      '.py': 'python',
+      '.html': 'html', '.htm': 'html',
+      '.css': 'css', '.scss': 'css',
+      '.json': 'json',
+      '.md': 'markdown', '.mdx': 'markdown',
+      '.sql': 'sql',
+      '.yaml': 'yaml', '.yml': 'yaml',
+      '.xml': 'xml', '.svg': 'xml',
+      '.sh': 'shell', '.bash': 'shell', '.zsh': 'shell',
+      '.rs': 'rust',
+      '.go': 'go',
+      '.java': 'java',
+      '.rb': 'ruby',
+      '.php': 'php',
+      '.c': 'c', '.h': 'c',
+      '.cpp': 'cpp', '.hpp': 'cpp', '.cc': 'cpp',
+    };
+    return map[ext.toLowerCase()] ?? 'text';
+  }
+
+  // GET /api/sessions/:id/file-browser — render the file browser modal
+  router.get('/sessions/:id/file-browser', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const session = store.getSession(id);
+      if (!session) { res.status(404).send(''); return; }
+
+      const worktreePath = session.worktree.worktreePath;
+      if (!existsSync(worktreePath)) {
+        res.status(404).send('<div class="badge badge--failed">Worktree not found</div>');
+        return;
+      }
+
+      const html = eta.render('partials/file-browser', { sessionId: id });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/files?path=. — list directory entries
+  router.get('/sessions/:id/files', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const userPath = typeof req.query['path'] === 'string' ? req.query['path'] : '.';
+      const depth = parseInt(typeof req.query['depth'] === 'string' ? req.query['depth'] : '0', 10) || 0;
+      const session = store.getSession(id);
+      if (!session) { res.status(404).send(''); return; }
+
+      const worktreePath = session.worktree.worktreePath;
+      const absPath = validateFilePath(worktreePath, userPath);
+      if (!absPath) {
+        res.status(400).send('<div class="badge badge--failed">Invalid path</div>');
+        return;
+      }
+
+      let st;
+      try { st = statSync(absPath); } catch {
+        res.status(404).send('<div class="badge badge--failed">Directory not found</div>');
+        return;
+      }
+      if (!st.isDirectory()) {
+        res.status(400).send('<div class="badge badge--failed">Not a directory</div>');
+        return;
+      }
+
+      let entries: string[];
+      try { entries = readdirSync(absPath); } catch {
+        res.status(500).send('<div class="badge badge--failed">Cannot read directory</div>');
+        return;
+      }
+
+      interface FileEntry { name: string; isDirectory: boolean; size: number; extension: string; }
+      const items: FileEntry[] = [];
+
+      for (const entry of entries) {
+        if (items.length >= FILE_MAX_ENTRIES) break;
+        if (entry.startsWith('.') && entry !== '.claude') continue;
+        if (FILE_SKIP_DIRS.has(entry)) continue;
+
+        const full = join(absPath, entry);
+        let entryStat;
+        try { entryStat = statSync(full); } catch { continue; }
+
+        items.push({
+          name: entry,
+          isDirectory: entryStat.isDirectory(),
+          size: entryStat.isDirectory() ? 0 : entryStat.size,
+          extension: entryStat.isDirectory() ? '' : extname(entry),
+        });
+      }
+
+      // Sort: directories first, then alphabetical
+      items.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      const relPath = relative(worktreePath, absPath) || '.';
+      const html = eta.render('partials/file-tree', { sessionId: id, entries: items, dirPath: relPath, depth });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/file-content?path=<file> — read file content
+  router.get('/sessions/:id/file-content', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const userPath = typeof req.query['path'] === 'string' ? req.query['path'] : '';
+      const session = store.getSession(id);
+      if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
+
+      const worktreePath = session.worktree.worktreePath;
+      const absPath = validateFilePath(worktreePath, userPath);
+      if (!absPath) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+
+      let st;
+      try { st = statSync(absPath); } catch {
+        res.status(404).json({ error: 'File not found' });
+        return;
+      }
+
+      if (st.isDirectory()) {
+        res.status(400).json({ error: 'Path is a directory' });
+        return;
+      }
+
+      if (st.size > FILE_MAX_BYTES) {
+        res.status(413).json({ error: 'File too large', size: st.size, maxSize: FILE_MAX_BYTES });
+        return;
+      }
+
+      const buf = readFileSync(absPath);
+      if (isBinaryBuffer(buf)) {
+        res.json({ binary: true, path: userPath, size: st.size });
+        return;
+      }
+
+      const content = buf.toString('utf8');
+      const ext = extname(absPath);
+      res.json({ content, path: userPath, size: st.size, language: extToLanguage(ext) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PUT /api/sessions/:id/file-content — save file content
+  router.put('/sessions/:id/file-content', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const userPath = typeof req.body['path'] === 'string' ? req.body['path'] : '';
+      const content = typeof req.body['content'] === 'string' ? req.body['content'] : '';
+      const session = store.getSession(id);
+      if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
+
+      const worktreePath = session.worktree.worktreePath;
+      const absPath = validateFilePath(worktreePath, userPath);
+      if (!absPath) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+
+      if (content.length > FILE_MAX_BYTES) {
+        res.status(413).json({ error: 'Content too large' });
+        return;
+      }
+
+      writeFileSync(absPath, content, 'utf8');
+      res.json({ ok: true, path: userPath });
     } catch (err) {
       next(err);
     }

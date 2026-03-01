@@ -1,0 +1,33 @@
+<div class="file-browser-overlay" id="file-browser-overlay" onclick="if(event.target===this)window.__fileBrowserClose()">
+  <div class="file-browser">
+    <div class="file-browser__toolbar">
+      <div class="file-browser__breadcrumb" id="fb-breadcrumb">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4l2-2h4l2 2h4v10H2V4z"/></svg>
+        <span id="fb-path" class="file-browser__path">Select a file...</span>
+      </div>
+      <div class="file-browser__toolbar-actions">
+        <button class="btn btn-ghost btn-sm" id="fb-edit-toggle" onclick="window.__fbToggleEdit()" style="display:none">Edit</button>
+        <button class="btn btn-primary btn-sm" id="fb-save-btn" onclick="window.__fbSave()" style="display:none">Save</button>
+        <button class="btn btn-ghost btn-sm fb-back-btn" id="fb-back-btn" onclick="window.__fbBackToTree()" style="display:none">Back</button>
+        <button class="btn btn-ghost btn-sm" onclick="window.__fileBrowserClose()">Close</button>
+      </div>
+    </div>
+    <div class="file-browser__body">
+      <div class="file-browser__tree-pane" id="fb-tree-pane"
+        hx-get="/api/sessions/<%= it.sessionId %>/files?path=.&depth=0"
+        hx-trigger="load"
+        hx-swap="innerHTML">
+      </div>
+      <div class="file-browser__editor-pane" id="fb-editor-pane">
+        <div class="file-browser__editor-empty" id="fb-editor-empty">
+          <svg width="48" height="48" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.3"><path d="M2 2h8l4 4v8a1 1 0 01-1 1H3a1 1 0 01-1-1V2z"/><path d="M9 2v4h4"/></svg>
+          <p>Select a file to view</p>
+        </div>
+        <div class="file-browser__editor-container" id="fb-editor-container" style="display:none"></div>
+        <div class="file-browser__editor-message" id="fb-editor-message" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/js/file-browser.js"></script>
+<script>window.__fileBrowserInit('<%= it.sessionId %>')</script>

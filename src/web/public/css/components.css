@@ -1509,3 +1509,260 @@ button[aria-busy="true"] .btn-label-loading { display: inline !important; }
   .md-picker__trigger { max-width: none; }
   .md-picker__dropdown { max-width: none; }
 }
+
+/* -----------------------------------------------------------------------
+   File Browser Modal
+   ----------------------------------------------------------------------- */
+.file-browser-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.file-browser {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1200px;
+  height: 90vh;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.file-browser__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.file-browser__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  color: var(--color-text-muted);
+}
+
+.file-browser__breadcrumb svg {
+  flex-shrink: 0;
+}
+
+.file-browser__path {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-browser__toolbar-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.file-browser__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Tree pane */
+.file-browser__tree-pane {
+  width: 260px;
+  min-width: 200px;
+  max-width: 400px;
+  border-right: 1px solid var(--color-border);
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+  padding: 4px 0;
+}
+
+/* Editor pane */
+.file-browser__editor-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.file-browser__editor-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.file-browser__editor-container {
+  flex: 1;
+  overflow: auto;
+}
+
+.file-browser__editor-container .cm-editor {
+  height: 100%;
+}
+
+.file-browser__editor-container .cm-scroller {
+  overflow: auto;
+}
+
+.file-browser__editor-message {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  padding: 20px;
+}
+
+/* -----------------------------------------------------------------------
+   File Tree
+   ----------------------------------------------------------------------- */
+.file-tree {
+  font-size: 12px;
+}
+
+.file-tree__entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 8px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-family: var(--font-sans);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color 0.1s, color 0.1s;
+}
+
+.file-tree__entry:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+}
+
+.file-tree__entry--active {
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
+}
+
+.file-tree__entry--active:hover {
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
+}
+
+.file-tree__entry--dir {
+  color: var(--color-text-primary);
+  font-weight: 500;
+}
+
+.file-tree__icon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.file-tree__entry--dir .file-tree__icon--open { display: none; }
+.file-tree__entry--dir .file-tree__icon--closed { display: inline; }
+
+.file-tree__folder.is-open > button .file-tree__icon--open { display: inline; }
+.file-tree__folder.is-open > button .file-tree__icon--closed { display: none; }
+
+.file-tree__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.file-tree__size {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  margin-left: auto;
+  padding-right: 8px;
+  flex-shrink: 0;
+}
+
+.file-tree__empty {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-style: italic;
+  padding: 4px 8px;
+}
+
+.file-tree__loading {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+/* Back button — hidden on desktop */
+.fb-back-btn { display: none; }
+
+/* -----------------------------------------------------------------------
+   File Browser — Mobile responsive
+   ----------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .file-browser-overlay {
+    padding: 0;
+  }
+
+  .file-browser {
+    max-width: 100%;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  .file-browser__body {
+    position: relative;
+  }
+
+  .file-browser__tree-pane {
+    width: 100%;
+    max-width: none;
+    border-right: none;
+  }
+
+  .file-browser__editor-pane {
+    position: absolute;
+    inset: 0;
+    background: var(--color-surface);
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+  }
+
+  .file-browser__body.show-editor .file-browser__editor-pane {
+    transform: translateX(0);
+  }
+
+  .fb-back-btn {
+    display: inline-flex;
+  }
+}

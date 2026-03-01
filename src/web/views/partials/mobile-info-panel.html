@@ -54,6 +54,18 @@
   <% } %>
 
   <div class="info-panel__section info-panel__actions">
+    <button
+      class="action-sheet-btn action-sheet-btn--docs"
+      hx-get="/api/sessions/<%= it.session.id %>/file-browser"
+      hx-target="body"
+      hx-swap="beforeend"
+    >Files</button>
+    <button
+      class="action-sheet-btn action-sheet-btn--docs"
+      hx-get="/api/sessions/<%= it.session.id %>/md-browser"
+      hx-target="body"
+      hx-swap="beforeend"
+    >Docs</button>
     <% if (it.session.status === 'running' || it.session.status === 'pending') { %>
     <button
       class="action-sheet-btn action-sheet-btn--warn"
