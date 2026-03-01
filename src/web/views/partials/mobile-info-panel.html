@@ -23,6 +23,15 @@
     </div>
   </div>
 
+  <% if (it.modelProvider === 'max' && it.session.status === 'running') { %>
+  <div class="info-panel__section">
+    <div id="auth-slot-<%= it.session.id %>"
+         hx-get="/api/sessions/<%= it.session.id %>/auth-url"
+         hx-trigger="load, every 3s"
+         hx-swap="innerHTML"></div>
+  </div>
+  <% } %>
+
   <% if (it.credentials) { %>
   <div class="info-panel__section info-panel__creds">
     <h3 class="info-panel__section-title">Credentials</h3>

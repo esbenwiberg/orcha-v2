@@ -5,7 +5,7 @@
   sse-connect="/api/events"
 >
   <div class="session-card__header">
-    <span class="card__meta"><%= it.branch %></span>
+    <span class="card__meta"><%= it.repoName %> / <%= it.branch %></span>
     <div class="session-card__header-right">
       <span class="badge badge--<%= it.status %>" id="badge-<%= it.id %>" sse-swap="session-status-<%= it.id %>" hx-swap="outerHTML"><%= it.status %></span>
       <div class="session-card__term-actions">

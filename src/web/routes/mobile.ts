@@ -354,6 +354,9 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
         };
       }
 
+      const active = deps.sessionEngine.getSessionByDbId(activeId);
+      const modelProvider = active?.modelProvider;
+
       const html = eta.render('partials/mobile-info-panel', {
         session: {
           id: session.id,
@@ -363,6 +366,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
           updatedAt: formatRelativeTime(session.updatedAt),
         },
         ...(credentials !== undefined ? { credentials } : {}),
+        ...(modelProvider !== undefined ? { modelProvider } : {}),
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

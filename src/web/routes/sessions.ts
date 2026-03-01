@@ -31,6 +31,7 @@ interface CredStripViewModel {
 
 interface SessionCardViewModel {
   id: string;
+  repoName: string;
   branch: string;
   status: string;
   createdAt: string;
@@ -40,10 +41,17 @@ interface SessionCardViewModel {
   modelProvider?: string;
 }
 
+/** Extract a short repo name from a bare-repo path like /data/bare-repos/my-app.git */
+function repoNameFromPath(repoRoot: string): string {
+  const base = basename(repoRoot);
+  return base.replace(/\.git$/, '') || repoRoot;
+}
+
 function toViewModel(
   session: Session,
   creds?: import('../../credentials/types.js').ActiveCredentials,
   modelProvider?: string,
+  repoName?: string,
 ): SessionCardViewModel {
   let credentials: CredStripViewModel | undefined;
   if (creds && !creds.revokedAt) {
@@ -59,6 +67,7 @@ function toViewModel(
   }
   return {
     id: session.id,
+    repoName: repoName ?? repoNameFromPath(session.config.repoRoot),
     branch: session.worktree.branch,
     status: session.status,
     createdAt: formatRelativeTime(session.createdAt),
@@ -338,7 +347,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         session = existing;
       }
 
-      const html = eta.render('partials/session-card', toViewModel(session));
+      const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
+      const html = eta.render('partials/session-card', toViewModel(session, undefined, undefined, repo?.displayName));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -377,7 +387,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         session = existing;
       }
 
-      const html = eta.render('partials/session-card', toViewModel(session));
+      const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
+      const html = eta.render('partials/session-card', toViewModel(session, undefined, undefined, repo?.displayName));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -477,9 +488,16 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   router.get('/sessions/cards', (_req, res, next) => {
     try {
       const sessions = store.listSessions();
+      // Build barePath → displayName map for repo name resolution
+      const repoNameMap = new Map<string, string>();
+      for (const repo of repoStore.listRepos()) {
+        if (repo.barePath !== null) {
+          repoNameMap.set(repo.barePath, repo.displayName);
+        }
+      }
       const viewModels = sessions.map((s) => {
         const active = deps.sessionEngine.getSessionByDbId(s.id);
-        return toViewModel(s, credStore.getBySessionId(s.id), active?.modelProvider);
+        return toViewModel(s, credStore.getBySessionId(s.id), active?.modelProvider, repoNameMap.get(s.config.repoRoot));
       });
       const html = eta.render('partials/session-grid', { sessions: viewModels });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -503,7 +521,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       const active = deps.sessionEngine.getSessionByDbId(id);
       const creds = credStore.getBySessionId(id);
-      const html = eta.render('partials/session-card', toViewModel(session, creds, active?.modelProvider));
+      const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
+      const html = eta.render('partials/session-card', toViewModel(session, creds, active?.modelProvider, repo?.displayName));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {

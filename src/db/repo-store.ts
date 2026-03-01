@@ -116,6 +116,14 @@ export class RepoStore {
     return this.#rowToRepo(row);
   }
 
+  getRepoByBarePath(barePath: string): Repo | undefined {
+    const row = this.#db.prepare('SELECT * FROM repos WHERE bare_path = ?').get(barePath) as
+      | Record<string, unknown>
+      | undefined;
+    if (row === undefined) return undefined;
+    return this.#rowToRepo(row);
+  }
+
   createRepo(input: CreateRepoInput): Repo {
     const id = randomUUID();
     const now = new Date().toISOString();
