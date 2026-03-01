@@ -146,14 +146,19 @@ export class SessionManager {
         const bytes = typeof chunk === 'string' ? chunk.length : chunk.byteLength;
         console.log(`[session] first output chunk sessionId=${sessionId} bytes=${bytes}`);
 
-        // Max/Pro sessions with per-session HOME: auto-dismiss the theme picker
-        // by sending Enter after a short delay (Claude shows it on first run
-        // even with theme set in settings.json).
+        // Max/Pro sessions with per-session HOME: auto-dismiss first-run prompts.
+        // Claude shows a theme picker then a "makes mistakes" disclaimer on first
+        // run even with theme set in settings.json. Send Enter twice with staggered
+        // delays to dismiss both.
         if (opts.modelProvider === 'max') {
           setTimeout(() => {
             try { terminal.write('\r'); } catch { /* may have exited */ }
-            console.log(`[session] auto-dismissed theme picker sessionId=${sessionId}`);
+            console.log(`[session] auto-dismiss #1 (theme) sessionId=${sessionId}`);
           }, 600);
+          setTimeout(() => {
+            try { terminal.write('\r'); } catch { /* may have exited */ }
+            console.log(`[session] auto-dismiss #2 (disclaimer) sessionId=${sessionId}`);
+          }, 2000);
         }
       }
     });
