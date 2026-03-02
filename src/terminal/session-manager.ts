@@ -183,7 +183,7 @@ export class SessionManager {
       const dbSession = this._sessionStore.createSession(
         {
           instanceId: this._instanceId,
-          repoRoot: worktree.path,
+          repoRoot: opts.repoRoot ?? worktree.path,
           branch: worktree.branch,
           worktreePath: worktree.path,
           prompt: '',
@@ -198,7 +198,7 @@ export class SessionManager {
           worktreePath: worktree.path,
           branch: worktree.branch,
           headSha: worktree.commitSha,
-          repoRoot: worktree.path,
+          repoRoot: opts.repoRoot ?? worktree.path,
           createdAt: worktree.createdAt,
         },
       );
