@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process';
 export interface GitHubProfile {
   repos: string[];
   permissions: string[];
+  bootstrapPat: string;
   durationHours: number;
 }
 
@@ -11,7 +12,8 @@ export interface GitHubProvisionResult {
   env: { GH_TOKEN: string };
 }
 
-function getBootstrapToken(): string {
+function getBootstrapToken(profile: GitHubProfile): string {
+  if (profile.bootstrapPat) return profile.bootstrapPat;
   if (process.env['GITHUB_BOOTSTRAP_TOKEN']) return process.env['GITHUB_BOOTSTRAP_TOKEN'];
   if (process.env['GH_TOKEN']) return process.env['GH_TOKEN'];
   if (process.env['GITHUB_TOKEN']) return process.env['GITHUB_TOKEN'];
@@ -19,15 +21,15 @@ function getBootstrapToken(): string {
     return execSync('gh auth token', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
   } catch {
     throw new Error(
-      'No GitHub bootstrap token found. Set GITHUB_BOOTSTRAP_TOKEN, GH_TOKEN, or run `gh auth login`.',
+      'No GitHub bootstrap token found. Set it in the credential profile or via GITHUB_BOOTSTRAP_TOKEN env var.',
     );
   }
 }
 
 export class GitHubProvider {
-  async preflight(): Promise<{ ok: boolean; reason?: string }> {
+  async preflight(profile: GitHubProfile): Promise<{ ok: boolean; reason?: string }> {
     try {
-      const token = getBootstrapToken();
+      const token = getBootstrapToken(profile);
       const resp = await fetch('https://api.github.com/user', {
         headers: {
           Authorization: `token ${token}`,
@@ -56,7 +58,7 @@ export class GitHubProvider {
   }
 
   async provision(profile: GitHubProfile): Promise<GitHubProvisionResult> {
-    const token = getBootstrapToken();
+    const token = getBootstrapToken(profile);
 
     const expiryDate = new Date();
     expiryDate.setHours(expiryDate.getHours() + profile.durationHours);
@@ -109,8 +111,18 @@ export class GitHubProvider {
     };
   }
 
-  async revoke(patId: string): Promise<void> {
-    const token = getBootstrapToken();
+  async revoke(patId: string, bootstrapPat?: string): Promise<void> {
+    const token = bootstrapPat
+      ?? process.env['GITHUB_BOOTSTRAP_TOKEN']
+      ?? process.env['GH_TOKEN']
+      ?? process.env['GITHUB_TOKEN']
+      ?? (() => {
+        try {
+          return execSync('gh auth token', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+        } catch {
+          throw new Error('No GitHub bootstrap token available for revocation.');
+        }
+      })();
 
     const resp = await fetch(`https://api.github.com/user/personal-access-tokens/${patId}`, {
       method: 'DELETE',

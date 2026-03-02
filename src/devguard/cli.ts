@@ -113,7 +113,7 @@ async function cmdInit(cwd: string, dryRun: boolean): Promise<void> {
   try {
     if (profile.github) {
       const gh = new GitHubProvider();
-      const result = await gh.provision({ ...profile.github, durationHours: profile.durationHours });
+      const result = await gh.provision({ ...profile.github, bootstrapPat: '', durationHours: profile.durationHours });
       githubPatId = result.patId;
       Object.assign(env, result.env);
     }

@@ -17,6 +17,15 @@ export class CredentialStore {
 
   // ── Credential Profiles ──────────────────────────────────────────────────
 
+  #decryptGithub(raw: string): CredentialProfile['github'] {
+    const parsed = JSON.parse(raw) as { repos: string[]; permissions: string[]; bootstrapPat: string };
+    return { ...parsed, bootstrapPat: decrypt(parsed.bootstrapPat) };
+  }
+
+  #encryptGithub(github: { repos: string[]; permissions: string[]; bootstrapPat: string }): string {
+    return JSON.stringify({ ...github, bootstrapPat: encrypt(github.bootstrapPat) });
+  }
+
   #decryptDevops(raw: string): CredentialProfile['devops'] {
     const parsed = JSON.parse(raw) as { org: string; project: string; scopes: string[]; bootstrapPat: string };
     return { ...parsed, bootstrapPat: decrypt(parsed.bootstrapPat) };
@@ -27,13 +36,14 @@ export class CredentialStore {
   }
 
   #rowToProfile(row: Record<string, unknown>): CredentialProfile {
+    const github = row['github_json'] ? this.#decryptGithub(row['github_json'] as string) : undefined;
     const devops = row['devops_json'] ? this.#decryptDevops(row['devops_json'] as string) : undefined;
     return {
       id: row['id'] as string,
       name: row['name'] as string,
       durationHours: row['duration_hours'] as number,
       azure: row['azure_json'] ? JSON.parse(row['azure_json'] as string) : undefined,
-      github: row['github_json'] ? JSON.parse(row['github_json'] as string) : undefined,
+      ...(github !== undefined ? { github } : {}),
       ...(devops !== undefined ? { devops } : {}),
       createdAt: new Date(row['created_at'] as string),
     };
@@ -68,7 +78,7 @@ export class CredentialStore {
         input.name,
         input.durationHours,
         input.azure ? JSON.stringify(input.azure) : null,
-        input.github ? JSON.stringify(input.github) : null,
+        input.github ? this.#encryptGithub(input.github) : null,
         input.devops ? this.#encryptDevops(input.devops) : null,
         now,
       );
@@ -94,7 +104,7 @@ export class CredentialStore {
         name,
         durationHours,
         azure ? JSON.stringify(azure) : null,
-        github ? JSON.stringify(github) : null,
+        github ? this.#encryptGithub(github) : null,
         devops ? this.#encryptDevops(devops) : null,
         id,
       );
