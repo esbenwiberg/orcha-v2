@@ -106,12 +106,17 @@ export class WorktreeManager {
     });
   }
 
-  async addWorktree(sessionId: string, branch: string, repoRootOverride?: string): Promise<WorktreeInfo> {
+  async addWorktree(sessionId: string, branch: string, repoRootOverride?: string, startPoint?: string): Promise<WorktreeInfo> {
     WorktreeManager.assertNoInjection(sessionId, 'sessionId');
     const safeBranch = WorktreeManager.sanitiseBranchName(branch);
     const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
     const cwd = repoRootOverride ?? undefined;
-    await this.execGit(['worktree', 'add', '-b', safeBranch, worktreePath], cwd);
+    const args = ['worktree', 'add', '-b', safeBranch, worktreePath];
+    if (startPoint !== undefined) {
+      WorktreeManager.assertNoInjection(startPoint, 'startPoint');
+      args.push(startPoint);
+    }
+    await this.execGit(args, cwd);
     const commitShaRaw = await this.execGit(['rev-parse', 'HEAD'], worktreePath);
     const commitSha = commitShaRaw.trim();
     return {
@@ -178,6 +183,62 @@ export class WorktreeManager {
   async worktreeExists(sessionId: string): Promise<boolean> {
     const worktrees = await this.listWorktrees();
     return worktrees.some((wt) => wt.path.endsWith(`/${sessionId}`));
+  }
+
+  /**
+   * Fetches the latest refs from origin for a bare repo.
+   * Tries directly on the bare path first; if chmod fails (Azure File Share),
+   * falls back to staging in /tmp, fetching there, and copying back.
+   */
+  async fetchBareRepo(barePath: string): Promise<void> {
+    try {
+      await this.execGit(['fetch', 'origin'], barePath);
+    } catch (directErr) {
+      const errMsg = String(directErr);
+      if (!errMsg.includes('EPERM') && !errMsg.includes('chmod')) {
+        throw directErr;
+      }
+      // Azure File Share fallback: copy to /tmp, fetch there, copy back
+      const stagingPath = path.join(os.tmpdir(), `orcha-fetch-${Date.now()}`);
+      try {
+        copyDirContents(barePath, stagingPath);
+        await this.execGit(['fetch', 'origin'], stagingPath);
+        // Copy updated refs back
+        fs.rmSync(barePath, { recursive: true, force: true });
+        copyDirContents(stagingPath, barePath);
+      } finally {
+        fs.rmSync(stagingPath, { recursive: true, force: true });
+      }
+    }
+  }
+
+  /**
+   * Lists remote branches from a bare repo (refs/remotes/origin/*).
+   * Returns branch names with `origin/` prefix stripped.
+   */
+  async listRemoteBranches(barePath: string): Promise<string[]> {
+    const output = await this.execGit(
+      ['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin/'],
+      barePath,
+    );
+    return output
+      .trim()
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((ref) => ref.replace(/^origin\//, ''));
+  }
+
+  /**
+   * Returns the default branch name (what HEAD points to) for a bare repo.
+   */
+  async getDefaultBranch(barePath: string): Promise<string | undefined> {
+    try {
+      const output = await this.execGit(['symbolic-ref', 'refs/remotes/origin/HEAD'], barePath);
+      // output like "refs/remotes/origin/main"
+      return output.trim().replace(/^refs\/remotes\/origin\//, '');
+    } catch {
+      return undefined;
+    }
   }
 
   /**

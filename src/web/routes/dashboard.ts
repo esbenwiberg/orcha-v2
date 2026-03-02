@@ -1,8 +1,18 @@
 import { Router } from 'express';
 import type { Eta } from 'eta';
 
-function newSessionBtn(): string {
+function fromPresetBtn(): string {
   return `<button
+    class="btn btn-ghost"
+    hx-get="/api/presets/picker"
+    hx-target="#form-panel-slot"
+    hx-swap="innerHTML"
+    onclick="document.getElementById('form-panel').classList.add('is-open')"
+  >From Preset</button>`;
+}
+
+function newSessionBtn(): string {
+  return `${fromPresetBtn()}<button
     class="btn btn-primary"
     hx-get="/api/sessions/new-form"
     hx-target="#form-panel-slot"

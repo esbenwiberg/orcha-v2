@@ -1,0 +1,25 @@
+<h3 style="margin:0 0 1rem;font-size:1rem;font-weight:600;color:var(--color-text-primary)">Launch from Preset</h3>
+<% if (!it.presets || it.presets.length === 0) { %>
+  <div class="empty-state">
+    <p>No presets yet.</p>
+    <p class="text-sm text-muted" style="margin-top:0.25rem">
+      Create presets on the <a href="/presets">Presets</a> page first.
+    </p>
+  </div>
+<% } else { %>
+  <div style="display:flex;flex-direction:column;gap:0.5rem">
+    <% for (const p of it.presets) { %>
+      <button
+        class="preset-picker__item"
+        hx-get="/api/presets/<%= p.id %>/load"
+        hx-target="#form-panel-slot"
+        hx-swap="innerHTML"
+      >
+        <span class="preset-picker__name"><%= p.name %></span>
+        <span class="preset-picker__meta">
+          <%= p.repoName ?? '—' %><% if (p.modelConfigName) { %> / <%= p.modelConfigName %><% } %>
+        </span>
+      </button>
+    <% } %>
+  </div>
+<% } %>

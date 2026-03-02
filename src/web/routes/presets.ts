@@ -41,6 +41,27 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // GET /api/presets/picker — render preset picker for the sessions page
+  router.get('/presets/picker', (_req, res, next) => {
+    try {
+      const presets = store.listPresets();
+      const repos = repoStore.listRepos();
+      const modelConfigs = modelConfigStore.listConfigs();
+      const repoMap = new Map(repos.map((r) => [r.id, r.displayName]));
+      const modelConfigMap = new Map(modelConfigs.map((mc) => [mc.id, mc.name]));
+      const presetsEnriched = presets.map((p) => ({
+        ...p,
+        repoName: p.repoId ? (repoMap.get(p.repoId) ?? null) : null,
+        modelConfigName: p.modelConfigId ? (modelConfigMap.get(p.modelConfigId) ?? null) : null,
+      }));
+      const html = eta.render('partials/preset-picker', { presets: presetsEnriched });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // GET /api/presets/save-form — render the save-preset form partial
   router.get('/presets/save-form', (_req, res, next) => {
     try {
@@ -238,7 +259,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   });
 
   // GET /api/presets/:id/load — load a preset and pre-fill the new-session form
-  router.get('/presets/:id/load', (req, res, next) => {
+  router.get('/presets/:id/load', async (req, res, next) => {
     try {
       const id = req.params['id'] ?? '';
       const preset = store.getPreset(id);
@@ -252,6 +273,26 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const repos = repoStore.listRepos();
       const credentialProfiles = credStore.listProfiles();
       const modelConfigs = modelConfigStore.listConfigs();
+
+      // Pre-fetch branches if the preset has a repo
+      let branches: { name: string; isDefault: boolean }[] = [];
+      let defaultBranch: string | undefined;
+      if (preset.repoId) {
+        const repo = repoStore.getRepo(preset.repoId);
+        if (repo?.barePath) {
+          try {
+            await deps.worktreeManager.fetchBareRepo(repo.barePath);
+            const branchNames = await deps.worktreeManager.listRemoteBranches(repo.barePath);
+            defaultBranch = await deps.worktreeManager.getDefaultBranch(repo.barePath);
+            branches = branchNames
+              .filter((b) => b !== 'HEAD')
+              .map((b) => ({ name: b, isDefault: b === defaultBranch }));
+          } catch (err) {
+            console.warn(`[presets] branch fetch failed for repo ${preset.repoId}:`, err);
+          }
+        }
+      }
+
       const html = eta.render('partials/new-session-form', {
         repoId: preset.repoId,
         credentialProfileId: preset.credentialProfileId,
@@ -259,6 +300,8 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         repos,
         credentialProfiles,
         modelConfigs,
+        branches,
+        defaultBranch,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

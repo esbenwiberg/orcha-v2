@@ -103,11 +103,49 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // GET /api/repos/:id/branches — fetch latest refs and return branch options for HTMX swap
+  router.get('/repos/:id/branches', async (req, res, next) => {
+    try {
+      const repoId = req.params['id'] ?? '';
+      const repo = repoStore.getRepo(repoId);
+      if (repo === undefined || repo.barePath === null) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(200).send('<option value="">No branches available</option>');
+        return;
+      }
+
+      try {
+        await deps.worktreeManager.fetchBareRepo(repo.barePath);
+      } catch (err) {
+        console.warn(`[sessions] fetchBareRepo failed for ${repoId}:`, err);
+      }
+
+      const branches = await deps.worktreeManager.listRemoteBranches(repo.barePath);
+      const defaultBranch = await deps.worktreeManager.getDefaultBranch(repo.barePath);
+
+      let html = '';
+      for (const branch of branches) {
+        if (branch === 'HEAD') continue;
+        const isDefault = branch === defaultBranch;
+        html += `<option value="origin/${branch}"${isDefault ? ' selected' : ''}>${branch}${isDefault ? ' (default)' : ''}</option>\n`;
+      }
+      if (html === '') {
+        html = '<option value="">No branches found</option>';
+      }
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // POST /api/sessions — create session from HTMX form submission
   router.post('/sessions', async (req, res, next) => {
     try {
       const repoId = (typeof req.body['repoId'] === 'string' ? req.body['repoId'] : '').trim();
       const branch = (typeof req.body['branch'] === 'string' ? req.body['branch'] : '').trim();
+      const sourceBranch = (typeof req.body['sourceBranch'] === 'string' ? req.body['sourceBranch'] : '').trim();
       const credentialProfileId = (typeof req.body['credentialProfileId'] === 'string' ? req.body['credentialProfileId'] : '').trim();
       const modelConfigId = (typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : '').trim();
       // Checkboxes: present = "1"
@@ -144,7 +182,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       if (errors.length > 0) {
         const modelConfigs = modelConfigStore.listConfigs();
-        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, repoId, branch, credentialProfileId, modelConfigId, sandbox, skipPermissions });
+        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, sandbox, skipPermissions });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
@@ -244,6 +282,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
+      // Fetch latest refs from the bare repo before creating the worktree
+      if (repo.barePath !== null) {
+        try {
+          await deps.worktreeManager.fetchBareRepo(repo.barePath);
+        } catch (err) {
+          console.warn(`[sessions] fetchBareRepo failed for ${repoId}:`, err);
+        }
+      }
+
       // Create a real session with worktree + PTY via the session engine
       const claudeArgs = skipPermissions ? ['--dangerously-skip-permissions'] : [];
       const sessionHome = env['HOME'];
@@ -259,6 +306,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         ...(sessionHome !== undefined ? { homeDir: sessionHome } : {}),
         ...(modelConfigId ? { modelConfigId } : {}),
         ...(modelConfig !== undefined ? { modelProvider: modelConfig.provider } : {}),
+        ...(sourceBranch ? { sourceBranch } : {}),
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;

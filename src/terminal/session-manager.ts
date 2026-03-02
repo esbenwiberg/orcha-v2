@@ -32,6 +32,8 @@ export interface CreateSessionOptions {
   modelConfigId?: string;
   /** Model provider type (e.g. 'max', 'anthropic'). */
   modelProvider?: string;
+  /** Remote branch to base the worktree on (e.g. 'origin/main'). */
+  sourceBranch?: string;
 }
 
 export interface ActiveSession {
@@ -101,7 +103,7 @@ export class SessionManager {
     // Step 1: Create worktree
     let worktree: WorktreeInfo;
     try {
-      worktree = await this._worktreeManager.addWorktree(sessionId, opts.branch, opts.repoRoot);
+      worktree = await this._worktreeManager.addWorktree(sessionId, opts.branch, opts.repoRoot, opts.sourceBranch);
     } catch (err) {
       throw new SessionError(
         `Failed to create worktree for session '${sessionId}': ${String(err)}`,

@@ -12,7 +12,17 @@
 
   <div class="form-group">
     <label for="ns-repo">Repository</label>
-    <select id="ns-repo" name="repoId" required>
+    <select
+      id="ns-repo"
+      name="repoId"
+      required
+      hx-get=""
+      hx-trigger="change"
+      hx-target="#ns-source-branch"
+      hx-swap="innerHTML"
+      hx-indicator="#ns-source-branch-loading"
+      onchange="this.setAttribute('hx-get', this.value ? '/api/repos/' + this.value + '/branches' : ''); if(!this.value){ document.getElementById('ns-source-branch').innerHTML='<option value=\x22\x22>Select a repo first</option>'; } htmx.process(this);"
+    >
       <option value="">Select a repository…</option>
       <% if (it.repos) { for (const r of it.repos) { %>
         <option
@@ -21,6 +31,22 @@
           <%= r.status !== 'ready' ? 'disabled' : '' %>
         ><%= r.displayName %><%= r.status !== 'ready' ? ' (' + r.status + ')' : '' %></option>
       <% } } %>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="ns-source-branch">
+      Source Branch
+      <span id="ns-source-branch-loading" class="htmx-indicator" style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(loading…)</span>
+    </label>
+    <select id="ns-source-branch" name="sourceBranch">
+      <% if (it.branches && it.branches.length > 0) { %>
+        <% for (const b of it.branches) { %>
+          <option value="origin/<%= b.name %>" <%= b.name === (it.defaultBranch ?? '') || ('origin/' + b.name) === (it.sourceBranch ?? '') ? 'selected' : '' %>><%= b.name %><%= b.isDefault ? ' (default)' : '' %></option>
+        <% } %>
+      <% } else { %>
+        <option value="">Select a repo first</option>
+      <% } %>
     </select>
   </div>
 
