@@ -2,6 +2,7 @@ export interface DevOpsProfile {
   org: string;
   project: string;
   scopes: string[];
+  bootstrapPat: string;
   durationHours: number;
 }
 
@@ -10,11 +11,12 @@ export interface DevOpsProvisionResult {
   env: { AZURE_DEVOPS_EXT_PAT: string };
 }
 
-function getBootstrapToken(): string {
+function getBootstrapToken(profile: DevOpsProfile): string {
+  if (profile.bootstrapPat) return profile.bootstrapPat;
   if (process.env['DEVOPS_BOOTSTRAP_PAT']) return process.env['DEVOPS_BOOTSTRAP_PAT'];
   if (process.env['AZURE_DEVOPS_EXT_PAT']) return process.env['AZURE_DEVOPS_EXT_PAT'];
   throw new Error(
-    'No DevOps bootstrap PAT found. Set DEVOPS_BOOTSTRAP_PAT or AZURE_DEVOPS_EXT_PAT.',
+    'No DevOps bootstrap PAT found. Set it in the credential profile or via DEVOPS_BOOTSTRAP_PAT env var.',
   );
 }
 
@@ -32,9 +34,9 @@ function getOrgName(org: string): string {
 }
 
 export class DevOpsProvider {
-  async preflight(): Promise<{ ok: boolean; reason?: string }> {
+  async preflight(profile: DevOpsProfile): Promise<{ ok: boolean; reason?: string }> {
     try {
-      const token = getBootstrapToken();
+      const token = getBootstrapToken(profile);
       const base64 = Buffer.from(`:${token}`).toString('base64');
 
       const resp = await fetch(
@@ -58,7 +60,7 @@ export class DevOpsProvider {
   }
 
   async provision(profile: DevOpsProfile): Promise<DevOpsProvisionResult> {
-    const token = getBootstrapToken();
+    const token = getBootstrapToken(profile);
     const base64 = Buffer.from(`:${token}`).toString('base64');
     const orgName = getOrgName(profile.org);
     const vsspsUrl = getVsspsUrl(profile.org);
@@ -100,8 +102,11 @@ export class DevOpsProvider {
     };
   }
 
-  async revoke(patId: string): Promise<void> {
-    const token = getBootstrapToken();
+  async revoke(patId: string, bootstrapPat?: string): Promise<void> {
+    const token = bootstrapPat
+      ?? process.env['DEVOPS_BOOTSTRAP_PAT']
+      ?? process.env['AZURE_DEVOPS_EXT_PAT'];
+    if (!token) throw new Error('No DevOps bootstrap PAT available for revocation.');
     const base64 = Buffer.from(`:${token}`).toString('base64');
 
     // Get org from stored data — we use the VSSPS global endpoint for revocation

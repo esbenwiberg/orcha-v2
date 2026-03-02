@@ -125,7 +125,7 @@ async function cmdInit(cwd: string, dryRun: boolean): Promise<void> {
   try {
     if (profile.devops) {
       const devops = new DevOpsProvider();
-      const result = await devops.provision({ ...profile.devops, durationHours: profile.durationHours });
+      const result = await devops.provision({ ...profile.devops, bootstrapPat: '', durationHours: profile.durationHours });
       devopsPatId = result.patId;
       Object.assign(env, result.env);
     }

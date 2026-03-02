@@ -6,6 +6,7 @@ import type {
   CreateCredentialProfileInput,
   CreateSessionCredentialsInput,
 } from '../credentials/types.js';
+import { encrypt, decrypt } from '../credentials/crypto.js';
 
 export class CredentialStore {
   #db: Database.Database;
@@ -16,14 +17,24 @@ export class CredentialStore {
 
   // ── Credential Profiles ──────────────────────────────────────────────────
 
+  #decryptDevops(raw: string): CredentialProfile['devops'] {
+    const parsed = JSON.parse(raw) as { org: string; project: string; scopes: string[]; bootstrapPat: string };
+    return { ...parsed, bootstrapPat: decrypt(parsed.bootstrapPat) };
+  }
+
+  #encryptDevops(devops: { org: string; project: string; scopes: string[]; bootstrapPat: string }): string {
+    return JSON.stringify({ ...devops, bootstrapPat: encrypt(devops.bootstrapPat) });
+  }
+
   #rowToProfile(row: Record<string, unknown>): CredentialProfile {
+    const devops = row['devops_json'] ? this.#decryptDevops(row['devops_json'] as string) : undefined;
     return {
       id: row['id'] as string,
       name: row['name'] as string,
       durationHours: row['duration_hours'] as number,
       azure: row['azure_json'] ? JSON.parse(row['azure_json'] as string) : undefined,
       github: row['github_json'] ? JSON.parse(row['github_json'] as string) : undefined,
-      devops: row['devops_json'] ? JSON.parse(row['devops_json'] as string) : undefined,
+      ...(devops !== undefined ? { devops } : {}),
       createdAt: new Date(row['created_at'] as string),
     };
   }
@@ -58,7 +69,7 @@ export class CredentialStore {
         input.durationHours,
         input.azure ? JSON.stringify(input.azure) : null,
         input.github ? JSON.stringify(input.github) : null,
-        input.devops ? JSON.stringify(input.devops) : null,
+        input.devops ? this.#encryptDevops(input.devops) : null,
         now,
       );
 
@@ -84,7 +95,7 @@ export class CredentialStore {
         durationHours,
         azure ? JSON.stringify(azure) : null,
         github ? JSON.stringify(github) : null,
-        devops ? JSON.stringify(devops) : null,
+        devops ? this.#encryptDevops(devops) : null,
         id,
       );
 
