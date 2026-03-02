@@ -5,6 +5,12 @@
   </div>
   <% } else { %>
   <div class="info-panel__section">
+    <% if (it.session.repoName) { %>
+    <div class="info-panel__row">
+      <span class="info-panel__label">Repo</span>
+      <span class="info-panel__meta"><%= it.session.repoName %></span>
+    </div>
+    <% } %>
     <div class="info-panel__row">
       <span class="info-panel__label">Branch</span>
       <span class="info-panel__branch"><%= it.session.branch %></span>

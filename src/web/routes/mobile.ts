@@ -15,6 +15,9 @@ import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
 
+/** Allowed characters for a git branch name (simplified). */
+const BRANCH_RE = /^[a-zA-Z0-9/_.-]+$/;
+
 /** Minimal HTML-escape to prevent XSS in inline error messages. */
 function escapeHtml(str: string): string {
   return str
@@ -53,11 +56,20 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
     try {
       const sessions = store.listSessions();
 
+      // Build barePath → displayName map for repo name resolution
+      const repoNameMap = new Map<string, string>();
+      for (const repo of repoStore.listRepos()) {
+        if (repo.barePath !== null) {
+          repoNameMap.set(repo.barePath, repo.displayName);
+        }
+      }
+
       // Render each session item and concatenate them
       const sessionItemsHtml = sessions
         .map((session) =>
           eta.render('partials/mobile-session-item', {
             sessionId: session.id,
+            repoName: repoNameMap.get(session.config.repoRoot),
             branch: session.worktree.branch,
             status: session.status,
           }),
@@ -222,9 +234,15 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
-      // Auto-generate branch name from preset
-      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const branch = `${preset.name.replace(/\s+/g, '-').toLowerCase()}/${ts}`;
+      // Use user-supplied branch name if valid, otherwise auto-generate
+      const rawBranch = typeof req.body?.branch === 'string' ? req.body.branch.trim() : '';
+      let branch: string;
+      if (rawBranch.length > 0 && BRANCH_RE.test(rawBranch)) {
+        branch = rawBranch;
+      } else {
+        const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        branch = `${preset.name.replace(/\s+/g, '-').toLowerCase()}/${ts}`;
+      }
 
       const sessionHome = env['HOME'];
       const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
@@ -322,10 +340,12 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
 
       const active = deps.sessionEngine.getSessionByDbId(activeId);
       const modelProvider = active?.modelProvider;
+      const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
 
       const html = eta.render('partials/mobile-info-panel', {
         session: {
           id: session.id,
+          repoName: repo?.displayName,
           branch: session.worktree.branch,
           status: session.status,
           createdAt: formatRelativeTime(session.createdAt),

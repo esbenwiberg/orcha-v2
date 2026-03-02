@@ -1,10 +1,23 @@
 <div class="preset-bar">
-  <% for (const preset of it.presets) { %>
-    <button
-      class="preset-chip"
-      hx-post="/mobile/launch-preset/<%= preset.id %>"
-      hx-target="#mobile-terminal-area"
-      hx-swap="innerHTML"
-    ><%= preset.name %></button>
-  <% } %>
+  <input
+    type="text"
+    name="branch"
+    id="mobile-branch-input"
+    class="preset-bar__branch-input"
+    placeholder="Branch name (optional)"
+    autocomplete="off"
+    autocapitalize="off"
+    spellcheck="false"
+  />
+  <div class="preset-bar__chips">
+    <% for (const preset of it.presets) { %>
+      <button
+        class="preset-chip"
+        hx-post="/mobile/launch-preset/<%= preset.id %>"
+        hx-target="#mobile-terminal-area"
+        hx-swap="innerHTML"
+        hx-include="#mobile-branch-input"
+      ><%= preset.name %></button>
+    <% } %>
+  </div>
 </div>

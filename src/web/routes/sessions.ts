@@ -42,10 +42,14 @@ interface SessionCardViewModel {
   modelProvider?: string;
 }
 
+/** UUID pattern for detecting bare-repo directory names that are UUIDs. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** Extract a short repo name from a bare-repo path like /data/bare-repos/my-app.git */
 function repoNameFromPath(repoRoot: string): string {
-  const base = basename(repoRoot);
-  return base.replace(/\.git$/, '') || repoRoot;
+  const base = basename(repoRoot).replace(/\.git$/, '');
+  if (!base || UUID_RE.test(base)) return 'unknown';
+  return base;
 }
 
 function toViewModel(

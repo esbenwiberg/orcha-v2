@@ -6,7 +6,7 @@
       hx-target="#mobile-terminal-area"
       hx-swap="innerHTML"
     >
-      <span class="session-select-btn__branch"><%= it.branch %></span>
+      <span class="session-select-btn__branch"><%= it.repoName ? `${it.repoName} / ${it.branch}` : it.branch %></span>
       <span class="badge badge--<%= it.status %>" id="badge-<%= it.sessionId %>" sse-swap="session-status-<%= it.sessionId %>" hx-swap="outerHTML"><%= it.status %></span>
     </button>
     <button
