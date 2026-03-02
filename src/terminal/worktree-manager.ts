@@ -197,8 +197,11 @@ export class WorktreeManager {
    * falls back to staging in /tmp, fetching there, and copying back.
    */
   async fetchBareRepo(barePath: string): Promise<void> {
+    // Bare clones don't set a fetch refspec by default, so pass one explicitly
+    // to populate refs/remotes/origin/* for listRemoteBranches.
+    const fetchArgs = ['fetch', 'origin', '+refs/heads/*:refs/remotes/origin/*'];
     try {
-      await this.execGit(['fetch', 'origin'], barePath);
+      await this.execGit(fetchArgs, barePath);
     } catch (directErr) {
       const errMsg = String(directErr);
       if (!errMsg.includes('EPERM') && !errMsg.includes('chmod')) {
@@ -208,7 +211,7 @@ export class WorktreeManager {
       const stagingPath = path.join(os.tmpdir(), `orcha-fetch-${Date.now()}`);
       try {
         copyDirContents(barePath, stagingPath);
-        await this.execGit(['fetch', 'origin'], stagingPath);
+        await this.execGit(fetchArgs, stagingPath);
         // Copy updated refs back
         fs.rmSync(barePath, { recursive: true, force: true });
         copyDirContents(stagingPath, barePath);
@@ -219,19 +222,31 @@ export class WorktreeManager {
   }
 
   /**
-   * Lists remote branches from a bare repo (refs/remotes/origin/*).
-   * Returns branch names with `origin/` prefix stripped.
+   * Lists branches from a bare repo.
+   * Tries refs/remotes/origin/ first (populated after fetchBareRepo with explicit refspec),
+   * then falls back to refs/heads/ (default bare clone layout before first fetch).
    */
   async listRemoteBranches(barePath: string): Promise<string[]> {
-    const output = await this.execGit(
+    let output = await this.execGit(
       ['for-each-ref', '--format=%(refname:short)', 'refs/remotes/origin/'],
+      barePath,
+    );
+    if (output.trim()) {
+      return output
+        .trim()
+        .split('\n')
+        .filter((line) => line.length > 0)
+        .map((ref) => ref.replace(/^origin\//, ''));
+    }
+    // Fallback: bare clone refs/heads/ (before first fetch with refspec)
+    output = await this.execGit(
+      ['for-each-ref', '--format=%(refname:short)', 'refs/heads/'],
       barePath,
     );
     return output
       .trim()
       .split('\n')
-      .filter((line) => line.length > 0)
-      .map((ref) => ref.replace(/^origin\//, ''));
+      .filter((line) => line.length > 0);
   }
 
   /**
@@ -243,7 +258,13 @@ export class WorktreeManager {
       // output like "refs/remotes/origin/main"
       return output.trim().replace(/^refs\/remotes\/origin\//, '');
     } catch {
-      return undefined;
+      // Fallback: in a bare repo, HEAD points directly to the default branch
+      try {
+        const output = await this.execGit(['symbolic-ref', 'HEAD'], barePath);
+        return output.trim().replace(/^refs\/heads\//, '');
+      } catch {
+        return undefined;
+      }
     }
   }
 
