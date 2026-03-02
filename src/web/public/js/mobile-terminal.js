@@ -16,6 +16,8 @@ let _activeTerm = null;
 let _activeWs = null;
 let _activeFitAddon = null;
 let _activeObserver = null;
+/** Auth polling interval for Max sessions — cleared on terminal dispose. */
+let _authPollInterval = null;
 /** The DOM element we already booted a terminal for — prevents re-creation on unrelated HTMX swaps. */
 let _bootedFrame = null;
 
@@ -210,9 +212,59 @@ async function openMobileTerminal(_sessionId, wsUrl) {
 }
 
 /**
+ * Start JS-based auth polling for Max sessions. Only updates the DOM when the
+ * response content actually changes, preventing focus loss on the xterm textarea.
+ *
+ * @param {string} sessionId - The DB session ID.
+ */
+function _startAuthPolling(sessionId) {
+  _stopAuthPolling();
+  const slot = document.getElementById('auth-slot-mobile');
+  if (!slot) return;
+
+  let lastHtml = '';
+
+  async function poll() {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/auth-url`);
+      const html = await res.text();
+      // Only touch the DOM when content changed — skipping identical
+      // responses avoids the DOM mutations that steal xterm focus on mobile.
+      if (html !== lastHtml) {
+        lastHtml = html;
+        slot.innerHTML = html;
+        // Note: no htmx.process() here — the banner's interactive elements
+        // (links, onclick buttons) are plain HTML/JS. Processing would
+        // activate the banner's hx-trigger="every 3s" and re-introduce
+        // the polling-via-HTMX problem we're fixing.
+      }
+      // Stop polling once auth is resolved or session gone
+      if (res.status === 286 || html.includes('auth-banner--success') || html.trim() === '') {
+        _stopAuthPolling();
+      }
+    } catch {
+      // Ignore fetch errors (offline, etc.)
+    }
+  }
+
+  // Check immediately, then every 3 seconds
+  poll();
+  _authPollInterval = setInterval(poll, 3000);
+}
+
+/** Stop the auth polling interval. */
+function _stopAuthPolling() {
+  if (_authPollInterval) {
+    clearInterval(_authPollInterval);
+    _authPollInterval = null;
+  }
+}
+
+/**
  * Dispose the active mobile terminal and WebSocket connection.
  */
 function _disposeMobileTerminal() {
+  _stopAuthPolling();
   if (_activeObserver) {
     _activeObserver.disconnect();
     _activeObserver = null;
@@ -532,6 +584,14 @@ document.addEventListener('htmx:afterSwap', (event) => {
           // Re-focus the terminal so user can keep typing
           if (_activeTerm) _activeTerm.focus();
         });
+      }
+
+      // Start JS-based auth polling for Max sessions (if auth-slot exists).
+      // Uses fetch + DOM-diff to avoid the HTMX innerHTML swap that causes
+      // xterm focus loss on mobile browsers.
+      const authSlot = document.getElementById('auth-slot-mobile');
+      if (authSlot) {
+        _startAuthPolling(sessionId);
       }
     }
   }

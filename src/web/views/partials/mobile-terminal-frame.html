@@ -1,10 +1,6 @@
 <div id="terminal-frame" class="terminal-frame" data-session-id="<%= it.sessionId %>" data-ws-url="<%= it.wsUrl %>">
   <% if (it.modelProvider === 'max') { %>
-  <div id="auth-slot-mobile-<%= it.sessionId %>"
-       class="mobile-auth-slot"
-       hx-get="/api/sessions/<%= it.sessionId %>/auth-url"
-       hx-trigger="load, every 3s"
-       hx-swap="innerHTML"></div>
+  <div id="auth-slot-mobile" class="mobile-auth-slot" data-session-id="<%= it.sessionId %>"></div>
   <% } %>
   <div id="xterm-container" class="xterm-container"></div>
   <div class="mobile-keys" id="mobile-keys">

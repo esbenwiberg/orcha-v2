@@ -285,45 +285,6 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
-  // GET /status-stream — SSE stream that polls the active session's PTY liveness every 5s
-  router.get('/status-stream', (req, res) => {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
-
-    /** Build the SSE event payload for #conn-badge. */
-    function buildStatusEvent(live: boolean): string {
-      const cls = live ? 'conn-live' : 'conn-disconnected';
-      const label = live ? '&#9679;&nbsp;Live' : '&#9679;&nbsp;Disconnected';
-      const span = `<span id="conn-badge" class="conn-badge ${cls}" aria-live="polite">${label}</span>`;
-      return `event: connStatus\ndata: ${span}\n\n`;
-    }
-
-    /** Parse the mobile-session-id cookie and check whether its terminal is alive. */
-    function isSessionLive(): boolean {
-      const cookieHeader = req.headers.cookie ?? '';
-      const match = /mobile-session-id=([^;]+)/.exec(cookieHeader);
-      const activeId = match?.[1];
-      if (!activeId) return false;
-      const session = deps.sessionEngine.getSession(activeId);
-      return session !== undefined && session.terminal !== undefined;
-    }
-
-    // Send the initial event immediately so the badge reflects current state at page load.
-    res.write(buildStatusEvent(isSessionLive()));
-
-    const interval = setInterval(() => {
-      res.write(buildStatusEvent(isSessionLive()));
-    }, 5000);
-
-    req.on('close', () => {
-      clearInterval(interval);
-      res.end();
-    });
-  });
-
   // GET /session-info — render the info panel for the active mobile session
   router.get('/session-info', (req, res, next) => {
     try {

@@ -22,6 +22,9 @@ bash scripts/deploy-app.sh   # build ACR image, push, update Container App (~5-8
 bash scripts/logs.sh         # tail last 50 lines from Container App logs
 bash scripts/logs.sh --tail 100    # tail last N lines
 bash scripts/logs.sh --follow      # stream live (ctrl-C to stop)
+bash scripts/crash-logs.sh           # console logs from Log Analytics (last 24h)
+bash scripts/crash-logs.sh --system  # system events: OOM, restarts, kills
+bash scripts/crash-logs.sh --hours 72 --take 100  # wider window, more entries
 ```
 
 ## Project Structure

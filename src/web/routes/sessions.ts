@@ -579,8 +579,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       const active = deps.sessionEngine.getSessionByDbId(id);
       if (!active) {
-        // Session exited or not found — stop polling
-        res.status(200).send('');
+        // Session exited or not found — 286 tells HTMX to stop polling
+        res.status(286).send('');
         return;
       }
 
@@ -599,7 +599,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
               modelConfigStore.updateConfig(active.modelConfigId, { credentialsJson: credsJson });
               console.log(`[sessions] captured refreshed credentials sessionId=${id} modelConfigId=${active.modelConfigId}`);
               const html = eta.render('partials/session-auth-banner', { authenticated: true });
-              res.status(200).send(html);
+              // 286 tells HTMX to stop polling — auth is resolved
+              res.status(286).send(html);
               return;
             }
           } catch {
@@ -612,7 +613,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // (credential file may not change if tokens were already valid).
       if (active.authCodeSentAt && Date.now() - active.authCodeSentAt > 15_000) {
         const html = eta.render('partials/session-auth-banner', { authenticated: true });
-        res.status(200).send(html);
+        res.status(286).send(html);
         return;
       }
 
@@ -630,7 +631,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const ageMs = Date.now() - active.createdAt.getTime();
       if (ageMs > 60_000 && active.terminal.exitCode !== undefined) {
         // Session exited without auth URL — stop polling
-        res.status(200).send('');
+        res.status(286).send('');
         return;
       }
 
