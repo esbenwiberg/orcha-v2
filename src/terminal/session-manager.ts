@@ -322,9 +322,9 @@ export class SessionManager {
       );
     }
 
-    // Step 3: Restore original args (with --continue appended) and env
+    // Step 3: Restore original args and env (no --continue; the Claude session is likely dead)
     const originalArgs = dbSession.config.args ?? [];
-    const reopenArgs = [...originalArgs, '--continue'];
+    const reopenArgs = [...originalArgs];
     const originalEnv = dbSession.config.env ?? {};
     const homeDir = originalEnv['HOME'];
     const modelConfigId = dbSession.config.modelConfigId;
