@@ -44,6 +44,8 @@
         <% for (const b of it.branches) { %>
           <option value="origin/<%= b.name %>" <%= b.name === (it.defaultBranch ?? '') || ('origin/' + b.name) === (it.sourceBranch ?? '') ? 'selected' : '' %>><%= b.name %><%= b.isDefault ? ' (default)' : '' %></option>
         <% } %>
+      <% } else if (it.sourceBranch && !it.sourceBranch.startsWith('origin/')) { %>
+        <option value="<%= it.sourceBranch %>" selected>Fork point: <%= it.sourceBranch.slice(0, 12) %>…</option>
       <% } else { %>
         <option value="">Select a repo first</option>
       <% } %>

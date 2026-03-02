@@ -128,6 +128,12 @@ export class WorktreeManager {
     };
   }
 
+  async deleteBranch(branch: string, repoRootOverride?: string): Promise<void> {
+    const safeBranch = WorktreeManager.sanitiseBranchName(branch);
+    const cwd = repoRootOverride ?? undefined;
+    await this.execGit(['branch', '-D', safeBranch], cwd);
+  }
+
   async removeWorktree(sessionId: string, repoRootOverride?: string): Promise<void> {
     WorktreeManager.assertNoInjection(sessionId, 'sessionId');
     const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);

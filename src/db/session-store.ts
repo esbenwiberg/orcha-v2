@@ -223,6 +223,19 @@ export class SessionStore {
     return this.getSession(id)!;
   }
 
+  findByBranchAndRepo(branch: string, repoRoot: string): Session | undefined {
+    const row = this.#db
+      .prepare(
+        `SELECT * FROM sessions
+         WHERE json_extract(worktree_json, '$.branch') = ?
+           AND json_extract(config_json, '$.repoRoot') = ?
+         ORDER BY created_at DESC LIMIT 1`,
+      )
+      .get(branch, repoRoot) as Record<string, unknown> | undefined;
+    if (row === undefined) return undefined;
+    return this.#rowToSession(row);
+  }
+
   deleteSession(id: string): void {
     const session = this.getSession(id);
     if (session === undefined) {

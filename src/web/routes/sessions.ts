@@ -180,6 +180,22 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         errors.push('Selected model configuration not found.');
       }
 
+      // Branch collision guard: check if a session already uses this branch on this repo
+      if (errors.length === 0 && branch.length > 0 && repoId.length > 0) {
+        const repo = repoStore.getRepo(repoId);
+        if (repo?.barePath) {
+          const existing = store.findByBranchAndRepo(branch, repo.barePath);
+          if (existing !== undefined) {
+            const isAlive = existing.status === 'running' || existing.status === 'starting' || existing.status === 'pending';
+            if (isAlive) {
+              errors.push(`A session is already running on branch '${branch}' (session #${existing.displayId}).`);
+            } else {
+              errors.push(`Session #${existing.displayId} already uses branch '${branch}'. Reopen it, or delete it to free the branch name.`);
+            }
+          }
+        }
+      }
+
       if (errors.length > 0) {
         const modelConfigs = modelConfigStore.listConfigs();
         const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, sandbox, skipPermissions });
@@ -477,6 +493,64 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // GET /api/sessions/:id/fork-form — render new-session form pre-filled from an existing session
+  router.get('/sessions/:id/fork-form', async (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const source = store.getSession(id);
+      if (source === undefined) {
+        res.status(404).send('<div class="badge badge--failed">Session not found</div>');
+        return;
+      }
+
+      // Resolve the current HEAD commit from the source worktree
+      let headSha = '';
+      try {
+        const result = await executeGit(['rev-parse', 'HEAD'], source.worktree.worktreePath);
+        headSha = result.stdout.trim();
+      } catch {
+        // Fall back to the stored headSha if the worktree is gone
+        headSha = source.worktree.headSha;
+      }
+
+      // Find repo ID by matching barePath
+      const repos = repoStore.listRepos();
+      const matchedRepo = repos.find((r) => r.barePath === source.config.repoRoot);
+      const repoId = matchedRepo?.id ?? '';
+
+      // Resolve credential profile from session_credentials
+      const creds = credStore.getBySessionId(id);
+      const credentialProfileId = creds?.profileId ?? '';
+
+      const credentialProfiles = credStore.listProfiles();
+      const modelConfigs = modelConfigStore.listConfigs();
+
+      // Detect skipPermissions from the stored args
+      const skipPermissions = source.config.args?.includes('--dangerously-skip-permissions') ?? false;
+      // Default sandbox to true (matching form default)
+      const sandbox = true;
+
+      // Pre-fill branch name with -fork suffix
+      const forkBranch = `${source.worktree.branch}-fork`;
+
+      const html = eta.render('partials/new-session-form', {
+        repos,
+        credentialProfiles,
+        modelConfigs,
+        repoId,
+        branch: forkBranch,
+        sourceBranch: headSha,
+        credentialProfileId,
+        sandbox,
+        skipPermissions,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // DELETE /api/sessions/:id — delete session record (kills PTY first if still running)
   router.delete('/sessions/:id', async (req, res, next) => {
     try {
@@ -505,6 +579,13 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         await deps.worktreeManager.removeWorktree(worktreeSessionId);
       } catch {
         // Best-effort: worktree may already be gone
+      }
+
+      // Clean up the git branch so the name can be reused
+      try {
+        await deps.worktreeManager.deleteBranch(existing.worktree.branch, existing.config.repoRoot);
+      } catch {
+        // Best-effort: branch may already be gone or have been merged
       }
 
       // Clean up per-session isolated HOME dir

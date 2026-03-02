@@ -23,6 +23,13 @@
       >Reopen Session</button>
       <% } %>
       <button
+        class="action-sheet-btn"
+        hx-get="/api/sessions/<%= it.sessionId %>/fork-form"
+        hx-target="#form-panel-slot"
+        hx-swap="innerHTML"
+        hx-on::after-request="if(event.detail.successful){ document.getElementById('form-panel').classList.add('is-open'); document.getElementById('action-sheet')?.remove(); }"
+      >Fork Session</button>
+      <button
         class="action-sheet-btn action-sheet-btn--danger"
         data-action="delete"
         data-session-id="<%= it.sessionId %>"

@@ -399,6 +399,17 @@ function showCloseMenu(sessionId, anchorBtn) {
     menu.appendChild(reopenItem);
   }
 
+  // Fork (open new-session form pre-filled from this session)
+  const forkItem = document.createElement('button');
+  forkItem.className = 'term-close-menu__item';
+  forkItem.textContent = 'Fork session';
+  forkItem.addEventListener('click', () => {
+    menu.remove();
+    htmx.ajax('GET', `/api/sessions/${sessionId}/fork-form`, '#form-panel-slot');
+    document.getElementById('form-panel').classList.add('is-open');
+  });
+  menu.appendChild(forkItem);
+
   // Delete (remove DB + worktree)
   const deleteItem = document.createElement('button');
   deleteItem.className = 'term-close-menu__item term-close-menu__item--danger';
