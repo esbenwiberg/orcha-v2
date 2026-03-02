@@ -133,6 +133,23 @@
     </span>
   </label>
 
+  <% if (it.repoId) { %>
+  <script>
+    (function() {
+      var repoSelect = document.getElementById('ns-repo');
+      if (!repoSelect || !repoSelect.value) return;
+      // Ensure hx-get is set for subsequent repo changes
+      repoSelect.setAttribute('hx-get', '/api/repos/' + repoSelect.value + '/branches');
+      htmx.process(repoSelect);
+      // If branches weren't pre-loaded server-side, fetch them now
+      var branchSelect = document.getElementById('ns-source-branch');
+      if (branchSelect && branchSelect.options.length <= 1 && branchSelect.options[0].value === '') {
+        htmx.ajax('GET', '/api/repos/' + repoSelect.value + '/branches', {target: branchSelect, swap: 'innerHTML'});
+      }
+    })();
+  </script>
+  <% } %>
+
   <div style="display:flex;gap:0.5rem;padding-top:0.25rem;border-top:1px solid var(--color-border);margin-top:auto;">
     <button type="submit" class="btn btn-primary" style="flex:1;" aria-busy="false"
       hx-on::before-request="this.setAttribute('aria-busy','true'); this.disabled=true;"

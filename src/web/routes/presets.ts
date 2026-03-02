@@ -282,13 +282,17 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         if (repo?.barePath) {
           try {
             await deps.worktreeManager.fetchBareRepo(repo.barePath);
+          } catch (err) {
+            console.warn(`[presets] fetchBareRepo failed for ${preset.repoId}:`, err);
+          }
+          try {
             const branchNames = await deps.worktreeManager.listRemoteBranches(repo.barePath);
             defaultBranch = await deps.worktreeManager.getDefaultBranch(repo.barePath);
             branches = branchNames
               .filter((b) => b !== 'HEAD')
               .map((b) => ({ name: b, isDefault: b === defaultBranch }));
           } catch (err) {
-            console.warn(`[presets] branch fetch failed for repo ${preset.repoId}:`, err);
+            console.warn(`[presets] branch list failed for repo ${preset.repoId}:`, err);
           }
         }
       }
