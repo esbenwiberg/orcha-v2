@@ -47,7 +47,7 @@ export function buildMockActiveSession(sessionId = 'test-session'): ActiveSessio
     dbSessionId: undefined,
     worktree: {} as ActiveSession['worktree'],
     terminal: terminal as unknown as ActiveSession['terminal'],
-    outputBuffer: {} as ActiveSession['outputBuffer'],
+    outputBuffer: { snapshot: () => Buffer.alloc(0), push: vi.fn() } as unknown as ActiveSession['outputBuffer'],
     createdAt: new Date(),
   };
 }
@@ -68,6 +68,7 @@ export async function createTestServer(
     listSessions: vi.fn().mockReturnValue([]),
     stopSession: vi.fn().mockResolvedValue(undefined),
     getSession: vi.fn().mockReturnValue(undefined),
+    getSessionByDbId: vi.fn().mockReturnValue(undefined),
     getOutputSnapshot: vi.fn().mockReturnValue(Buffer.alloc(0)),
     stopAllSessions: vi.fn().mockResolvedValue(undefined),
     ...sessionEngineOverrides,

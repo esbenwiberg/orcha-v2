@@ -155,8 +155,8 @@ describe('SessionManager', () => {
     expect(worktreeManager.removeWorktree).toHaveBeenCalledWith('fail-pty');
   });
 
-  // (d) stopSession calls kill('SIGTERM') and session disappears from listSessions after mock terminal fires 'exit'
-  it('(d) stopSession kills terminal and session is removed from listSessions after exit', async () => {
+  // (d) stopSession calls kill('SIGTERM') and session remains accessible for a grace period after exit
+  it('(d) stopSession kills terminal and session is still accessible during grace period', async () => {
     await manager.createSession({
       sessionId: 'stop-session',
       branch: 'main',
@@ -176,11 +176,13 @@ describe('SessionManager', () => {
 
     await stopPromise;
 
-    // After _handleExit runs, session should be removed
     // Give the async handler a tick to execute
     await Promise.resolve();
 
-    expect(manager.listSessions()).toHaveLength(0);
+    // Session is kept for a grace period (5 min) so late WS connections can
+    // still read the output buffer — it should still be listed.
+    expect(manager.listSessions()).toHaveLength(1);
+    expect(terminal.kill).toHaveBeenCalledWith('SIGTERM');
   });
 
   // (e) createSession twice with same sessionId throws SessionError DUPLICATE_SESSION
@@ -210,7 +212,9 @@ describe('SessionManager', () => {
     terminal._emitData('world');
 
     const snapshot = manager.getOutputSnapshot('test-session');
-    expect(snapshot.toString()).toBe('hello world');
+    // createSession pre-fills a "Starting claude..." notice, so check the
+    // PTY data is appended after it.
+    expect(snapshot.toString()).toContain('hello world');
   });
 
   // (g) DB upsert/create called with running status on create, update called with stopped status after exit

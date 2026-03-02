@@ -30,7 +30,7 @@ function buildMockSession(): ActiveSession {
     dbSessionId: undefined,
     worktree: {} as ActiveSession['worktree'],
     terminal: terminal as unknown as ActiveSession['terminal'],
-    outputBuffer: {} as ActiveSession['outputBuffer'],
+    outputBuffer: { snapshot: vi.fn().mockReturnValue(Buffer.alloc(0)), push: vi.fn() } as unknown as ActiveSession['outputBuffer'],
     createdAt: new Date(),
   };
 }
@@ -55,6 +55,7 @@ describe('handleTerminalConnection', () => {
     session = buildMockSession();
     engine = {
       getSession: vi.fn().mockReturnValue(session),
+      getSessionByDbId: vi.fn().mockReturnValue(undefined),
       createSession: vi.fn(),
       listSessions: vi.fn(),
       stopSession: vi.fn(),

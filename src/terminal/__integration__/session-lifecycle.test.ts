@@ -141,7 +141,7 @@ describe('session-lifecycle integration', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Test 3: stopSession sends SIGTERM, session exits, worktree is cleaned up
+  // Test 3: stopSession sends SIGTERM and session exits
   // -------------------------------------------------------------------------
   it('stopSession sends SIGTERM and session exits', async () => {
     const { instanceRegistry, sessionManager } = fixture;
@@ -168,14 +168,12 @@ describe('session-lifecycle integration', () => {
 
     await sessionManager.stopSession(sessionId);
 
-    // After stop, session should be gone from in-memory map
-    expect(sessionManager.getSession(sessionId)).toBeUndefined();
+    // Session stays accessible for a grace period (5 min) so late WS
+    // connections can still read the output buffer.
+    expect(sessionManager.getSession(sessionId)).toBeDefined();
 
-    // _handleExit removes the worktree after exit; give it a moment
-    await new Promise<void>((r) => setTimeout(r, 200));
-
-    // Worktree is removed by _handleExit as part of normal exit handling
-    expect(fs.existsSync(worktreePath)).toBe(false);
+    // Worktrees are preserved until explicitly deleted (for session reopen)
+    expect(fs.existsSync(worktreePath)).toBe(true);
   });
 
   // -------------------------------------------------------------------------
@@ -258,19 +256,11 @@ describe('session-lifecycle integration', () => {
 
     // Stop the session
     await sessionManager.stopSession(sessionId);
-    expect(sessionManager.getSession(sessionId)).toBeUndefined();
 
-    // Give _handleExit time to clean up
-    await new Promise<void>((r) => setTimeout(r, 200));
+    // Session stays accessible during grace period
+    expect(sessionManager.getSession(sessionId)).toBeDefined();
 
-    // _handleExit removes the worktree; confirm it is gone
-    expect(fs.existsSync(worktreePath)).toBe(false);
-
-    // Run cleanup — no orphans or stale sessions should be found (everything was cleaned already)
-    const cleanupService = new CleanupService(sessionManager, worktreeManager, sessionStore);
-    const result = await cleanupService.runOnce();
-
-    // The worktree was already removed by _handleExit, so cleanup has nothing extra to remove
-    expect(result.orphanedWorktreesRemoved).not.toContain(worktreePath);
+    // Worktree is preserved for session reopen
+    expect(fs.existsSync(worktreePath)).toBe(true);
   });
 });
