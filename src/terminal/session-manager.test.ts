@@ -110,7 +110,7 @@ describe('SessionManager', () => {
       command: 'bash',
     });
 
-    expect(worktreeManager.addWorktree).toHaveBeenCalledWith('test-session', 'feature-branch', undefined);
+    expect(worktreeManager.addWorktree).toHaveBeenCalledWith('test-session', 'feature-branch', undefined, undefined);
     expect(ptyManager.spawn).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'test-session',
