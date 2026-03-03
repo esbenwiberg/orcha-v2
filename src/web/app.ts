@@ -21,6 +21,7 @@ import { createEventsRouter } from './routes/events.js';
 import { createCredentialsRouter } from './routes/credentials.js';
 import { createClaudePermissionsRouter } from './routes/claude-permissions.js';
 import { createMcpServersRouter } from './routes/mcp-servers.js';
+import { createGitIdentityRouter } from './routes/git-identity.js';
 import { createSystemRouter } from './routes/system.js';
 import { createModelConfigsRouter } from './routes/model-configs.js';
 import { createBootstrapPatsRouter } from './routes/bootstrap-pats.js';
@@ -141,6 +142,9 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // Bootstrap PATs management router
   app.use('/api', createBootstrapPatsRouter(eta, deps.db));
+
+  // Git identity settings router
+  app.use('/api', createGitIdentityRouter(eta, deps));
 
   // Self-deploy (optional — only if DEPLOY_* env vars are set)
   const deployConfig = loadDeployConfig();

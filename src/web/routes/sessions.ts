@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, statSync, realpathSync, copyFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, statSync, realpathSync, copyFileSync, appendFileSync } from 'node:fs';
 import { basename, join, resolve, relative, extname } from 'node:path';
 import { marked } from 'marked';
 import type { Eta } from 'eta';
@@ -10,6 +10,7 @@ import { SessionStore } from '../../db/session-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
+import { GlobalSettingsStore } from '../../db/global-settings-store.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
@@ -88,6 +89,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   const repoStore = new RepoStore(deps.db);
   const credStore = new CredentialStore(deps.db);
   const modelConfigStore = new ModelConfigStore(deps.db);
+  const globalSettingsStore = new GlobalSettingsStore(deps.db);
 
   // GET /api/sessions/new-form — render the new-session form partial
   router.get('/sessions/new-form', (_req, res, next) => {
@@ -255,6 +257,16 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           const srcGitconfig = join(homedir(), '.gitconfig');
           if (existsSync(srcGitconfig)) {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
+          }
+
+          // Append git user identity from global settings (avoids "Author identity unknown")
+          const gitUserName = globalSettingsStore.get('git.user.name');
+          const gitUserEmail = globalSettingsStore.get('git.user.email');
+          if (gitUserName || gitUserEmail) {
+            let section = '\n[user]\n';
+            if (gitUserName) section += `\tname = ${gitUserName}\n`;
+            if (gitUserEmail) section += `\temail = ${gitUserEmail}\n`;
+            appendFileSync(join(sessionHome, '.gitconfig'), section);
           }
 
           // Build settings.json for this session: start from shared settings,
@@ -503,6 +515,16 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           const srcGitconfig = join(homedir(), '.gitconfig');
           if (existsSync(srcGitconfig)) {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
+          }
+
+          // Append git user identity from global settings
+          const gitUserName = globalSettingsStore.get('git.user.name');
+          const gitUserEmail = globalSettingsStore.get('git.user.email');
+          if (gitUserName || gitUserEmail) {
+            let section = '\n[user]\n';
+            if (gitUserName) section += `\tname = ${gitUserName}\n`;
+            if (gitUserEmail) section += `\temail = ${gitUserEmail}\n`;
+            appendFileSync(join(sessionHome, '.gitconfig'), section);
           }
 
           // Rebuild settings.json with theme + MCP validation server
