@@ -31,7 +31,6 @@ import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
 import { ValidationManager } from '../validation/validation-manager.js';
 import { loadDeployConfig, Deployer } from '../deploy/index.js';
 import { GlobalSettingsStore } from '../db/global-settings-store.js';
-import { setBootstrapPatResolver as setGitHubBootstrapPatResolver } from '../credentials/providers/github.js';
 import { setBootstrapPatResolver as setDevOpsBootstrapPatResolver } from '../credentials/providers/devops.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -48,9 +47,8 @@ export interface AppDeps {
 export async function createApp(deps: AppDeps): Promise<express.Application> {
   const app = express();
 
-  // Wire bootstrap PAT resolvers so providers read from DB
+  // Wire bootstrap PAT resolver so DevOps provider reads from DB
   const globalSettings = new GlobalSettingsStore(deps.db);
-  setGitHubBootstrapPatResolver(() => globalSettings.get('github_bootstrap_pat'));
   setDevOpsBootstrapPatResolver(() => globalSettings.get('devops_bootstrap_pat'));
 
   // Trust the first proxy (Caddy) so express-session sets secure cookies correctly

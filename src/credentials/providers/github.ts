@@ -9,24 +9,15 @@ export interface GitHubProvisionResult {
   env: { GH_TOKEN: string };
 }
 
-let bootstrapPatResolver: (() => string | undefined) | undefined;
-
-export function setBootstrapPatResolver(fn: () => string | undefined): void {
-  bootstrapPatResolver = fn;
-}
-
 function resolveToken(profile: GitHubProfile): string {
   if (profile.pat) return profile.pat;
-  const fromResolver = bootstrapPatResolver?.();
-  if (fromResolver) return fromResolver;
-  if (process.env['GITHUB_BOOTSTRAP_TOKEN']) return process.env['GITHUB_BOOTSTRAP_TOKEN'];
   if (process.env['GH_TOKEN']) return process.env['GH_TOKEN'];
   if (process.env['GITHUB_TOKEN']) return process.env['GITHUB_TOKEN'];
   try {
     return execSync('gh auth token', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
   } catch {
     throw new Error(
-      'No GitHub PAT found. Set one on the credential profile, the Settings page, or via GITHUB_BOOTSTRAP_TOKEN env var.',
+      'No GitHub PAT found. Set one on the credential profile or via GH_TOKEN / GITHUB_TOKEN env var.',
     );
   }
 }
