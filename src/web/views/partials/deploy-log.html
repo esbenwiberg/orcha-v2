@@ -1,0 +1,88 @@
+<div class="deploy-log" id="deploy-log">
+  <div class="deploy-log__header">
+    <span class="badge badge--running" id="deploy-status-badge">Deploying...</span>
+    <span class="text-xs text-muted" id="deploy-tag">Tag: <%= it.tag %></span>
+  </div>
+  <pre class="deploy-log__output" id="deploy-output"></pre>
+</div>
+
+<script>
+(function() {
+  const output = document.getElementById('deploy-output');
+  const badge = document.getElementById('deploy-status-badge');
+  let es = null;
+  let reconnecting = false;
+
+  function appendLine(entry) {
+    const line = document.createElement('div');
+    line.className = 'deploy-log__line deploy-log__line--' + entry.level;
+    const ts = new Date(entry.ts).toLocaleTimeString();
+    line.textContent = '[' + ts + '] [' + entry.phase + '] ' + entry.message;
+    output.appendChild(line);
+    output.scrollTop = output.scrollHeight;
+  }
+
+  function connect() {
+    es = new EventSource('/api/system/deploy/logs');
+
+    es.onmessage = function(e) {
+      try {
+        const entry = JSON.parse(e.data);
+        appendLine(entry);
+
+        if (entry.phase === 'done') {
+          badge.className = 'badge badge--completed';
+          badge.textContent = 'Complete';
+          es.close();
+        } else if (entry.phase === 'error') {
+          badge.className = 'badge badge--error';
+          badge.textContent = 'Failed';
+          es.close();
+        }
+      } catch {}
+    };
+
+    es.onerror = function() {
+      es.close();
+      if (reconnecting) return;
+      reconnecting = true;
+
+      // Connection lost — the app is likely restarting after deploy
+      badge.className = 'badge badge--starting';
+      badge.textContent = 'Restarting...';
+      appendLine({ ts: Date.now(), phase: 'done', level: 'info', message: 'Connection lost — app is restarting...' });
+
+      pollHealth(0);
+    };
+  }
+
+  function pollHealth(attempt) {
+    if (attempt >= 30) {
+      appendLine({ ts: Date.now(), phase: 'error', level: 'error', message: 'Timed out waiting for app to come back. Check the Azure portal.' });
+      badge.className = 'badge badge--error';
+      badge.textContent = 'Timeout';
+      return;
+    }
+
+    setTimeout(function() {
+      fetch('/health', { signal: AbortSignal.timeout(5000) })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.status === 'ok') {
+            appendLine({ ts: Date.now(), phase: 'done', level: 'success', message: 'App is live! Reloading...' });
+            badge.className = 'badge badge--completed';
+            badge.textContent = 'Live';
+            setTimeout(function() { window.location.reload(); }, 2000);
+          } else {
+            pollHealth(attempt + 1);
+          }
+        })
+        .catch(function() {
+          pollHealth(attempt + 1);
+        });
+    }, 5000);
+  }
+
+  connect();
+})();
+</script>

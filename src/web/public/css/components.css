@@ -2267,3 +2267,48 @@ button[aria-busy="true"] .btn-label-loading { display: inline !important; }
   font-size: 11px;
   color: var(--color-text-muted);
 }
+
+/* -----------------------------------------------------------------------
+   Deploy Log
+   ----------------------------------------------------------------------- */
+.deploy-log {
+  margin-top: 0.75rem;
+}
+
+.deploy-log__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.deploy-log__output {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-input);
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+}
+
+.deploy-log__line {
+  color: var(--color-text-muted);
+}
+
+.deploy-log__line--info {
+  color: var(--color-text-muted);
+}
+
+.deploy-log__line--success {
+  color: var(--color-success);
+}
+
+.deploy-log__line--error {
+  color: var(--color-error);
+}

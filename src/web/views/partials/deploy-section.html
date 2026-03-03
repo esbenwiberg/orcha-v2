@@ -1,0 +1,29 @@
+<div class="page-section" style="margin-top:1.5rem" id="deploy-section">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Self-Deploy</h2>
+      <p class="page-section__subtitle">Build and deploy from <%= it.sourceRepo %> (<%= it.sourceBranch %>)</p>
+    </div>
+  </div>
+
+  <div id="deploy-slot">
+    <% if (it.busy) { %>
+      <p class="text-muted" style="margin-bottom:0.75rem">A deploy is already in progress.</p>
+      <button class="btn btn-primary"
+        hx-get="/api/system/deploy/logs"
+        hx-target="#deploy-slot"
+        hx-swap="innerHTML">View logs</button>
+    <% } else { %>
+      <div style="display:flex;gap:0.75rem;align-items:center">
+        <button class="btn btn-primary" id="deploy-btn"
+          hx-post="/api/system/deploy"
+          hx-target="#deploy-slot"
+          hx-swap="innerHTML"
+          hx-confirm="Deploy the latest commit from '<%= it.sourceBranch %>' branch? This will rebuild and restart the app.">
+          Deploy Now
+        </button>
+        <span class="text-xs text-muted">ACR: <%= it.acrName %> &middot; App: <%= it.containerAppName %></span>
+      </div>
+    <% } %>
+  </div>
+</div>

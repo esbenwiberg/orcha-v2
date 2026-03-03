@@ -98,4 +98,8 @@
       >Clean worktrees</button>
     </div>
   </div>
+
+  <% if (it.deploy && it.deploy.configured) { %>
+  <%~ include('partials/deploy-section', it.deploy) %>
+  <% } %>
 </div>

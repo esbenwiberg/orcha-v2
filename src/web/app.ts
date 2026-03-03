@@ -26,6 +26,7 @@ import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
 import { ValidationManager } from '../validation/validation-manager.js';
+import { loadDeployConfig, Deployer } from '../deploy/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -125,8 +126,12 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
   // Claude permissions editor router
   app.use('/api', createClaudePermissionsRouter(eta));
 
+  // Self-deploy (optional — only if DEPLOY_* env vars are set)
+  const deployConfig = loadDeployConfig();
+  const deployer = deployConfig ? new Deployer(deployConfig) : null;
+
   // System stats + disk cleanup router
-  app.use('/api', createSystemRouter(eta, deps));
+  app.use('/api', createSystemRouter(eta, deps, deployer, deployConfig));
 
   // JSON API routes
   app.use('/api', createApiRouter(deps));
