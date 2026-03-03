@@ -1,41 +1,6 @@
 import { Router } from 'express';
 import type { Eta } from 'eta';
-import fs from 'node:fs';
-import path from 'node:path';
-
-interface ClaudeSettings {
-  permissions?: {
-    allow?: string[];
-    deny?: string[];
-  };
-  [key: string]: unknown;
-}
-
-const SETTINGS_PATH = path.resolve('.claude', 'settings.json');
-
-// Simple single-writer queue to avoid concurrent writes
-let _writeQueue = Promise.resolve();
-
-function readSettings(): ClaudeSettings {
-  if (!fs.existsSync(SETTINGS_PATH)) return {};
-  try {
-    return JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')) as ClaudeSettings;
-  } catch {
-    return {};
-  }
-}
-
-function writeSettings(settings: ClaudeSettings): void {
-  fs.mkdirSync(path.dirname(SETTINGS_PATH), { recursive: true });
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2) + '\n');
-}
-
-function enqueueWrite(fn: () => void): Promise<void> {
-  _writeQueue = _writeQueue.then(() => {
-    fn();
-  });
-  return _writeQueue;
-}
+import { readSettings, writeSettings, enqueueWrite } from './claude-settings-io.js';
 
 export function createClaudePermissionsRouter(eta: Eta): Router {
   const router = Router();

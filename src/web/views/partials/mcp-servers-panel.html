@@ -1,0 +1,75 @@
+<div id="mcp-servers-panel">
+  <% if (it.servers && it.servers.length > 0) { %>
+    <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem">
+      <% for (const srv of it.servers) { %>
+        <div class="perm-rule" style="display:flex;align-items:center;gap:0.75rem">
+          <code class="text-xs font-mono" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <%= srv.name %>
+          </code>
+          <span class="badge badge--running" style="flex-shrink:0"><%= it.serverType(srv.entry) %></span>
+          <code class="text-xs font-mono text-muted" style="flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <%= it.serverEndpoint(srv.entry) %>
+          </code>
+          <button
+            class="btn btn-xs"
+            style="color:var(--color-error);flex-shrink:0"
+            hx-delete="/api/mcp-servers/<%= encodeURIComponent(srv.name) %>"
+            hx-target="#mcp-servers-panel"
+            hx-swap="outerHTML"
+          >&times;</button>
+        </div>
+      <% } %>
+    </div>
+  <% } else { %>
+    <p class="text-xs text-muted" style="margin-bottom:1rem">No MCP servers configured</p>
+  <% } %>
+
+  <details>
+    <summary class="btn btn-xs btn-primary" style="cursor:pointer;list-style:none">+ Add MCP Server</summary>
+    <form
+      hx-post="/api/mcp-servers"
+      hx-target="#mcp-servers-panel"
+      hx-swap="outerHTML"
+      style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.5rem;max-width:480px"
+    >
+      <div style="display:flex;gap:0.5rem">
+        <input
+          name="name"
+          placeholder="Server name"
+          class="input input--sm"
+          style="flex:1;min-width:0"
+          required
+        />
+        <select name="type" class="input input--sm" style="width:auto" required
+          onchange="
+            var t = this.value;
+            var f = this.closest('form');
+            f.querySelector('[data-fields=url]').style.display = (t === 'url' || t === 'sse') ? '' : 'none';
+            f.querySelector('[data-fields=command]').style.display = (t === 'command') ? '' : 'none';
+          "
+        >
+          <option value="" disabled selected>Type...</option>
+          <option value="url">url</option>
+          <option value="sse">sse</option>
+          <option value="command">command</option>
+        </select>
+      </div>
+
+      <!-- URL / SSE fields -->
+      <div data-fields="url" style="display:none;flex-direction:column;gap:0.5rem">
+        <input name="url" placeholder="https://example.com/mcp" class="input input--sm" />
+        <textarea name="headers" placeholder="Headers (key: value per line)" class="input input--sm" rows="2" style="resize:vertical"></textarea>
+      </div>
+
+      <!-- Command fields -->
+      <div data-fields="command" style="display:none;flex-direction:column;gap:0.5rem">
+        <input name="command" placeholder="Command (e.g. npx)" class="input input--sm" />
+        <textarea name="args" placeholder="Arguments (one per line)" class="input input--sm" rows="2" style="resize:vertical"></textarea>
+      </div>
+
+      <div>
+        <button class="btn btn-xs btn-primary">Add</button>
+      </div>
+    </form>
+  </details>
+</div>

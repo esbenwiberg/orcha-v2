@@ -3,7 +3,6 @@ import { execSync } from 'node:child_process';
 export interface GitHubProfile {
   repos: string[];
   permissions: string[];
-  bootstrapPat: string;
   durationHours: number;
 }
 
@@ -12,8 +11,15 @@ export interface GitHubProvisionResult {
   env: { GH_TOKEN: string };
 }
 
-function getBootstrapToken(profile: GitHubProfile): string {
-  if (profile.bootstrapPat) return profile.bootstrapPat;
+let bootstrapPatResolver: (() => string | undefined) | undefined;
+
+export function setBootstrapPatResolver(fn: () => string | undefined): void {
+  bootstrapPatResolver = fn;
+}
+
+function getBootstrapToken(): string {
+  const fromResolver = bootstrapPatResolver?.();
+  if (fromResolver) return fromResolver;
   if (process.env['GITHUB_BOOTSTRAP_TOKEN']) return process.env['GITHUB_BOOTSTRAP_TOKEN'];
   if (process.env['GH_TOKEN']) return process.env['GH_TOKEN'];
   if (process.env['GITHUB_TOKEN']) return process.env['GITHUB_TOKEN'];
@@ -21,7 +27,7 @@ function getBootstrapToken(profile: GitHubProfile): string {
     return execSync('gh auth token', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
   } catch {
     throw new Error(
-      'No GitHub bootstrap token found. Set it in the credential profile or via GITHUB_BOOTSTRAP_TOKEN env var.',
+      'No GitHub bootstrap token found. Set it on the Settings page or via GITHUB_BOOTSTRAP_TOKEN env var.',
     );
   }
 }
@@ -29,7 +35,7 @@ function getBootstrapToken(profile: GitHubProfile): string {
 export class GitHubProvider {
   async preflight(profile: GitHubProfile): Promise<{ ok: boolean; reason?: string }> {
     try {
-      const token = getBootstrapToken(profile);
+      const token = getBootstrapToken();
       const resp = await fetch('https://api.github.com/user', {
         headers: {
           Authorization: `token ${token}`,
@@ -58,7 +64,7 @@ export class GitHubProvider {
   }
 
   async provision(profile: GitHubProfile): Promise<GitHubProvisionResult> {
-    const token = getBootstrapToken(profile);
+    const token = getBootstrapToken();
 
     const expiryDate = new Date();
     expiryDate.setHours(expiryDate.getHours() + profile.durationHours);
@@ -111,18 +117,8 @@ export class GitHubProvider {
     };
   }
 
-  async revoke(patId: string, bootstrapPat?: string): Promise<void> {
-    const token = bootstrapPat
-      ?? process.env['GITHUB_BOOTSTRAP_TOKEN']
-      ?? process.env['GH_TOKEN']
-      ?? process.env['GITHUB_TOKEN']
-      ?? (() => {
-        try {
-          return execSync('gh auth token', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
-        } catch {
-          throw new Error('No GitHub bootstrap token available for revocation.');
-        }
-      })();
+  async revoke(patId: string): Promise<void> {
+    const token = getBootstrapToken();
 
     const resp = await fetch(`https://api.github.com/user/personal-access-tokens/${patId}`, {
       method: 'DELETE',

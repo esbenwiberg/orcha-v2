@@ -91,33 +91,22 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       // GitHub
-      let github: { repos: string[]; permissions: string[]; bootstrapPat: string } | undefined;
+      let github: { repos: string[]; permissions: string[] } | undefined;
       const ghRepos = (body['githubRepos'] ?? '').trim();
-      const ghBootstrapPat = (body['githubBootstrapPat'] ?? '').trim();
       if (ghRepos) {
-        if (!ghBootstrapPat) {
-          res.status(422).send('<div class="badge badge--failed">Bootstrap PAT is required for GitHub</div>');
-          return;
-        }
         github = {
           repos: ghRepos.split(',').map((s) => s.trim()).filter(Boolean),
           permissions: (body['githubPermissions'] ?? '')
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean),
-          bootstrapPat: ghBootstrapPat,
         };
       }
 
       // DevOps
-      let devops: { org: string; project: string; scopes: string[]; bootstrapPat: string } | undefined;
+      let devops: { org: string; project: string; scopes: string[] } | undefined;
       const adoOrg = (body['devopsOrg'] ?? '').trim();
-      const adoBootstrapPat = (body['devopsBootstrapPat'] ?? '').trim();
       if (adoOrg) {
-        if (!adoBootstrapPat) {
-          res.status(422).send('<div class="badge badge--failed">Bootstrap PAT is required for Azure DevOps</div>');
-          return;
-        }
         devops = {
           org: adoOrg,
           project: (body['devopsProject'] ?? '').trim(),
@@ -125,7 +114,6 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean),
-          bootstrapPat: adoBootstrapPat,
         };
       }
 
@@ -201,39 +189,22 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       // GitHub
-      let github: { repos: string[]; permissions: string[]; bootstrapPat: string } | undefined;
+      let github: { repos: string[]; permissions: string[] } | undefined;
       const ghRepos = (body['githubRepos'] ?? '').trim();
-      const ghBootstrapPat = (body['githubBootstrapPat'] ?? '').trim();
       if (ghRepos) {
-        const existing = store.getProfile(id);
-        const existingGhPat = existing?.github?.bootstrapPat ?? '';
-        const resolvedGhPat = ghBootstrapPat || existingGhPat;
-        if (!resolvedGhPat) {
-          res.status(422).send('<div class="badge badge--failed">Bootstrap PAT is required for GitHub</div>');
-          return;
-        }
         github = {
           repos: ghRepos.split(',').map((s) => s.trim()).filter(Boolean),
           permissions: (body['githubPermissions'] ?? '')
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean),
-          bootstrapPat: resolvedGhPat,
         };
       }
 
       // DevOps
-      let devops: { org: string; project: string; scopes: string[]; bootstrapPat: string } | undefined;
+      let devops: { org: string; project: string; scopes: string[] } | undefined;
       const adoOrg = (body['devopsOrg'] ?? '').trim();
-      const adoBootstrapPat = (body['devopsBootstrapPat'] ?? '').trim();
       if (adoOrg) {
-        const existing = store.getProfile(id);
-        const existingPat = existing?.devops?.bootstrapPat ?? '';
-        const resolvedPat = adoBootstrapPat || existingPat;
-        if (!resolvedPat) {
-          res.status(422).send('<div class="badge badge--failed">Bootstrap PAT is required for Azure DevOps</div>');
-          return;
-        }
         devops = {
           org: adoOrg,
           project: (body['devopsProject'] ?? '').trim(),
@@ -241,7 +212,6 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean),
-          bootstrapPat: resolvedPat,
         };
       }
 

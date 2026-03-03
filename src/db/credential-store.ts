@@ -6,8 +6,6 @@ import type {
   CreateCredentialProfileInput,
   CreateSessionCredentialsInput,
 } from '../credentials/types.js';
-import { encrypt, decrypt } from '../credentials/crypto.js';
-
 export class CredentialStore {
   #db: Database.Database;
 
@@ -18,21 +16,21 @@ export class CredentialStore {
   // ── Credential Profiles ──────────────────────────────────────────────────
 
   #decryptGithub(raw: string): CredentialProfile['github'] {
-    const parsed = JSON.parse(raw) as { repos: string[]; permissions: string[]; bootstrapPat?: string };
-    return { ...parsed, bootstrapPat: parsed.bootstrapPat ? decrypt(parsed.bootstrapPat) : '' };
+    const parsed = JSON.parse(raw) as { repos: string[]; permissions: string[] };
+    return { repos: parsed.repos, permissions: parsed.permissions };
   }
 
-  #encryptGithub(github: { repos: string[]; permissions: string[]; bootstrapPat: string }): string {
-    return JSON.stringify({ ...github, bootstrapPat: encrypt(github.bootstrapPat) });
+  #encryptGithub(github: { repos: string[]; permissions: string[] }): string {
+    return JSON.stringify({ repos: github.repos, permissions: github.permissions });
   }
 
   #decryptDevops(raw: string): CredentialProfile['devops'] {
-    const parsed = JSON.parse(raw) as { org: string; project: string; scopes: string[]; bootstrapPat?: string };
-    return { ...parsed, bootstrapPat: parsed.bootstrapPat ? decrypt(parsed.bootstrapPat) : '' };
+    const parsed = JSON.parse(raw) as { org: string; project: string; scopes: string[] };
+    return { org: parsed.org, project: parsed.project, scopes: parsed.scopes };
   }
 
-  #encryptDevops(devops: { org: string; project: string; scopes: string[]; bootstrapPat: string }): string {
-    return JSON.stringify({ ...devops, bootstrapPat: encrypt(devops.bootstrapPat) });
+  #encryptDevops(devops: { org: string; project: string; scopes: string[] }): string {
+    return JSON.stringify({ org: devops.org, project: devops.project, scopes: devops.scopes });
   }
 
   #rowToProfile(row: Record<string, unknown>): CredentialProfile {

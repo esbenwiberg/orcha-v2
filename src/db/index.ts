@@ -7,4 +7,5 @@ export type { Preset, CreatePresetInput, PresetValidateFields } from './preset-s
 export { RepoStore, detectProvider, extractDisplayName, validateRepoUrl } from './repo-store.js';
 export type { Repo, CreateRepoInput, RepoProvider, RepoStatus, ValidateMode, RepoValidateFields } from './repo-store.js';
 export { CredentialStore } from './credential-store.js';
+export { GlobalSettingsStore } from './global-settings-store.js';
 export { ModelConfigStore } from './model-config-store.js';

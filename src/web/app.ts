@@ -20,13 +20,18 @@ import { createReposRouter } from './routes/repos.js';
 import { createEventsRouter } from './routes/events.js';
 import { createCredentialsRouter } from './routes/credentials.js';
 import { createClaudePermissionsRouter } from './routes/claude-permissions.js';
+import { createMcpServersRouter } from './routes/mcp-servers.js';
 import { createSystemRouter } from './routes/system.js';
 import { createModelConfigsRouter } from './routes/model-configs.js';
+import { createBootstrapPatsRouter } from './routes/bootstrap-pats.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
 import { ValidationManager } from '../validation/validation-manager.js';
 import { loadDeployConfig, Deployer } from '../deploy/index.js';
+import { GlobalSettingsStore } from '../db/global-settings-store.js';
+import { setBootstrapPatResolver as setGitHubBootstrapPatResolver } from '../credentials/providers/github.js';
+import { setBootstrapPatResolver as setDevOpsBootstrapPatResolver } from '../credentials/providers/devops.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,6 +46,11 @@ export interface AppDeps {
 
 export async function createApp(deps: AppDeps): Promise<express.Application> {
   const app = express();
+
+  // Wire bootstrap PAT resolvers so providers read from DB
+  const globalSettings = new GlobalSettingsStore(deps.db);
+  setGitHubBootstrapPatResolver(() => globalSettings.get('github_bootstrap_pat'));
+  setDevOpsBootstrapPatResolver(() => globalSettings.get('devops_bootstrap_pat'));
 
   // Trust the first proxy (Caddy) so express-session sets secure cookies correctly
   app.set('trust proxy', 1);
@@ -125,6 +135,12 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // Claude permissions editor router
   app.use('/api', createClaudePermissionsRouter(eta));
+
+  // MCP servers management router
+  app.use('/api', createMcpServersRouter(eta));
+
+  // Bootstrap PATs management router
+  app.use('/api', createBootstrapPatsRouter(eta, deps.db));
 
   // Self-deploy (optional — only if DEPLOY_* env vars are set)
   const deployConfig = loadDeployConfig();
