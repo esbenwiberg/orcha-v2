@@ -4,27 +4,22 @@ import type { AppDeps } from '../app.js';
 import { getStoragePaths } from '../../storage/paths.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
 import { SessionStore } from '../../db/session-store.js';
 import type { Deployer } from '../../deploy/deployer.js';
 import type { DeployConfig } from '../../deploy/deploy-config.js';
 
-function getDirSizeBytes(dirPath: string): number {
-  try {
-    if (!fs.existsSync(dirPath)) return 0;
-    let total = 0;
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true, recursive: true });
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      try {
-        total += fs.statSync(path.join(entry.parentPath, entry.name)).size;
-      } catch {
-        // skip files we can't stat
+function getDirSizeBytes(dirPath: string): Promise<number> {
+  return new Promise((resolve) => {
+    execFile('du', ['-sb', dirPath], { timeout: 30_000 }, (err, stdout) => {
+      if (err) {
+        resolve(0);
+        return;
       }
-    }
-    return total;
-  } catch {
-    return 0;
-  }
+      const bytes = parseInt(stdout.split('\t')[0] ?? '0', 10);
+      resolve(Number.isNaN(bytes) ? 0 : bytes);
+    });
+  });
 }
 
 function formatBytes(bytes: number): string {
@@ -44,7 +39,7 @@ function formatUptime(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-function buildStats(deps: AppDeps, deployConfig: DeployConfig | null, deployer: Deployer | null) {
+async function buildStats(deps: AppDeps, deployConfig: DeployConfig | null, deployer: Deployer | null) {
   const paths = getStoragePaths();
 
   let dbStatus = 'error';
@@ -53,9 +48,11 @@ function buildStats(deps: AppDeps, deployConfig: DeployConfig | null, deployer: 
     dbStatus = 'ok';
   } catch {}
 
-  const worktreesBytes = getDirSizeBytes(paths.worktreeBaseDir);
-  const bareReposBytes = getDirSizeBytes(paths.bareRepoDir);
-  const logsBytes = getDirSizeBytes(paths.logsDir);
+  const [worktreesBytes, bareReposBytes, logsBytes] = await Promise.all([
+    getDirSizeBytes(paths.worktreeBaseDir),
+    getDirSizeBytes(paths.bareRepoDir),
+    getDirSizeBytes(paths.logsDir),
+  ]);
   const totalBytes = worktreesBytes + bareReposBytes + logsBytes;
 
   return {
@@ -93,9 +90,9 @@ export function createSystemRouter(
   const router = Router();
 
   // GET /api/system/stats — render system stats partial
-  router.get('/system/stats', (_req, res, next) => {
+  router.get('/system/stats', async (_req, res, next) => {
     try {
-      const stats = buildStats(deps, deployConfig, deployer);
+      const stats = await buildStats(deps, deployConfig, deployer);
       const html = eta.render('partials/system-stats', stats);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -105,7 +102,7 @@ export function createSystemRouter(
   });
 
   // POST /api/system/clean/logs — delete log files older than 7 days
-  router.post('/system/clean/logs', (_req, res, next) => {
+  router.post('/system/clean/logs', async (_req, res, next) => {
     try {
       const { logsDir } = getStoragePaths();
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -124,7 +121,7 @@ export function createSystemRouter(
         }
       }
 
-      const stats = buildStats(deps, deployConfig, deployer);
+      const stats = await buildStats(deps, deployConfig, deployer);
       const html = eta.render('partials/system-stats', stats);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -134,7 +131,7 @@ export function createSystemRouter(
   });
 
   // POST /api/system/clean/worktrees — remove worktrees for stopped sessions
-  router.post('/system/clean/worktrees', (_req, res, next) => {
+  router.post('/system/clean/worktrees', async (_req, res, next) => {
     try {
       const { worktreeBaseDir } = getStoragePaths();
       const sessionStore = new SessionStore(deps.db);
@@ -163,7 +160,7 @@ export function createSystemRouter(
         }
       }
 
-      const stats = buildStats(deps, deployConfig, deployer);
+      const stats = await buildStats(deps, deployConfig, deployer);
       const html = eta.render('partials/system-stats', stats);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
