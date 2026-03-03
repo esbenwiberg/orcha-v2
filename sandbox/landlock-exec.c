@@ -5,8 +5,9 @@
  *   landlock-exec <worktree> <home-dir> [extra-rw-path ...] -- <command> [args...]
  *
  * Grants:
- *   read+write: worktree, <home-dir>/.claude, /tmp, any extra-rw-paths
- *   read-only:  /usr /lib /lib64 /bin /sbin /etc /proc /run /var/lib/dpkg
+ *   read+write: worktree, <home-dir>/.claude, /tmp, any extra-rw-paths,
+ *               /dev/null, /dev/zero, /dev/urandom, /dev/tty
+ *   read-only:  /usr /lib /lib64 /bin /sbin /etc /proc /run /var/lib/dpkg /sys
  *
  * Falls back gracefully (logs + execs without restriction) when Landlock is
  * not supported by the kernel.  Requires Linux >= 5.13 for any restriction.
@@ -138,7 +139,6 @@ int main(int argc, char *argv[]) {
         "/usr", "/lib", "/lib64", "/bin", "/sbin",
         "/etc", "/proc", "/run",
         "/var/lib/dpkg",   /* dpkg db — some tools query it */
-        "/dev",            /* /dev/null, /dev/tty, /dev/urandom etc */
         "/sys",            /* sysfs — some Node.js internals read it */
         NULL,
     };
