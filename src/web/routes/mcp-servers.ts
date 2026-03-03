@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import type { Eta } from 'eta';
-import { readSettings, writeSettings, enqueueWrite } from './claude-settings-io.js';
-import type { McpServerEntry } from './claude-settings-io.js';
+import type Database from 'better-sqlite3';
+import { GlobalSettingsStore } from '../../db/global-settings-store.js';
+import { readSettingsFromDb, writeSettingsToDb, enqueueWrite } from './claude-settings-db.js';
+import type { McpServerEntry } from './claude-settings-db.js';
 
 /** Names that are auto-injected and should not be shown or touched by the user. */
 const HIDDEN_SERVERS = new Set(['validate']);
@@ -33,11 +35,12 @@ function serverEndpoint(entry: McpServerEntry): string {
   return '';
 }
 
-export function createMcpServersRouter(eta: Eta): Router {
+export function createMcpServersRouter(eta: Eta, db: Database.Database): Router {
   const router = Router();
+  const settingsStore = new GlobalSettingsStore(db);
 
   function renderPanel(res: import('express').Response): void {
-    const settings = readSettings();
+    const settings = readSettingsFromDb(settingsStore);
     const servers = visibleServers(settings.mcpServers);
     const html = eta.render('partials/mcp-servers-panel', {
       servers,
@@ -126,11 +129,11 @@ export function createMcpServersRouter(eta: Eta): Router {
       }
 
       await enqueueWrite(() => {
-        const settings = readSettings();
+        const settings = readSettingsFromDb(settingsStore);
         const mcpServers = settings.mcpServers ?? {};
         mcpServers[name] = entry;
         settings.mcpServers = mcpServers;
-        writeSettings(settings);
+        writeSettingsToDb(settingsStore, settings);
       });
 
       renderPanel(res);
@@ -150,13 +153,13 @@ export function createMcpServersRouter(eta: Eta): Router {
       }
 
       await enqueueWrite(() => {
-        const settings = readSettings();
+        const settings = readSettingsFromDb(settingsStore);
         if (settings.mcpServers) {
           delete settings.mcpServers[name];
           if (Object.keys(settings.mcpServers).length === 0) {
             delete settings.mcpServers;
           }
-          writeSettings(settings);
+          writeSettingsToDb(settingsStore, settings);
         }
       });
 

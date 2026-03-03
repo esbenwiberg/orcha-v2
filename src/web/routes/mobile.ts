@@ -10,6 +10,8 @@ import { CredentialStore } from '../../db/credential-store.js';
 import { PresetStore } from '../../db/preset-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
+import { GlobalSettingsStore } from '../../db/global-settings-store.js';
+import { readSettingsFromDb } from './claude-settings-db.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
@@ -35,6 +37,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
   const presetStore = new PresetStore(deps.db);
   const repoStore = new RepoStore(deps.db);
   const modelConfigStore = new ModelConfigStore(deps.db);
+  const globalSettingsStore = new GlobalSettingsStore(deps.db);
 
   // GET / — mobile shell with bottom-tab navigation
   router.get('/', (_req, res, next) => {
@@ -225,11 +228,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
           }
 
-          const sharedSettings = join(homedir(), '.claude', 'settings.json');
-          let settings: Record<string, unknown> = {};
-          if (existsSync(sharedSettings)) {
-            try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
-          }
+          const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
           writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');

@@ -11,6 +11,7 @@ import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
+import { readSettingsFromDb } from './claude-settings-db.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
@@ -275,13 +276,9 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             appendFileSync(join(sessionHome, '.gitconfig'), section);
           }
 
-          // Build settings.json for this session: start from shared settings,
+          // Build settings.json for this session: start from DB-persisted settings,
           // then ensure theme=dark is set so claude skips the first-run picker.
-          const sharedSettings = join(homedir(), '.claude', 'settings.json');
-          let settings: Record<string, unknown> = {};
-          if (existsSync(sharedSettings)) {
-            try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
-          }
+          const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
           // Inject MCP validation server config
@@ -534,11 +531,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           }
 
           // Rebuild settings.json with theme + MCP validation server
-          const sharedSettings = join(homedir(), '.claude', 'settings.json');
-          let settings: Record<string, unknown> = {};
-          if (existsSync(sharedSettings)) {
-            try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
-          }
+          const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
           const orchaPort = process.env['PORT'] ?? '3001';
           const mcpServers = (settings['mcpServers'] ?? {}) as Record<string, unknown>;

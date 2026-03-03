@@ -133,10 +133,10 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
   app.use('/api', createModelConfigsRouter(eta, deps));
 
   // Claude permissions editor router
-  app.use('/api', createClaudePermissionsRouter(eta));
+  app.use('/api', createClaudePermissionsRouter(eta, deps.db));
 
   // MCP servers management router
-  app.use('/api', createMcpServersRouter(eta));
+  app.use('/api', createMcpServersRouter(eta, deps.db));
 
   // Bootstrap PATs management router
   app.use('/api', createBootstrapPatsRouter(eta, deps.db));

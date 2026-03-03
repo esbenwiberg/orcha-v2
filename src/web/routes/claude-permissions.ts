@@ -1,14 +1,17 @@
 import { Router } from 'express';
 import type { Eta } from 'eta';
-import { readSettings, writeSettings, enqueueWrite } from './claude-settings-io.js';
+import type Database from 'better-sqlite3';
+import { GlobalSettingsStore } from '../../db/global-settings-store.js';
+import { readSettingsFromDb, writeSettingsToDb, enqueueWrite } from './claude-settings-db.js';
 
-export function createClaudePermissionsRouter(eta: Eta): Router {
+export function createClaudePermissionsRouter(eta: Eta, db: Database.Database): Router {
   const router = Router();
+  const settingsStore = new GlobalSettingsStore(db);
 
   // GET /api/claude-permissions — render the permissions panel partial
   router.get('/claude-permissions', (_req, res, next) => {
     try {
-      const settings = readSettings();
+      const settings = readSettingsFromDb(settingsStore);
       const allow = settings.permissions?.allow ?? [];
       const deny = settings.permissions?.deny ?? [];
       const html = eta.render('partials/claude-permissions-panel', { allow, deny });
@@ -29,18 +32,18 @@ export function createClaudePermissionsRouter(eta: Eta): Router {
       }
 
       await enqueueWrite(() => {
-        const settings = readSettings();
+        const settings = readSettingsFromDb(settingsStore);
         const allow = settings.permissions?.allow ?? [];
         if (!allow.includes(rule)) {
           settings.permissions = {
             allow: [...allow, rule],
             deny: settings.permissions?.deny ?? [],
           };
-          writeSettings(settings);
+          writeSettingsToDb(settingsStore, settings);
         }
       });
 
-      const settings = readSettings();
+      const settings = readSettingsFromDb(settingsStore);
       const html = eta.render('partials/claude-permissions-panel', {
         allow: settings.permissions?.allow ?? [],
         deny: settings.permissions?.deny ?? [],
@@ -58,15 +61,15 @@ export function createClaudePermissionsRouter(eta: Eta): Router {
       const rule = decodeURIComponent(req.params['encoded'] ?? '');
 
       await enqueueWrite(() => {
-        const settings = readSettings();
+        const settings = readSettingsFromDb(settingsStore);
         settings.permissions = {
           allow: (settings.permissions?.allow ?? []).filter((r) => r !== rule),
           deny: settings.permissions?.deny ?? [],
         };
-        writeSettings(settings);
+        writeSettingsToDb(settingsStore, settings);
       });
 
-      const settings = readSettings();
+      const settings = readSettingsFromDb(settingsStore);
       const html = eta.render('partials/claude-permissions-panel', {
         allow: settings.permissions?.allow ?? [],
         deny: settings.permissions?.deny ?? [],
@@ -88,18 +91,18 @@ export function createClaudePermissionsRouter(eta: Eta): Router {
       }
 
       await enqueueWrite(() => {
-        const settings = readSettings();
+        const settings = readSettingsFromDb(settingsStore);
         const deny = settings.permissions?.deny ?? [];
         if (!deny.includes(rule)) {
           settings.permissions = {
             allow: settings.permissions?.allow ?? [],
             deny: [...deny, rule],
           };
-          writeSettings(settings);
+          writeSettingsToDb(settingsStore, settings);
         }
       });
 
-      const settings = readSettings();
+      const settings = readSettingsFromDb(settingsStore);
       const html = eta.render('partials/claude-permissions-panel', {
         allow: settings.permissions?.allow ?? [],
         deny: settings.permissions?.deny ?? [],
@@ -117,15 +120,15 @@ export function createClaudePermissionsRouter(eta: Eta): Router {
       const rule = decodeURIComponent(req.params['encoded'] ?? '');
 
       await enqueueWrite(() => {
-        const settings = readSettings();
+        const settings = readSettingsFromDb(settingsStore);
         settings.permissions = {
           allow: settings.permissions?.allow ?? [],
           deny: (settings.permissions?.deny ?? []).filter((r) => r !== rule),
         };
-        writeSettings(settings);
+        writeSettingsToDb(settingsStore, settings);
       });
 
-      const settings = readSettings();
+      const settings = readSettingsFromDb(settingsStore);
       const html = eta.render('partials/claude-permissions-panel', {
         allow: settings.permissions?.allow ?? [],
         deny: settings.permissions?.deny ?? [],
