@@ -489,6 +489,54 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
+      // Rebuild per-session HOME dir if it was lost (e.g. container restart).
+      // The HOME dir lives on /tmp which is ephemeral; reopen must restore it
+      // so git (.gitconfig safe.directory) and Claude (settings, credentials) work.
+      const originalEnv = existing.config.env ?? {};
+      const sessionHome = originalEnv['HOME'];
+      if (sessionHome && !existsSync(join(sessionHome, '.gitconfig'))) {
+        try {
+          const claudeDir = join(sessionHome, '.claude');
+          mkdirSync(claudeDir, { recursive: true });
+
+          // Copy .gitconfig (safe.directory = *)
+          const srcGitconfig = join(homedir(), '.gitconfig');
+          if (existsSync(srcGitconfig)) {
+            copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
+          }
+
+          // Rebuild settings.json with theme + MCP validation server
+          const sharedSettings = join(homedir(), '.claude', 'settings.json');
+          let settings: Record<string, unknown> = {};
+          if (existsSync(sharedSettings)) {
+            try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
+          }
+          if (!('theme' in settings)) settings['theme'] = 'dark';
+          const orchaPort = process.env['PORT'] ?? '3001';
+          const mcpServers = (settings['mcpServers'] ?? {}) as Record<string, unknown>;
+          mcpServers['validate'] = {
+            type: 'sse',
+            url: `http://localhost:${orchaPort}/mcp/validate/${id}`,
+          };
+          settings['mcpServers'] = mcpServers;
+          writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+
+          // Restore credentials if available
+          const modelConfigId = existing.config.modelConfigId;
+          if (modelConfigId) {
+            const modelConfigStore = new ModelConfigStore(deps.db);
+            const modelConfig = modelConfigStore.getConfig(modelConfigId);
+            if (modelConfig?.credentialsJson) {
+              writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
+            }
+          }
+
+          console.log(`[sessions] rebuilt per-session HOME=${sessionHome} for reopen id=${id}`);
+        } catch (err) {
+          console.warn('[sessions] Failed to rebuild per-session home dir on reopen:', err);
+        }
+      }
+
       const activeSession = await deps.sessionEngine.reopenSession(id);
       eventBus.publish({ sessionId: activeSession.sessionId, type: 'status', status: 'running' });
 
