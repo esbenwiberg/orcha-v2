@@ -54,6 +54,52 @@
 <div class="page-section" style="margin-bottom: 1rem">
   <div class="page-section__header">
     <div>
+      <h2 class="page-section__title">Keyboard Shortcuts</h2>
+      <p class="page-section__subtitle">Tmux-style prefix shortcuts for terminal navigation</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Orcha uses a <strong>Ctrl+A</strong> prefix system (similar to tmux). Press <kbd>Ctrl+A</kbd> first, then press the action key within 2 seconds.</p>
+    <h3>Prefix shortcuts (Ctrl+A, then…)</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><kbd>Enter</kbd></td><td>Toggle fullscreen on focused session</td></tr>
+        <tr><td><kbd>&uarr;</kbd> <kbd>&darr;</kbd> <kbd>&larr;</kbd> <kbd>&rarr;</kbd></td><td>Navigate to adjacent session in grid</td></tr>
+        <tr><td><kbd>1</kbd>–<kbd>9</kbd></td><td>Jump to session by position</td></tr>
+        <tr><td><kbd>W</kbd></td><td>Close terminal panel (disconnect, keep session alive)</td></tr>
+        <tr><td><kbd>X</kbd></td><td>Stop session (sends SIGTERM)</td></tr>
+        <tr><td><kbd>Ctrl+A</kbd></td><td>Send literal Ctrl+A to terminal</td></tr>
+      </tbody>
+    </table>
+    <h3>Global shortcuts</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><kbd>Escape</kbd></td><td>Exit fullscreen mode</td></tr>
+        <tr><td><kbd>Ctrl+V</kbd> / <kbd>Cmd+V</kbd></td><td>Paste (auto-detects and uploads images)</td></tr>
+      </tbody>
+    </table>
+    <h3>Terminal behavior</h3>
+    <ul>
+      <li><strong>Auto-copy on selection</strong> — selecting text in a terminal automatically copies it to clipboard</li>
+    </ul>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
       <h2 class="page-section__title">Presets</h2>
       <p class="page-section__subtitle">Reusable session templates</p>
     </div>
