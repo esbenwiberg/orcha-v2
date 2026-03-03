@@ -51,12 +51,19 @@ describe('buildSandboxedCommand — bwrap mode', () => {
     expect(result[0]).toBe('bwrap');
   });
 
-  it('binds worktree to /workspace', () => {
+  it('binds worktree at its original path', () => {
     const result = buildSandboxedCommand('/my/worktree', ['bash'], bwrapConfig, '/home/orcha');
     const bindIdx = result.indexOf('--bind');
     expect(bindIdx).toBeGreaterThan(0);
     expect(result[bindIdx + 1]).toBe('/my/worktree');
-    expect(result[bindIdx + 2]).toBe('/workspace');
+    expect(result[bindIdx + 2]).toBe('/my/worktree');
+  });
+
+  it('sets chdir to original worktree path', () => {
+    const result = buildSandboxedCommand('/my/worktree', ['bash'], bwrapConfig, '/home/orcha');
+    const chdirIdx = result.indexOf('--chdir');
+    expect(chdirIdx).toBeGreaterThan(0);
+    expect(result[chdirIdx + 1]).toBe('/my/worktree');
   });
 
   it('mounts .claude config dir', () => {
@@ -68,5 +75,27 @@ describe('buildSandboxedCommand — bwrap mode', () => {
     const result = buildSandboxedCommand('/my/worktree', ['bash'], bwrapConfig, '/home/orcha');
     expect(result).toContain('--tmpfs');
     expect(result).toContain('/tmp');
+  });
+
+  it('bind-mounts extra RW paths', () => {
+    const result = buildSandboxedCommand(
+      '/my/worktree', ['bash'], bwrapConfig, '/home/orcha',
+      ['/data/bare-repos/foo'],
+    );
+    // Find the extra bind-mount (after the worktree bind)
+    const allBindIdxs: number[] = [];
+    result.forEach((arg, i) => { if (arg === '--bind') allBindIdxs.push(i); });
+    const extraBind = allBindIdxs.find((i) => result[i + 1] === '/data/bare-repos/foo');
+    expect(extraBind).toBeDefined();
+    expect(result[extraBind! + 2]).toBe('/data/bare-repos/foo');
+  });
+
+  it('mounts /etc/passwd read-only', () => {
+    const result = buildSandboxedCommand('/my/worktree', ['bash'], bwrapConfig, '/home/orcha');
+    const passwdIdx = result.indexOf('/etc/passwd');
+    expect(passwdIdx).toBeGreaterThan(0);
+    // Should be mounted via --ro-bind-try
+    expect(result[passwdIdx - 1]).toBe('/etc/passwd');
+    expect(result[passwdIdx - 2]).toBe('--ro-bind-try');
   });
 });

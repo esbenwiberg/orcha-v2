@@ -47,6 +47,9 @@ export function buildSandboxedCommand(
 
   if (config.mode === 'bwrap') {
     const claudeConfigDir = `${home}/.claude`;
+    // Mount worktree at its original path (not /workspace) so that .git file
+    // references to the bare repo resolve correctly inside the namespace.
+    const extraBinds = extraRwPaths.flatMap((p) => ['--bind', p, p]);
     return [
       'bwrap',
       '--ro-bind', '/usr', '/usr',
@@ -56,10 +59,12 @@ export function buildSandboxedCommand(
       '--ro-bind', '/etc/resolv.conf', '/etc/resolv.conf',
       '--ro-bind-try', '/etc/ssl', '/etc/ssl',
       '--ro-bind-try', '/etc/ca-certificates', '/etc/ca-certificates',
-      '--bind', worktreePath, '/workspace',
+      '--ro-bind-try', '/etc/passwd', '/etc/passwd',
+      '--bind', worktreePath, worktreePath,
       '--bind-try', claudeConfigDir, claudeConfigDir,
+      ...extraBinds,
       '--tmpfs', '/tmp',
-      '--chdir', '/workspace',
+      '--chdir', worktreePath,
       '--unshare-pid',
       '--new-session',
       '--die-with-parent',

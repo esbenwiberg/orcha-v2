@@ -114,6 +114,14 @@ export class SessionManager {
 
     // Step 2: Spawn PTY
     let terminal: SessionTerminal;
+    // Grant the sandbox RW access to the bare repo so git operations
+    // (commit, push) can update refs and write objects through the worktree
+    // .git symlink that points back to the bare repo.
+    const extraRwPaths: string[] = [];
+    if (opts.repoRoot !== undefined && opts.repoRoot !== worktree.path) {
+      extraRwPaths.push(opts.repoRoot);
+    }
+
     const spawnOpts: PtySpawnOptions = {
       sessionId,
       cwd: worktree.path,
@@ -126,6 +134,7 @@ export class SessionManager {
       },
       ...(opts.sandbox !== undefined ? { sandbox: opts.sandbox } : {}),
       ...(opts.deleteEnv !== undefined ? { deleteEnv: opts.deleteEnv } : {}),
+      ...(extraRwPaths.length > 0 ? { extraRwPaths } : {}),
     };
 
     try {
@@ -333,6 +342,13 @@ export class SessionManager {
     const modelProvider = dbSession.config.modelProvider;
 
     // Step 4: Spawn PTY in existing worktree with full context
+    // Grant sandbox RW access to the bare repo (same as createSession)
+    const repoRoot = dbSession.worktree.repoRoot;
+    const extraRwPaths: string[] = [];
+    if (repoRoot !== undefined && repoRoot !== worktreePath) {
+      extraRwPaths.push(repoRoot);
+    }
+
     let terminal: SessionTerminal;
     const spawnOpts: PtySpawnOptions = {
       sessionId,
@@ -343,6 +359,7 @@ export class SessionManager {
       size: { cols: 220, rows: 50 },
       ...(opts?.sandbox !== undefined ? { sandbox: opts.sandbox } : {}),
       ...(dbSession.config.deleteEnv !== undefined ? { deleteEnv: dbSession.config.deleteEnv } : {}),
+      ...(extraRwPaths.length > 0 ? { extraRwPaths } : {}),
     };
 
     try {
