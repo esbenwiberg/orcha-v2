@@ -695,6 +695,14 @@ body.has-fullscreen-terminal {
   display: flex;
 }
 
+/* Auth slot — always visible (even in compact mode) when it has content */
+.session-card__auth-slot:empty {
+  display: none;
+}
+.session-card__auth-slot {
+  padding: 0 0.75rem;
+}
+
 /* -----------------------------------------------------------------------
    Confirm dialog (overlays the card body)
    ----------------------------------------------------------------------- */

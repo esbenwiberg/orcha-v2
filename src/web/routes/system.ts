@@ -2,7 +2,6 @@ import { Router, type Request, type Response } from 'express';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { getStoragePaths } from '../../storage/paths.js';
-import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { SessionStore } from '../../db/session-store.js';
@@ -12,8 +11,17 @@ import type { DeployConfig } from '../../deploy/deploy-config.js';
 function getDirSizeBytes(dirPath: string): number {
   try {
     if (!fs.existsSync(dirPath)) return 0;
-    const output = execSync(`du -sb "${dirPath}" 2>/dev/null`, { encoding: 'utf8' });
-    return parseInt(output.split('\t')[0] ?? '0', 10);
+    let total = 0;
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true, recursive: true });
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      try {
+        total += fs.statSync(path.join(entry.parentPath, entry.name)).size;
+      } catch {
+        // skip files we can't stat
+      }
+    }
+    return total;
   } catch {
     return 0;
   }
