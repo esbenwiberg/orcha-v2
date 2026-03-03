@@ -39,7 +39,54 @@ function formatUptime(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-async function buildStats(deps: AppDeps, deployConfig: DeployConfig | null, deployer: Deployer | null) {
+// ── Disk size cache (60s TTL, stale-while-revalidate) ────────────────────────
+interface DiskCache {
+  worktreesBytes: number;
+  bareReposBytes: number;
+  logsBytes: number;
+  updatedAt: number;
+}
+
+const DISK_CACHE_TTL_MS = 60_000;
+let diskCache: DiskCache | null = null;
+let diskCacheRefreshing = false;
+
+async function refreshDiskCache(): Promise<DiskCache> {
+  const paths = getStoragePaths();
+  const [worktreesBytes, bareReposBytes, logsBytes] = await Promise.all([
+    getDirSizeBytes(paths.worktreeBaseDir),
+    getDirSizeBytes(paths.bareRepoDir),
+    getDirSizeBytes(paths.logsDir),
+  ]);
+  diskCache = { worktreesBytes, bareReposBytes, logsBytes, updatedAt: Date.now() };
+  return diskCache;
+}
+
+async function getDiskSizes(): Promise<DiskCache> {
+  // No cache yet — must wait for first fetch
+  if (!diskCache) {
+    return refreshDiskCache();
+  }
+  // Cache is fresh — return it
+  if (Date.now() - diskCache.updatedAt < DISK_CACHE_TTL_MS) {
+    return diskCache;
+  }
+  // Cache is stale — return stale data, refresh in background
+  if (!diskCacheRefreshing) {
+    diskCacheRefreshing = true;
+    refreshDiskCache().finally(() => {
+      diskCacheRefreshing = false;
+    });
+  }
+  return diskCache;
+}
+
+function buildStats(
+  deps: AppDeps,
+  deployConfig: DeployConfig | null,
+  deployer: Deployer | null,
+  disk: DiskCache,
+) {
   const paths = getStoragePaths();
 
   let dbStatus = 'error';
@@ -48,12 +95,7 @@ async function buildStats(deps: AppDeps, deployConfig: DeployConfig | null, depl
     dbStatus = 'ok';
   } catch {}
 
-  const [worktreesBytes, bareReposBytes, logsBytes] = await Promise.all([
-    getDirSizeBytes(paths.worktreeBaseDir),
-    getDirSizeBytes(paths.bareRepoDir),
-    getDirSizeBytes(paths.logsDir),
-  ]);
-  const totalBytes = worktreesBytes + bareReposBytes + logsBytes;
+  const totalBytes = disk.worktreesBytes + disk.bareReposBytes + disk.logsBytes;
 
   return {
     uptime: formatUptime(process.uptime()),
@@ -62,9 +104,9 @@ async function buildStats(deps: AppDeps, deployConfig: DeployConfig | null, depl
     dataDir: paths.dataDir,
     disk: {
       total: { bytes: totalBytes, formatted: formatBytes(totalBytes) },
-      worktrees: { bytes: worktreesBytes, formatted: formatBytes(worktreesBytes), path: paths.worktreeBaseDir },
-      bareRepos: { bytes: bareReposBytes, formatted: formatBytes(bareReposBytes), path: paths.bareRepoDir },
-      logs: { bytes: logsBytes, formatted: formatBytes(logsBytes), path: paths.logsDir },
+      worktrees: { bytes: disk.worktreesBytes, formatted: formatBytes(disk.worktreesBytes), path: paths.worktreeBaseDir },
+      bareRepos: { bytes: disk.bareReposBytes, formatted: formatBytes(disk.bareReposBytes), path: paths.bareRepoDir },
+      logs: { bytes: disk.logsBytes, formatted: formatBytes(disk.logsBytes), path: paths.logsDir },
     },
     ...(deployConfig
       ? {
@@ -92,7 +134,8 @@ export function createSystemRouter(
   // GET /api/system/stats — render system stats partial
   router.get('/system/stats', async (_req, res, next) => {
     try {
-      const stats = await buildStats(deps, deployConfig, deployer);
+      const disk = await getDiskSizes();
+      const stats = buildStats(deps, deployConfig, deployer, disk);
       const html = eta.render('partials/system-stats', stats);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -121,7 +164,10 @@ export function createSystemRouter(
         }
       }
 
-      const stats = await buildStats(deps, deployConfig, deployer);
+      // Invalidate cache after cleanup, then fetch fresh
+      diskCache = null;
+      const disk = await getDiskSizes();
+      const stats = buildStats(deps, deployConfig, deployer, disk);
       const html = eta.render('partials/system-stats', stats);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -160,7 +206,10 @@ export function createSystemRouter(
         }
       }
 
-      const stats = await buildStats(deps, deployConfig, deployer);
+      // Invalidate cache after cleanup, then fetch fresh
+      diskCache = null;
+      const disk = await getDiskSizes();
+      const stats = buildStats(deps, deployConfig, deployer, disk);
       const html = eta.render('partials/system-stats', stats);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
