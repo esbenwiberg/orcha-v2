@@ -69,7 +69,7 @@ async function cmdInit(cwd: string, dryRun: boolean): Promise<void> {
     items.push(`Azure SP: ${profile.azure.role} on [${profile.azure.resourceGroups.join(', ')}]`);
   }
   if (profile.github) {
-    items.push(`GitHub PAT: ${profile.github.permissions.join(', ')}`);
+    items.push(`GitHub PAT: ${profile.github.pat ? 'profile PAT' : 'bootstrap PAT (fallback)'}`);
   }
   if (profile.devops) {
     items.push(`DevOps PAT: ${profile.devops.scopes.join(', ')}`);
@@ -113,8 +113,8 @@ async function cmdInit(cwd: string, dryRun: boolean): Promise<void> {
   try {
     if (profile.github) {
       const gh = new GitHubProvider();
-      const result = await gh.provision({ ...profile.github, durationHours: profile.durationHours });
-      githubPatId = result.patId;
+      const result = await gh.provision(profile.github);
+      if (result.patId) githubPatId = result.patId;
       Object.assign(env, result.env);
     }
   } catch (err) {

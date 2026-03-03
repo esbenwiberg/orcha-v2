@@ -16,12 +16,12 @@ export class CredentialStore {
   // ── Credential Profiles ──────────────────────────────────────────────────
 
   #decryptGithub(raw: string): CredentialProfile['github'] {
-    const parsed = JSON.parse(raw) as { repos: string[]; permissions: string[] };
-    return { repos: parsed.repos, permissions: parsed.permissions };
+    const parsed = JSON.parse(raw) as { pat?: string };
+    return { ...(parsed.pat !== undefined ? { pat: parsed.pat } : {}) };
   }
 
-  #encryptGithub(github: { repos: string[]; permissions: string[] }): string {
-    return JSON.stringify({ repos: github.repos, permissions: github.permissions });
+  #encryptGithub(github: { pat?: string }): string {
+    return JSON.stringify({ ...(github.pat !== undefined ? { pat: github.pat } : {}) });
   }
 
   #decryptDevops(raw: string): CredentialProfile['devops'] {

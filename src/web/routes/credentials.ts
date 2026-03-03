@@ -91,16 +91,10 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       // GitHub
-      let github: { repos: string[]; permissions: string[] } | undefined;
-      const ghRepos = (body['githubRepos'] ?? '').trim();
-      if (ghRepos) {
-        github = {
-          repos: ghRepos.split(',').map((s) => s.trim()).filter(Boolean),
-          permissions: (body['githubPermissions'] ?? '')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean),
-        };
+      let github: { pat?: string } | undefined;
+      const ghPat = (body['githubPat'] ?? '').trim();
+      if (ghPat) {
+        github = { pat: ghPat };
       }
 
       // DevOps
@@ -189,16 +183,10 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       // GitHub
-      let github: { repos: string[]; permissions: string[] } | undefined;
-      const ghRepos = (body['githubRepos'] ?? '').trim();
-      if (ghRepos) {
-        github = {
-          repos: ghRepos.split(',').map((s) => s.trim()).filter(Boolean),
-          permissions: (body['githubPermissions'] ?? '')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean),
-        };
+      let github: { pat?: string } | undefined;
+      const ghPat = (body['githubPat'] ?? '').trim();
+      if (ghPat) {
+        github = { pat: ghPat };
       }
 
       // DevOps
