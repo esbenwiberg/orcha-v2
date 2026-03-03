@@ -52,6 +52,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         validateHealth: repo.validateHealth ?? '',
         validateComposeFile: repo.validateComposeFile ?? '',
         validateTimeout: repo.validateTimeout,
+        envVars: repo.envVars,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -83,6 +84,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
           validateHealth: repo?.validateHealth ?? '',
           validateComposeFile: repo?.validateComposeFile ?? '',
           validateTimeout: repo?.validateTimeout ?? 300,
+          envVars: repo?.envVars ?? {},
         });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -91,6 +93,23 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       store.updateDisplayName(id, displayName);
+
+      // Update env vars
+      const envKeys = req.body['envKeys[]'];
+      const envValues = req.body['envValues[]'];
+      const envKeysArr: string[] = Array.isArray(envKeys) ? envKeys : (envKeys ? [envKeys] : []);
+      const envValuesArr: string[] = Array.isArray(envValues) ? envValues : (envValues ? [envValues] : []);
+      const envVars: Record<string, string> = {};
+      for (let i = 0; i < envKeysArr.length; i++) {
+        const rawKey = envKeysArr[i];
+        const rawVal = envValuesArr[i];
+        const k = (typeof rawKey === 'string' ? rawKey : '').trim();
+        const v = typeof rawVal === 'string' ? rawVal : '';
+        if (k.length > 0) {
+          envVars[k] = v;
+        }
+      }
+      store.setEnvVars(id, envVars);
 
       // Update validation config fields
       const validateMode = (typeof req.body['validateMode'] === 'string' ? req.body['validateMode'] : '').trim();

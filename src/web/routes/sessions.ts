@@ -211,6 +211,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       // Provision credentials if a profile was selected
       const env: Record<string, string> = {};
+
+      // 1. Repo-level env vars (lowest priority — overridable by credentials + model config)
+      if (repo.envVars) {
+        Object.assign(env, repo.envVars);
+      }
+
       let provisionedCreds: import('../../credentials/credential-manager.js').ProvisionResult | undefined;
 
       if (credentialProfileId) {

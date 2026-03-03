@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import type { ModelConfig, ModelProvider, CreateModelConfigInput } from '../model-config/types.js';
+import { encryptJson, decryptJson } from '../credentials/crypto.js';
 
 export class ModelConfigStore {
   #db: Database.Database;
@@ -10,7 +11,7 @@ export class ModelConfigStore {
   }
 
   #rowToModelConfig(row: Record<string, unknown>): ModelConfig {
-    const config = JSON.parse(row['config_json'] as string) as Record<string, unknown>;
+    const config = decryptJson<Record<string, unknown>>(row['config_json'] as string);
     const apiKey = config['apiKey'] as string | undefined;
     const baseUrl = config['baseUrl'] as string | undefined;
     const modelId = config['modelId'] as string | undefined;
@@ -63,7 +64,7 @@ export class ModelConfigStore {
         `INSERT INTO model_configs (id, name, provider, config_json, created_at)
          VALUES (?, ?, ?, ?, ?)`,
       )
-      .run(id, input.name, input.provider, JSON.stringify(configJson), now);
+      .run(id, input.name, input.provider, encryptJson(configJson), now);
 
     return this.getConfig(id)!;
   }
@@ -97,7 +98,7 @@ export class ModelConfigStore {
 
     this.#db
       .prepare('UPDATE model_configs SET config_json = ? WHERE id = ?')
-      .run(JSON.stringify(configJson), id);
+      .run(encryptJson(configJson), id);
 
     return this.getConfig(id);
   }
@@ -120,7 +121,7 @@ export class ModelConfigStore {
 
     this.#db
       .prepare('UPDATE model_configs SET name = ?, provider = ?, config_json = ? WHERE id = ?')
-      .run(name, provider, JSON.stringify(configJson), id);
+      .run(name, provider, encryptJson(configJson), id);
 
     return this.getConfig(id);
   }

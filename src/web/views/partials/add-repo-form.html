@@ -103,6 +103,37 @@
         </div>
       </div>
     </details>
+
+    <details style="margin-top:0.75rem;border-top:1px solid var(--color-border);padding-top:0.5rem;">
+      <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--color-text-primary);user-select:none;">
+        Environment Variables
+      </summary>
+      <div id="env-vars-container" style="margin-top:0.5rem;">
+        <% const entries = it.envVars ? Object.entries(it.envVars) : []; %>
+        <% if (entries.length > 0) { %>
+          <% entries.forEach(function([key, val]) { %>
+            <div class="env-row" style="display:flex;gap:0.25rem;margin-bottom:0.25rem;align-items:center;">
+              <input type="text" name="envKeys[]" placeholder="KEY" autocomplete="off" value="<%= key %>" style="flex:1;font-family:var(--font-mono);font-size:12px;" />
+              <input type="password" name="envValues[]" placeholder="value" autocomplete="off" value="<%= val %>" style="flex:2;font-family:var(--font-mono);font-size:12px;" />
+              <button type="button" class="btn btn-ghost" style="padding:0.15rem 0.35rem;font-size:11px;line-height:1;" onclick="this.parentElement.remove()">×</button>
+            </div>
+          <% }); %>
+        <% } %>
+      </div>
+      <button type="button" class="btn btn-ghost" style="font-size:11px;margin-top:0.25rem;" onclick="
+        var c = document.getElementById('env-vars-container');
+        var row = document.createElement('div');
+        row.className = 'env-row';
+        row.style.cssText = 'display:flex;gap:0.25rem;margin-bottom:0.25rem;align-items:center;';
+        row.innerHTML = '<input type=&quot;text&quot; name=&quot;envKeys[]&quot; placeholder=&quot;KEY&quot; autocomplete=&quot;off&quot; style=&quot;flex:1;font-family:var(--font-mono);font-size:12px;&quot; />'
+          + '<input type=&quot;password&quot; name=&quot;envValues[]&quot; placeholder=&quot;value&quot; autocomplete=&quot;off&quot; style=&quot;flex:2;font-family:var(--font-mono);font-size:12px;&quot; />'
+          + '<button type=&quot;button&quot; class=&quot;btn btn-ghost&quot; style=&quot;padding:0.15rem 0.35rem;font-size:11px;line-height:1;&quot; onclick=&quot;this.parentElement.remove()&quot;>×</button>';
+        c.appendChild(row);
+      ">+ Add Variable</button>
+      <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">
+        Injected into every session as environment variables. Values are encrypted at rest.
+      </div>
+    </details>
   <% } %>
 
   <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">

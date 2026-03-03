@@ -4,7 +4,12 @@ const ALGO = 'aes-256-gcm';
 const IV_LEN = 12;
 const TAG_LEN = 16;
 
+/** Cached derived key — scryptSync is intentionally slow, so we derive once. */
+let _cachedKey: Buffer | undefined;
+
 function getKey(): Buffer {
+  if (_cachedKey !== undefined) return _cachedKey;
+
   const secret =
     process.env['ORCHA_ENCRYPTION_KEY'] ?? process.env['SESSION_SECRET'];
   if (!secret) {
@@ -12,7 +17,8 @@ function getKey(): Buffer {
       'No encryption key available. Set ORCHA_ENCRYPTION_KEY or SESSION_SECRET.',
     );
   }
-  return crypto.scryptSync(secret, 'orcha-cred-salt', 32);
+  _cachedKey = crypto.scryptSync(secret, 'orcha-cred-salt', 32);
+  return _cachedKey;
 }
 
 /** Encrypt plaintext → base64 string (iv + ciphertext + tag) */
@@ -39,4 +45,23 @@ export function decrypt(encoded: string): string {
   const decipher = crypto.createDecipheriv(ALGO, key, iv);
   decipher.setAuthTag(tag);
   return decipher.update(ciphertext) + decipher.final('utf8');
+}
+
+/** Encrypt a JS object → base64 encrypted string */
+export function encryptJson(obj: unknown): string {
+  return encrypt(JSON.stringify(obj));
+}
+
+/**
+ * Decrypt an encrypted JSON string → parsed object.
+ * Supports lazy migration: if the value is still plaintext JSON
+ * (pre-encryption data), falls back to JSON.parse directly.
+ */
+export function decryptJson<T = unknown>(raw: string): T {
+  try {
+    return JSON.parse(decrypt(raw)) as T;
+  } catch {
+    // Fallback: raw is plaintext JSON (pre-encryption data)
+    return JSON.parse(raw) as T;
+  }
 }
