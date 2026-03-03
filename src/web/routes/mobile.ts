@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
@@ -218,6 +218,12 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
           const sessionHome = join('/tmp', `orcha-home-${sessionId}`);
           const claudeDir = join(sessionHome, '.claude');
           mkdirSync(claudeDir, { recursive: true });
+
+          // Copy global .gitconfig so git works on Azure File Share (fileMode + safe.directory)
+          const srcGitconfig = join(homedir(), '.gitconfig');
+          if (existsSync(srcGitconfig)) {
+            copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
+          }
 
           const sharedSettings = join(homedir(), '.claude', 'settings.json');
           let settings: Record<string, unknown> = {};

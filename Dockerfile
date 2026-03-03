@@ -45,6 +45,11 @@ RUN mkdir -p /data && chown orcha:orcha /data
 # Pre-create the orcha user's ~/.claude so the landlock RW rule for it is applied on session start
 RUN mkdir -p /app/.claude && chown -R orcha:orcha /app/.claude
 
+# Global git config for the orcha user — Azure File Share (SMB) reports all
+# files as 755 and presents them with a different UID, which confuses git.
+RUN printf '[core]\n\tfileMode = false\n[safe]\n\tdirectory = *\n' > /app/.gitconfig \
+    && chown orcha:orcha /app/.gitconfig
+
 VOLUME ["/data"]
 
 EXPOSE 3000

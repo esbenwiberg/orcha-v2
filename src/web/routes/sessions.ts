@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, statSync, realpathSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, statSync, realpathSync, copyFileSync } from 'node:fs';
 import { basename, join, resolve, relative, extname } from 'node:path';
 import { marked } from 'marked';
 import type { Eta } from 'eta';
@@ -250,6 +250,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           const sessionHome = join('/tmp', `orcha-home-${sessionId}`);
           const claudeDir = join(sessionHome, '.claude');
           mkdirSync(claudeDir, { recursive: true });
+
+          // Copy global .gitconfig so git works on Azure File Share (fileMode + safe.directory)
+          const srcGitconfig = join(homedir(), '.gitconfig');
+          if (existsSync(srcGitconfig)) {
+            copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
+          }
 
           // Build settings.json for this session: start from shared settings,
           // then ensure theme=dark is set so claude skips the first-run picker.
