@@ -3,7 +3,7 @@
     <button
       class="session-select-btn"
       hx-post="/mobile/connect/<%= it.sessionId %>"
-      hx-target="#mobile-terminal-area"
+      hx-target="#mobile-terminal-layer"
       hx-swap="innerHTML"
     >
       <span class="session-select-btn__branch"><%= it.repoName ? `${it.repoName} / ${it.branch}` : it.branch %></span>

@@ -21,6 +21,29 @@ let _authPollInterval = null;
 /** The DOM element we already booted a terminal for — prevents re-creation on unrelated HTMX swaps. */
 let _bootedFrame = null;
 
+/* -----------------------------------------------------------------------
+   Layer visibility helpers — terminal persists in one layer while
+   sessions/info/diff content swaps in the other
+   ----------------------------------------------------------------------- */
+
+/** Show the terminal layer, hide the content layer. */
+function _showTerminalLayer() {
+  const termLayer = document.getElementById('mobile-terminal-layer');
+  const contentLayer = document.getElementById('mobile-content-layer');
+  if (termLayer) termLayer.style.display = '';
+  if (contentLayer) contentLayer.style.display = 'none';
+}
+window._showTerminalLayer = _showTerminalLayer;
+
+/** Show the content layer, hide the terminal layer. */
+function _showContentLayer() {
+  const termLayer = document.getElementById('mobile-terminal-layer');
+  const contentLayer = document.getElementById('mobile-content-layer');
+  if (termLayer) termLayer.style.display = 'none';
+  if (contentLayer) contentLayer.style.display = '';
+}
+window._showContentLayer = _showContentLayer;
+
 /**
  * Update the #conn-badge element to reflect the current WebSocket state.
  *
@@ -102,7 +125,7 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
       if (frame) {
         const notice = document.createElement('div');
         notice.className = 'reconnect-failed-msg';
-        notice.textContent = 'Connection lost. Swipe down to return to sessions.';
+        notice.textContent = 'Connection lost.';
         frame.appendChild(notice);
       }
     }
@@ -174,6 +197,7 @@ async function openMobileTerminal(_sessionId, wsUrl) {
     },
     cursorBlink: true,
     scrollback: 1000,
+    scrollSensitivity: 3,
     allowProposedApi: false,
   });
 
@@ -233,10 +257,6 @@ function _startAuthPolling(sessionId) {
       if (html !== lastHtml) {
         lastHtml = html;
         slot.innerHTML = html;
-        // Note: no htmx.process() here — the banner's interactive elements
-        // (links, onclick buttons) are plain HTML/JS. Processing would
-        // activate the banner's hx-trigger="every 3s" and re-introduce
-        // the polling-via-HTMX problem we're fixing.
       }
       // Stop polling once auth is resolved or session gone
       if (res.status === 286 || html.includes('auth-banner--success') || html.trim() === '') {
@@ -282,65 +302,6 @@ function _disposeMobileTerminal() {
 }
 
 /**
- * Attach swipe-down-to-disconnect gesture to the given frame element.
- *
- * @param {HTMLElement} frameEl - The #terminal-frame element.
- * @param {() => void} onDisconnect - Called when the downward swipe is detected.
- */
-function initSwipeToDisconnect(frameEl, onDisconnect) {
-  let startY = 0;
-
-  frameEl.addEventListener(
-    'touchstart',
-    (e) => {
-      const touch = e.touches[0];
-      if (touch) {
-        startY = touch.clientY;
-      }
-    },
-    { passive: true },
-  );
-
-  frameEl.addEventListener(
-    'touchend',
-    (e) => {
-      const touch = e.changedTouches[0];
-      if (!touch) return;
-      const endY = touch.clientY;
-      // Downward swipe of more than 80px triggers disconnect
-      if (endY - startY > 80) {
-        onDisconnect();
-      }
-    },
-    { passive: true },
-  );
-}
-
-/**
- * Open the Send modal by fetching it from the server and injecting it into
- * #mobile-shell as a fixed overlay. After injection, focus the textarea.
- */
-function openSendModal() {
-  // Remove any stale modal first (idempotent)
-  const existing = document.getElementById('send-modal');
-  if (existing) existing.remove();
-
-  htmx.ajax('GET', '/mobile/send-modal', {
-    target: '#mobile-shell',
-    swap: 'beforeend',
-  });
-}
-
-/** Remove the send modal from the DOM. */
-function _closeSendModal() {
-  const modal = document.getElementById('send-modal');
-  if (modal) modal.remove();
-}
-
-// Expose openSendModal globally so onclick= in mobile.html can call it.
-window.openSendModal = openSendModal;
-
-/**
  * Open the action sheet for a session by fetching it from the server.
  * @param {string} sessionId
  */
@@ -384,36 +345,66 @@ window._onActionSheetResult = function (event) {
 
   // For stop — just refresh the sessions list
   if (detail.successful) {
+    _showContentLayer();
     htmx.ajax('GET', '/mobile/sessions', {
-      target: '#mobile-terminal-area',
+      target: '#mobile-content-layer',
       swap: 'innerHTML',
     });
   }
 };
 
 /**
- * Switch to the terminal tab. If a terminal frame is already showing, no-op.
- * Otherwise, try to reconnect to the active session from the cookie.
+ * Switch to the terminal tab. If a terminal is already booted, just show
+ * the terminal layer and re-fit. Otherwise, reconnect to the active session.
  */
 window._switchToTerminal = function () {
-  const frame = document.getElementById('terminal-frame');
-  if (frame) return; // Already showing the terminal
+  // If a terminal is already alive, just reveal it and re-fit
+  if (_activeTerm && _bootedFrame) {
+    _showTerminalLayer();
+    requestAnimationFrame(() => {
+      if (_activeFitAddon) _activeFitAddon.fit();
+    });
+    return;
+  }
 
   // Read the mobile-session-id cookie
   const cookieMatch = /mobile-session-id=([^;]+)/.exec(document.cookie);
   const sessionId = cookieMatch?.[1];
   if (!sessionId) {
-    // No active session — show placeholder
-    const area = document.getElementById('mobile-terminal-area');
-    if (area) {
-      area.innerHTML = '<div id="mobile-content-slot"><p class="mobile-placeholder-text">No session connected. Select one from the Sessions tab.</p></div>';
+    // No active session — show placeholder in content layer
+    _showContentLayer();
+    const layer = document.getElementById('mobile-content-layer');
+    if (layer) {
+      layer.innerHTML = '<div id="mobile-content-slot"><p class="mobile-placeholder-text">No session connected. Select one from the Sessions tab.</p></div>';
     }
     return;
   }
 
-  // Re-fetch the terminal frame for the active session
+  // Fetch the terminal frame into the terminal layer
   htmx.ajax('GET', `/mobile/terminal/${sessionId}`, {
-    target: '#mobile-terminal-area',
+    target: '#mobile-terminal-layer',
+    swap: 'innerHTML',
+  });
+};
+
+/**
+ * Switch to the Diff tab — load the diff browser for the active session.
+ */
+window._switchToDiff = function () {
+  const cookieMatch = /mobile-session-id=([^;]+)/.exec(document.cookie);
+  const sessionId = cookieMatch?.[1];
+  if (!sessionId) {
+    _showContentLayer();
+    const layer = document.getElementById('mobile-content-layer');
+    if (layer) {
+      layer.innerHTML = '<div id="mobile-content-slot"><p class="mobile-placeholder-text">No session connected. Select one from the Sessions tab.</p></div>';
+    }
+    return;
+  }
+
+  _showContentLayer();
+  htmx.ajax('GET', `/api/sessions/${sessionId}/diff-browser`, {
+    target: '#mobile-content-layer',
     swap: 'innerHTML',
   });
 };
@@ -438,7 +429,7 @@ window._onInfoPanelAction = function (event) {
   // Refresh the info panel to show updated state
   if (detail.successful) {
     htmx.ajax('GET', '/mobile/session-info', {
-      target: '#mobile-terminal-area',
+      target: '#mobile-content-layer',
       swap: 'innerHTML',
     });
   }
@@ -482,8 +473,9 @@ document.addEventListener('click', (e) => {
         if (cookieMatch && cookieMatch[1] === sessionId) {
           _disposeMobileTerminal();
           document.cookie = 'mobile-session-id=; Max-Age=0; Path=/mobile';
+          _showContentLayer();
           htmx.ajax('GET', '/mobile/sessions', {
-            target: '#mobile-terminal-area',
+            target: '#mobile-content-layer',
             swap: 'innerHTML',
           });
         }
@@ -503,8 +495,9 @@ document.addEventListener('click', (e) => {
       if (r.ok) {
         _disposeMobileTerminal();
         document.cookie = 'mobile-session-id=; Max-Age=0; Path=/mobile';
+        _showContentLayer();
         htmx.ajax('GET', '/mobile/sessions', {
-          target: '#mobile-terminal-area',
+          target: '#mobile-content-layer',
           swap: 'innerHTML',
         });
       }
@@ -531,8 +524,7 @@ document.addEventListener('click', (e) => {
 })();
 
 /**
- * Boot the terminal when #terminal-frame appears in the DOM after an HTMX swap,
- * or wire up the send modal when it appears.
+ * Boot the terminal when #terminal-frame appears in the DOM after an HTMX swap.
  */
 document.addEventListener('htmx:afterSwap', (event) => {
   // --- Terminal frame boot ---
@@ -546,23 +538,15 @@ document.addEventListener('htmx:afterSwap', (event) => {
     if (!sessionId || !wsUrl) {
       console.error('[mobile-terminal] terminal-frame missing data-session-id or data-ws-url');
     } else {
-      openMobileTerminal(sessionId, wsUrl).then(({ disconnect }) => {
-        initSwipeToDisconnect(frame, () => {
-          disconnect();
-          // Navigate back to the sessions list
-          htmx.ajax('GET', '/mobile/sessions', {
-            target: '#mobile-terminal-area',
-            swap: 'innerHTML',
-          });
-        });
-      });
+      // Show the terminal layer when a new terminal boots
+      _showTerminalLayer();
+
+      openMobileTerminal(sessionId, wsUrl);
 
       // Wire up on-screen key buttons
       const keysBar = document.getElementById('mobile-keys');
       if (keysBar) {
         // Map semantic key names to actual terminal escape sequences.
-        // HTML data-* attributes cannot carry raw control bytes — \x1b in HTML
-        // is the literal string "\x1b", not the escape char.
         const KEY_MAP = {
           'esc': '\x1b',
           'tab': '\t',
@@ -587,8 +571,6 @@ document.addEventListener('htmx:afterSwap', (event) => {
       }
 
       // Start JS-based auth polling for Max sessions (if auth-slot exists).
-      // Uses fetch + DOM-diff to avoid the HTMX innerHTML swap that causes
-      // xterm focus loss on mobile browsers.
       const authSlot = document.getElementById('auth-slot-mobile');
       if (authSlot) {
         _startAuthPolling(sessionId);
@@ -606,56 +588,6 @@ document.addEventListener('htmx:afterSwap', (event) => {
   const infoPanel = document.querySelector('.info-panel');
   if (infoPanel) {
     htmx.process(infoPanel);
-  }
-
-  // --- Send modal wiring ---
-  const modal = document.getElementById('send-modal');
-  if (modal) {
-    // Focus the textarea
-    const input = document.getElementById('send-input');
-    if (input) {
-      // Delay slightly so the element is fully rendered before focus
-      setTimeout(() => input.focus(), 50);
-
-      // Submit on Enter (but not Shift+Enter which inserts a newline)
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          const sendBtn = modal.querySelector('.send-submit-btn');
-          if (sendBtn) htmx.trigger(sendBtn, 'click');
-        }
-      });
-    }
-
-    // Close on backdrop click
-    const backdrop = modal.querySelector('.send-modal-backdrop');
-    if (backdrop) {
-      backdrop.addEventListener('click', _closeSendModal);
-    }
-
-    // Close on cancel button click
-    const cancelBtn = modal.querySelector('.send-cancel-btn');
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', _closeSendModal);
-    }
-  }
-});
-
-/**
- * Auto-dismiss the send modal 600ms after a successful POST /mobile/send.
- */
-document.addEventListener('htmx:afterRequest', (event) => {
-  const detail = event.detail;
-  if (!detail) return;
-  // Only react to successful requests targeting /mobile/send.
-  // htmx places the request path on detail.pathInfo.requestPath, not
-  // on detail.requestConfig.path (which does not exist).
-  if (
-    detail.successful &&
-    detail.pathInfo &&
-    detail.pathInfo.requestPath === '/mobile/send'
-  ) {
-    setTimeout(_closeSendModal, 600);
   }
 });
 
