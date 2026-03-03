@@ -60,7 +60,7 @@ src/
     credential-store.ts
   terminal/
     session-manager.ts        # PTY lifecycle, worktree creation, auto-revoke creds on exit
-    pty-manager.ts            # node-pty wrapper + bwrap sandboxing
+    pty-manager.ts            # node-pty wrapper + sandbox integration
   credentials/
     types.ts                  # CredentialProfile, ActiveCredentials interfaces
     credential-manager.ts     # parallel provision + rollback
@@ -69,7 +69,7 @@ src/
       github.ts               # fine-grained PAT via REST
       devops.ts               # VSSPS PAT API
   sandbox/
-    bwrap.ts                  # builds systemd-run + bwrap command
+    sandbox-command.ts        # builds sandboxed command (landlock-exec wrapper)
     sandbox-config.ts         # reads SANDBOX_MODE env var
   devguard/
     cli.ts                    # @clack/prompts wizard
@@ -102,8 +102,7 @@ src/
 |---|---|---|
 | `PORT` | `3000` | HTTP listen port |
 | `ORCHA_DATA_DIR` | `/data` | Persistent data directory |
-| `SANDBOX_MODE` | `none` | `none` / `bwrap` |
-| `SANDBOX_MEMORY_MAX` | `512M` | bwrap memory limit |
+| `SANDBOX_MODE` | `none` | `none` / `landlock` |
 | `NODE_ENV` | `production` | |
 
 ## Local Development

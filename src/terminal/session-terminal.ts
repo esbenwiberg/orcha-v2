@@ -22,7 +22,7 @@ export type PtySpawnOptions = {
   args?: string[];
   env?: Record<string, string>;
   size?: TerminalSize;
-  /** Per-session sandbox override. Defaults to true (isolated). Only takes effect when SANDBOX_MODE=landlock/bwrap. */
+  /** Per-session sandbox override. Defaults to true (isolated). Only takes effect when SANDBOX_MODE=landlock. */
   sandbox?: boolean;
   /** Additional paths to grant read-write access to inside the sandbox (landlock mode only). */
   extraRwPaths?: string[];

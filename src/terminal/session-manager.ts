@@ -22,7 +22,7 @@ export interface CreateSessionOptions {
   rows?: number;
   /** Override the repo root used for worktree creation (e.g. a bare repo path). */
   repoRoot?: string;
-  /** Whether to enable bwrap filesystem isolation for this session. Defaults to true. Only takes effect when SANDBOX_MODE=bwrap. */
+  /** Whether to enable landlock filesystem isolation for this session. Defaults to true. Only takes effect when SANDBOX_MODE=landlock. */
   sandbox?: boolean;
   /** Env keys to explicitly delete from the spawned process environment (overrides process.env). */
   deleteEnv?: string[];
@@ -248,7 +248,7 @@ export class SessionManager {
     console.log(`[session] exit sessionId=${sessionId} exitCode=${exitCode}`);
     const session = this._active.get(sessionId);
     // Keep session accessible for 5 min after exit so a WS that connects late
-    // can still read the output buffer (e.g. bwrap failing immediately).
+    // can still read the output buffer (e.g. sandbox failing immediately).
     setTimeout(() => this._active.delete(sessionId), 5 * 60 * 1000);
 
     if (session?.dbSessionId !== undefined) {

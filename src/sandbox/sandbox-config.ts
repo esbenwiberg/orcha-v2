@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 
-export type SandboxMode = 'landlock' | 'bwrap' | 'none';
+export type SandboxMode = 'landlock' | 'none';
 
 export interface SandboxConfig {
   enabled: boolean;
@@ -23,18 +23,6 @@ function testLandlock(): boolean {
   }
 }
 
-function testBwrap(): boolean {
-  try {
-    execSync(
-      'bwrap --ro-bind /usr /usr --ro-bind-try /lib /lib --ro-bind-try /bin /bin --unshare-pid --die-with-parent -- /bin/true',
-      { stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 },
-    );
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function loadSandboxConfig(): SandboxConfig {
   if (_config !== undefined) return _config;
 
@@ -43,9 +31,6 @@ export function loadSandboxConfig(): SandboxConfig {
   let mode = requested;
   if (requested === 'landlock' && !testLandlock()) {
     console.warn('[sandbox] landlock requested but failed functional test — falling back to mode=none');
-    mode = 'none';
-  } else if (requested === 'bwrap' && !testBwrap()) {
-    console.warn('[sandbox] bwrap requested but failed functional test — falling back to mode=none');
     mode = 'none';
   }
 

@@ -11,11 +11,6 @@ import type { SandboxConfig } from './sandbox-config.js';
  *   Allowed RW: worktree, ~/.claude, /tmp, any extraRwPaths
  *   Allowed RO: /usr /lib /lib64 /bin /sbin /etc /proc /run
  *
- * bwrap (legacy, requires user namespaces or SUID):
- *   Uses bubblewrap for mount-namespace isolation. Does not work in ACA
- *   (no_new_privs + user namespaces restricted). Left for environments
- *   where bwrap is available.
- *
  * none: returns command unchanged.
  */
 export function buildSandboxedCommand(
@@ -40,34 +35,6 @@ export function buildSandboxedCommand(
       worktreePath,
       home,
       ...extraRwPaths,
-      '--',
-      ...command,
-    ];
-  }
-
-  if (config.mode === 'bwrap') {
-    const claudeConfigDir = `${home}/.claude`;
-    // Mount worktree at its original path (not /workspace) so that .git file
-    // references to the bare repo resolve correctly inside the namespace.
-    const extraBinds = extraRwPaths.flatMap((p) => ['--bind', p, p]);
-    return [
-      'bwrap',
-      '--ro-bind', '/usr', '/usr',
-      '--ro-bind', '/lib', '/lib',
-      '--ro-bind-try', '/lib64', '/lib64',
-      '--ro-bind', '/bin', '/bin',
-      '--ro-bind', '/etc/resolv.conf', '/etc/resolv.conf',
-      '--ro-bind-try', '/etc/ssl', '/etc/ssl',
-      '--ro-bind-try', '/etc/ca-certificates', '/etc/ca-certificates',
-      '--ro-bind-try', '/etc/passwd', '/etc/passwd',
-      '--bind', worktreePath, worktreePath,
-      '--bind-try', claudeConfigDir, claudeConfigDir,
-      ...extraBinds,
-      '--tmpfs', '/tmp',
-      '--chdir', worktreePath,
-      '--unshare-pid',
-      '--new-session',
-      '--die-with-parent',
       '--',
       ...command,
     ];

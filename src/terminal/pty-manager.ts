@@ -6,7 +6,7 @@ import { Readable } from 'node:stream';
 import { EventEmitter } from 'node:events';
 import type { SessionTerminal, TerminalSize, PtySpawnOptions } from './session-terminal.js';
 import { loadSandboxConfig } from '../sandbox/sandbox-config.js';
-import { buildSandboxedCommand } from '../sandbox/bwrap.js';
+import { buildSandboxedCommand } from '../sandbox/sandbox-command.js';
 
 export class PtyError extends Error {
   code: 'ALREADY_EXISTS' | 'SPAWN_FAILED' | 'NOT_FOUND';

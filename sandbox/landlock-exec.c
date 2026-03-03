@@ -127,6 +127,12 @@ int main(int argc, char *argv[]) {
         add_rule(rfd, argv[i], FS_RW);
     }
 
+    /* Device nodes that must be opened O_RDWR (git, bash, etc.)           */
+    add_rule(rfd, "/dev/null",    FS_RW);
+    add_rule(rfd, "/dev/zero",    FS_RW);
+    add_rule(rfd, "/dev/urandom", FS_RW);
+    add_rule(rfd, "/dev/tty",     FS_RW);
+
     /* ---- RO rules ------------------------------------------------------- */
     static const char *ro_paths[] = {
         "/usr", "/lib", "/lib64", "/bin", "/sbin",

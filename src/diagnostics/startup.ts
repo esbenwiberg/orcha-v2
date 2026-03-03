@@ -21,11 +21,6 @@ function isSandboxAvailable(mode: string): boolean {
         stdio: ['pipe', 'pipe', 'pipe'],
         timeout: 5000,
       });
-    } else if (mode === 'bwrap') {
-      execSync(
-        'bwrap --ro-bind /usr /usr --ro-bind-try /lib /lib --ro-bind-try /bin /bin --unshare-pid --die-with-parent -- /bin/true',
-        { stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 },
-      );
     } else {
       return false;
     }
