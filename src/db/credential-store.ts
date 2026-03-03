@@ -18,8 +18,8 @@ export class CredentialStore {
   // ── Credential Profiles ──────────────────────────────────────────────────
 
   #decryptGithub(raw: string): CredentialProfile['github'] {
-    const parsed = JSON.parse(raw) as { repos: string[]; permissions: string[]; bootstrapPat: string };
-    return { ...parsed, bootstrapPat: decrypt(parsed.bootstrapPat) };
+    const parsed = JSON.parse(raw) as { repos: string[]; permissions: string[]; bootstrapPat?: string };
+    return { ...parsed, bootstrapPat: parsed.bootstrapPat ? decrypt(parsed.bootstrapPat) : '' };
   }
 
   #encryptGithub(github: { repos: string[]; permissions: string[]; bootstrapPat: string }): string {
@@ -27,8 +27,8 @@ export class CredentialStore {
   }
 
   #decryptDevops(raw: string): CredentialProfile['devops'] {
-    const parsed = JSON.parse(raw) as { org: string; project: string; scopes: string[]; bootstrapPat: string };
-    return { ...parsed, bootstrapPat: decrypt(parsed.bootstrapPat) };
+    const parsed = JSON.parse(raw) as { org: string; project: string; scopes: string[]; bootstrapPat?: string };
+    return { ...parsed, bootstrapPat: parsed.bootstrapPat ? decrypt(parsed.bootstrapPat) : '' };
   }
 
   #encryptDevops(devops: { org: string; project: string; scopes: string[]; bootstrapPat: string }): string {
