@@ -5,8 +5,7 @@
  *   landlock-exec <worktree> <home-dir> [extra-rw-path ...] -- <command> [args...]
  *
  * Grants:
- *   read+write: worktree, <home-dir>/.claude, /tmp, any extra-rw-paths,
- *               /dev/null, /dev/zero, /dev/urandom, /dev/tty
+ *   read+write: worktree, <home-dir>/.claude, /tmp, /dev, any extra-rw-paths
  *   read-only:  /usr /lib /lib64 /bin /sbin /etc /proc /run /var/lib/dpkg /sys
  *
  * Falls back gracefully (logs + execs without restriction) when Landlock is
@@ -128,11 +127,11 @@ int main(int argc, char *argv[]) {
         add_rule(rfd, argv[i], FS_RW);
     }
 
-    /* Device nodes that must be opened O_RDWR (git, bash, etc.)           */
-    add_rule(rfd, "/dev/null",    FS_RW);
-    add_rule(rfd, "/dev/zero",    FS_RW);
-    add_rule(rfd, "/dev/urandom", FS_RW);
-    add_rule(rfd, "/dev/tty",     FS_RW);
+    /* /dev needs RW — git, bash etc. open /dev/null for writing.
+     * Individual file rules fail with EINVAL because FS_ALL_V1 contains
+     * directory-only bits; granting the whole /dev dir RW is safe in
+     * containers where available devices are already restricted.          */
+    add_rule(rfd, "/dev",         FS_RW);
 
     /* ---- RO rules ------------------------------------------------------- */
     static const char *ro_paths[] = {
