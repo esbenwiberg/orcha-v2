@@ -612,6 +612,9 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // Default sandbox to true (matching form default)
       const sandbox = true;
 
+      // Pre-fill model config from source session
+      const modelConfigId = source.config.modelConfigId ?? '';
+
       // Pre-fill branch name with -fork suffix
       const forkBranch = `${source.worktree.branch}-fork`;
 
@@ -623,12 +626,14 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         branch: forkBranch,
         sourceBranch: headSha,
         credentialProfileId,
+        modelConfigId,
         sandbox,
         skipPermissions,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
+      console.error(`[sessions] fork-form failed for session ${req.params['id']}:`, err);
       next(err);
     }
   });

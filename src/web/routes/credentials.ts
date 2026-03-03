@@ -67,9 +67,9 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
   // POST /api/credential-profiles — create a profile
   router.post('/credential-profiles', (req, res, next) => {
     try {
-      const body = req.body as Record<string, string>;
-      const name = (body['name'] ?? '').trim();
-      const durationHours = parseInt(body['durationHours'] ?? '4', 10);
+      const body = req.body as Record<string, string | string[]>;
+      const name = String(body['name'] ?? '').trim();
+      const durationHours = parseInt(String(body['durationHours'] ?? '4'), 10);
 
       if (!name) {
         res.status(422).send('<div class="badge badge--failed">Name is required</div>');
@@ -78,36 +78,38 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
 
       // Azure
       let azure: { subscriptionId: string; resourceGroups: string[]; role: string } | undefined;
-      const azSub = (body['azureSubscriptionId'] ?? '').trim();
+      const azSub = String(body['azureSubscriptionId'] ?? '').trim();
       if (azSub) {
         azure = {
           subscriptionId: azSub,
-          resourceGroups: (body['azureResourceGroups'] ?? '')
+          resourceGroups: String(body['azureResourceGroups'] ?? '')
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean),
-          role: (body['azureRole'] ?? 'Contributor').trim(),
+          role: String(body['azureRole'] ?? 'Contributor').trim(),
         };
       }
 
       // GitHub
       let github: { pat?: string } | undefined;
-      const ghPat = (body['githubPat'] ?? '').trim();
+      const ghPat = String(body['githubPat'] ?? '').trim();
       if (ghPat) {
         github = { pat: ghPat };
       }
 
       // DevOps
       let devops: { org: string; project: string; scopes: string[] } | undefined;
-      const adoOrg = (body['devopsOrg'] ?? '').trim();
+      const adoOrg = String(body['devopsOrg'] ?? '').trim();
       if (adoOrg) {
+        const rawScopes = body['devopsScopes'];
         devops = {
           org: adoOrg,
-          project: (body['devopsProject'] ?? '').trim(),
-          scopes: (body['devopsScopes'] ?? '')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean),
+          project: String(body['devopsProject'] ?? '').trim(),
+          scopes: Array.isArray(rawScopes)
+            ? rawScopes.map((s) => s.trim()).filter(Boolean)
+            : typeof rawScopes === 'string'
+              ? [rawScopes.trim()].filter(Boolean)
+              : [],
         };
       }
 
@@ -159,9 +161,9 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
   router.put('/credential-profiles/:id', (req, res, next) => {
     try {
       const id = req.params['id'] ?? '';
-      const body = req.body as Record<string, string>;
-      const name = (body['name'] ?? '').trim();
-      const durationHours = parseInt(body['durationHours'] ?? '4', 10);
+      const body = req.body as Record<string, string | string[]>;
+      const name = String(body['name'] ?? '').trim();
+      const durationHours = parseInt(String(body['durationHours'] ?? '4'), 10);
 
       if (!name) {
         res.status(422).send('<div class="badge badge--failed">Name is required</div>');
@@ -170,36 +172,38 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
 
       // Azure
       let azure: { subscriptionId: string; resourceGroups: string[]; role: string } | undefined;
-      const azSub = (body['azureSubscriptionId'] ?? '').trim();
+      const azSub = String(body['azureSubscriptionId'] ?? '').trim();
       if (azSub) {
         azure = {
           subscriptionId: azSub,
-          resourceGroups: (body['azureResourceGroups'] ?? '')
+          resourceGroups: String(body['azureResourceGroups'] ?? '')
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean),
-          role: (body['azureRole'] ?? 'Contributor').trim(),
+          role: String(body['azureRole'] ?? 'Contributor').trim(),
         };
       }
 
       // GitHub
       let github: { pat?: string } | undefined;
-      const ghPat = (body['githubPat'] ?? '').trim();
+      const ghPat = String(body['githubPat'] ?? '').trim();
       if (ghPat) {
         github = { pat: ghPat };
       }
 
       // DevOps
       let devops: { org: string; project: string; scopes: string[] } | undefined;
-      const adoOrg = (body['devopsOrg'] ?? '').trim();
+      const adoOrg = String(body['devopsOrg'] ?? '').trim();
       if (adoOrg) {
+        const rawScopes = body['devopsScopes'];
         devops = {
           org: adoOrg,
-          project: (body['devopsProject'] ?? '').trim(),
-          scopes: (body['devopsScopes'] ?? '')
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean),
+          project: String(body['devopsProject'] ?? '').trim(),
+          scopes: Array.isArray(rawScopes)
+            ? rawScopes.map((s) => s.trim()).filter(Boolean)
+            : typeof rawScopes === 'string'
+              ? [rawScopes.trim()].filter(Boolean)
+              : [],
         };
       }
 

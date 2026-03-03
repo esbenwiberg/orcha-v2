@@ -62,6 +62,15 @@ export function decryptJson<T = unknown>(raw: string): T {
     return JSON.parse(decrypt(raw)) as T;
   } catch {
     // Fallback: raw is plaintext JSON (pre-encryption data)
-    return JSON.parse(raw) as T;
+    try {
+      return JSON.parse(raw) as T;
+    } catch (parseErr) {
+      // Neither decryptable nor valid JSON — data may have been encrypted
+      // with a different key. Log and re-throw with context.
+      console.error(
+        `[crypto] decryptJson failed: value is neither decryptable nor valid JSON (length=${raw.length}, prefix=${raw.slice(0, 20)}...)`,
+      );
+      throw parseErr;
+    }
   }
 }
