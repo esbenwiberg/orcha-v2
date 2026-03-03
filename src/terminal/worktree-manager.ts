@@ -5,15 +5,19 @@ import os from 'node:os';
 import { getStoragePaths } from '../storage/paths.js';
 
 // Git env applied to all git subprocesses.
-// safe.directory=* suppresses the "dubious ownership" check that fires when
-// the repo on Azure File Share is presented with a different UID than the
-// running process.
+// - safe.directory=* suppresses the "dubious ownership" check that fires when
+//   the repo on Azure File Share is presented with a different UID than the
+//   running process.
+// - core.fileMode=false prevents git from seeing file mode changes on Azure
+//   File Share (SMB reports all files as 0777).
 const GIT_ENV = {
   ...process.env,
   GIT_TERMINAL_PROMPT: '0',
-  GIT_CONFIG_COUNT: '1',
+  GIT_CONFIG_COUNT: '2',
   GIT_CONFIG_KEY_0: 'safe.directory',
   GIT_CONFIG_VALUE_0: '*',
+  GIT_CONFIG_KEY_1: 'core.fileMode',
+  GIT_CONFIG_VALUE_1: 'false',
 };
 
 /**
@@ -31,6 +35,32 @@ function copyDirContents(src: string, dest: string): void {
       fs.writeFileSync(destPath, fs.readFileSync(srcPath));
     }
   }
+}
+
+/**
+ * Ensures a bare repo's config file has core.fileMode = false.
+ * When git clones to /tmp (full POSIX), it auto-detects fileMode support and
+ * sets core.fileMode = true. Worktrees inherit this per-repo setting, which
+ * overrides the user's global ~/.gitconfig. On Azure File Share (SMB) this
+ * causes git to see phantom file mode changes on every file.
+ */
+function ensureFileModeDisabled(bareRepoPath: string): void {
+  const configPath = path.join(bareRepoPath, 'config');
+  if (!fs.existsSync(configPath)) return;
+  let config = fs.readFileSync(configPath, 'utf8');
+  // Already disabled — nothing to do
+  if (/fileMode\s*=\s*false/i.test(config)) return;
+  // Replace existing fileMode = true with false
+  if (/fileMode\s*=\s*true/i.test(config)) {
+    config = config.replace(/fileMode\s*=\s*true/i, 'fileMode = false');
+  } else if (/\[core\]/i.test(config)) {
+    // [core] section exists but no fileMode — add it
+    config = config.replace(/(\[core\])/i, '$1\n\tfileMode = false');
+  } else {
+    // No [core] section at all — append one
+    config += '\n[core]\n\tfileMode = false\n';
+  }
+  fs.writeFileSync(configPath, config, 'utf8');
 }
 
 export interface WorktreeInfo {
@@ -291,6 +321,8 @@ export class WorktreeManager {
     const bareRepoPath = path.join(getStoragePaths().bareRepoDir, slug);
 
     if (fs.existsSync(path.join(bareRepoPath, 'HEAD'))) {
+      // Patch existing repos that were cloned before the fileMode fix
+      ensureFileModeDisabled(bareRepoPath);
       return bareRepoPath;
     }
 
@@ -323,6 +355,10 @@ export class WorktreeManager {
           },
         );
       });
+
+      // Set core.fileMode = false in the bare repo config while still on /tmp
+      // (before copying to Azure Files where chmod would fail).
+      ensureFileModeDisabled(stagingPath);
 
       // fs.promises.cp calls chmod internally which fails on Azure File Share.
       // Use a plain read/write recursive copy instead.
