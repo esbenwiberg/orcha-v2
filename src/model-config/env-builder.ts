@@ -31,11 +31,14 @@ export function buildModelEnv(config: ModelConfig): Record<string, string> {
       if (config.apiKey) env['ANTHROPIC_FOUNDRY_API_KEY'] = config.apiKey;
       break;
 
-    case 'local':
-      if (config.baseUrl) env['ANTHROPIC_BASE_URL'] = config.baseUrl;
+    case 'local': {
+      let baseUrl = config.baseUrl ?? '';
+      if (baseUrl && !/^https?:\/\//i.test(baseUrl)) baseUrl = `http://${baseUrl}`;
+      if (baseUrl) env['ANTHROPIC_BASE_URL'] = baseUrl.replace(/\/+$/, '');
       env['ANTHROPIC_API_KEY'] = '';
       env['ANTHROPIC_AUTH_TOKEN'] = 'local';
       break;
+    }
 
     case 'custom':
       if (config.extraEnv) Object.assign(env, config.extraEnv);
