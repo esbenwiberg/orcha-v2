@@ -2,11 +2,12 @@ import http from 'node:http';
 import WebSocket, { WebSocketServer } from 'ws';
 import type { AppDeps } from '../app.js';
 import { timingSafeCompare } from '../auth/token-auth.js';
-import { handleTerminalConnection } from './terminal-ws.js';
+import { handleTerminalConnection, handleDebugShellConnection } from './terminal-ws.js';
 import { consumeTicket } from './ws-tickets.js';
 
 const WS_TERMINAL_PREFIX = '/ws/terminal/';
 const WS_AUTH_PREFIX = '/ws/auth/';
+const WS_SHELL_PREFIX = '/ws/shell/';
 
 /**
  * Attach a WebSocket server to an existing HTTP server.
@@ -27,7 +28,8 @@ export function attachWebSocketServer(
     // Only handle known WS paths — destroy anything else.
     const isTerminal = pathname.startsWith(WS_TERMINAL_PREFIX);
     const isAuth = pathname.startsWith(WS_AUTH_PREFIX);
-    if (!isTerminal && !isAuth) {
+    const isShell = pathname.startsWith(WS_SHELL_PREFIX);
+    if (!isTerminal && !isAuth && !isShell) {
       socket.destroy();
       return;
     }
@@ -132,6 +134,13 @@ export function attachWebSocketServer(
         authSession.terminal.output.removeListener('data', onData);
         authSession.terminal.output.removeListener('end', sendExitMessage);
       });
+      return;
+    }
+
+    // Debug shell terminal
+    if (pathname.startsWith(WS_SHELL_PREFIX)) {
+      const shellId = pathname.slice(WS_SHELL_PREFIX.length);
+      handleDebugShellConnection(ws, shellId, deps.sessionEngine);
       return;
     }
 

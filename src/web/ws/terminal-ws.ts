@@ -1,27 +1,19 @@
 import WebSocket from 'ws';
+import type { SessionTerminal } from '../../terminal/session-terminal.js';
+import type { OutputBuffer } from '../../terminal/output-buffer.js';
 import type { SessionManager } from '../../terminal/session-manager.js';
 
 /**
- * Handle a WebSocket connection for a terminal session.
+ * Bridge a PTY terminal to a WebSocket connection.
  *
- * Bridges PTY output → WebSocket JSON frames and WebSocket input/resize
- * messages → PTY writes/resizes.
+ * Subscribes to output, replays buffered data, routes input/resize messages,
+ * and cleans up listeners on WS close.
  */
-export function handleTerminalConnection(
+export function bridgeTerminalToWebSocket(
   ws: WebSocket,
-  sessionId: string,
-  engine: SessionManager,
+  terminal: SessionTerminal,
+  outputBuffer: OutputBuffer,
 ): void {
-  const session = engine.getSession(sessionId) ?? engine.getSessionByDbId(sessionId);
-
-  if (session === undefined) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Session not found' }));
-    ws.close(4004);
-    return;
-  }
-
-  // Subscribe to PTY stdout via the readable stream.
-  // We keep a reference to the listener so we can remove it on close.
   const onData = (chunk: Buffer | string): void => {
     if (ws.readyState === WebSocket.OPEN) {
       const data = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
@@ -31,28 +23,26 @@ export function handleTerminalConnection(
 
   // Subscribe first, then replay the buffer — Node's single-threaded event
   // loop ensures no data is missed between snapshot and subscription.
-  session.terminal.output.on('data', onData);
+  terminal.output.on('data', onData);
 
-  // When the PTY exits, notify the client so the terminal shows a close message
-  // instead of sitting silently black forever.
+  // When the PTY exits, notify the client.
   const sendExitMessage = (): void => {
     if (ws.readyState === WebSocket.OPEN) {
-      const code = session.terminal.exitCode;
+      const code = terminal.exitCode;
       ws.send(JSON.stringify({ type: 'output', data: `\r\n\x1b[33m[process exited${code !== undefined ? ` (code ${code})` : ''}]\x1b[0m\r\n` }));
     }
   };
   const onEnd = (): void => sendExitMessage();
-  session.terminal.output.once('end', onEnd);
+  terminal.output.once('end', onEnd);
 
   // Replay buffered output so the client sees everything emitted before it connected.
-  const snapshot = session.outputBuffer.snapshot();
+  const snapshot = outputBuffer.snapshot();
   if (snapshot.length > 0 && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'output', data: snapshot.toString('utf8') }));
   }
 
-  // If the PTY already exited before the WS connected, the 'end' event was
-  // already emitted and we missed it. Send the exit message immediately.
-  if (session.terminal.exitCode !== undefined) {
+  // If the PTY already exited before the WS connected, send exit message immediately.
+  if (terminal.exitCode !== undefined) {
     sendExitMessage();
   }
 
@@ -80,7 +70,7 @@ export function handleTerminalConnection(
           process.stderr.write('[ws] input message missing string data field; ignoring\n');
           return;
         }
-        session.terminal.write(data);
+        terminal.write(data);
         break;
       }
 
@@ -102,7 +92,7 @@ export function handleTerminalConnection(
           );
           return;
         }
-        session.terminal.resize({ cols, rows });
+        terminal.resize({ cols, rows });
         break;
       }
 
@@ -117,7 +107,45 @@ export function handleTerminalConnection(
 
   // Clean up listeners when the client disconnects to prevent memory leaks.
   ws.on('close', () => {
-    session.terminal.output.removeListener('data', onData);
-    session.terminal.output.removeListener('end', onEnd);
+    terminal.output.removeListener('data', onData);
+    terminal.output.removeListener('end', onEnd);
   });
+}
+
+/**
+ * Handle a WebSocket connection for a terminal session.
+ */
+export function handleTerminalConnection(
+  ws: WebSocket,
+  sessionId: string,
+  engine: SessionManager,
+): void {
+  const session = engine.getSession(sessionId) ?? engine.getSessionByDbId(sessionId);
+
+  if (session === undefined) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Session not found' }));
+    ws.close(4004);
+    return;
+  }
+
+  bridgeTerminalToWebSocket(ws, session.terminal, session.outputBuffer);
+}
+
+/**
+ * Handle a WebSocket connection for a debug shell.
+ */
+export function handleDebugShellConnection(
+  ws: WebSocket,
+  shellId: string,
+  engine: SessionManager,
+): void {
+  const shell = engine.getDebugShell(shellId);
+
+  if (shell === undefined) {
+    ws.send(JSON.stringify({ type: 'error', message: 'Debug shell not found' }));
+    ws.close(4004);
+    return;
+  }
+
+  bridgeTerminalToWebSocket(ws, shell.terminal, shell.outputBuffer);
 }

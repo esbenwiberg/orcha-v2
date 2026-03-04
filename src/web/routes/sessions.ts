@@ -493,6 +493,44 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // POST /api/sessions/:id/debug-shell — spawn a bash shell in the session's worktree
+  router.post('/sessions/:id/debug-shell', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+
+      const existing = store.getSession(id);
+      if (existing === undefined) {
+        res.status(404).send('Session not found');
+        return;
+      }
+
+      const shell = deps.sessionEngine.spawnDebugShell(id);
+      const html = eta.render('partials/debug-shell-panel', {
+        shellId: shell.shellId,
+        sessionId: id,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /api/sessions/:id/debug-shell/:shellId/stop — stop a debug shell
+  router.post('/sessions/:id/debug-shell/:shellId/stop', (req, res, next) => {
+    try {
+      const shellId = req.params['shellId'] ?? '';
+      try {
+        deps.sessionEngine.stopDebugShell(shellId);
+      } catch {
+        // Already dead — fine
+      }
+      res.status(200).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // POST /api/sessions/:id/reopen — reopen a failed or cancelled session
   router.post('/sessions/:id/reopen', async (req, res, next) => {
     try {

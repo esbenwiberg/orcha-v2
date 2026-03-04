@@ -54,6 +54,21 @@ export interface ActiveSession {
   modelProvider?: string;
   /** Timestamp when auth code was sent to PTY (for detecting post-auth state). */
   authCodeSentAt?: number;
+  /** Spawn context preserved for debug shells to inherit. */
+  spawnContext?: {
+    env?: Record<string, string>;
+    sandbox?: boolean;
+    deleteEnv?: string[];
+    extraRwPaths?: string[];
+  };
+}
+
+export interface DebugShell {
+  shellId: string;
+  parentSessionId: string;
+  terminal: SessionTerminal;
+  outputBuffer: OutputBuffer;
+  createdAt: Date;
 }
 
 export class SessionError extends Error {
@@ -74,6 +89,7 @@ export class SessionError extends Error {
 
 export class SessionManager {
   private _active: Map<string, ActiveSession> = new Map();
+  private _debugShells: Map<string, DebugShell> = new Map();
 
   private _validationManager?: ValidationManager;
 
@@ -221,6 +237,12 @@ export class SessionManager {
     }
 
     // Step 5: Build ActiveSession record
+    const spawnContext: ActiveSession['spawnContext'] = {
+      ...(opts.env !== undefined ? { env: opts.env } : {}),
+      ...(opts.sandbox !== undefined ? { sandbox: opts.sandbox } : {}),
+      ...(opts.deleteEnv !== undefined ? { deleteEnv: opts.deleteEnv } : {}),
+      ...(extraRwPaths.length > 0 ? { extraRwPaths } : {}),
+    };
     const activeSession: ActiveSession = {
       sessionId,
       dbSessionId,
@@ -232,6 +254,7 @@ export class SessionManager {
       ...(opts.homeDir !== undefined ? { homeDir: opts.homeDir } : {}),
       ...(opts.modelConfigId !== undefined ? { modelConfigId: opts.modelConfigId } : {}),
       ...(opts.modelProvider !== undefined ? { modelProvider: opts.modelProvider } : {}),
+      spawnContext,
     };
 
     this._active.set(sessionId, activeSession);
@@ -292,6 +315,14 @@ export class SessionManager {
         }
       } catch (err) {
         console.warn(`[session] credential capture failed sessionId=${sessionId}:`, err);
+      }
+    }
+
+    // Kill any debug shells attached to this session
+    for (const shell of this._debugShells.values()) {
+      if (shell.parentSessionId === sessionId) {
+        shell.terminal.kill('SIGTERM');
+        this._debugShells.delete(shell.shellId);
       }
     }
 
@@ -425,6 +456,12 @@ export class SessionManager {
       createdAt: dbSession.worktree.createdAt,
     };
 
+    const reopenSpawnContext: ActiveSession['spawnContext'] = {
+      ...(originalEnv !== undefined ? { env: originalEnv } : {}),
+      ...(opts?.sandbox !== undefined ? { sandbox: opts.sandbox } : {}),
+      ...(dbSession.config.deleteEnv !== undefined ? { deleteEnv: dbSession.config.deleteEnv } : {}),
+      ...(extraRwPaths.length > 0 ? { extraRwPaths } : {}),
+    };
     const activeSession: ActiveSession = {
       sessionId,
       dbSessionId,
@@ -435,6 +472,7 @@ export class SessionManager {
       ...(homeDir !== undefined ? { homeDir } : {}),
       ...(modelConfigId !== undefined ? { modelConfigId } : {}),
       ...(modelProvider !== undefined ? { modelProvider } : {}),
+      spawnContext: reopenSpawnContext,
     };
 
     this._active.set(sessionId, activeSession);
@@ -499,11 +537,85 @@ export class SessionManager {
   }
 
   async stopAllSessions(): Promise<void> {
+    // Kill all debug shells first
+    for (const shell of this._debugShells.values()) {
+      shell.terminal.kill('SIGTERM');
+    }
+    this._debugShells.clear();
+
     const stopPromises = Array.from(this._active.keys()).map((id) =>
       this.stopSession(id).catch(() => {
         // Suppress individual errors — allSettled semantics
       }),
     );
     await Promise.allSettled(stopPromises);
+  }
+
+  // --- Debug shell management ---
+
+  spawnDebugShell(parentSessionId: string): DebugShell {
+    // Look up parent by memory sessionId or DB id
+    const parent = this._active.get(parentSessionId) ?? this.getSessionByDbId(parentSessionId);
+    if (parent === undefined) {
+      throw new SessionError(`Parent session '${parentSessionId}' not found`, 'NOT_FOUND');
+    }
+
+    const shellId = `shell-${randomUUID()}`;
+    const ctx = parent.spawnContext ?? {};
+
+    const spawnOpts: PtySpawnOptions = {
+      sessionId: shellId,
+      cwd: parent.worktree.path,
+      command: 'bash',
+      ...(ctx.env !== undefined ? { env: ctx.env } : {}),
+      size: { cols: 220, rows: 50 },
+      ...(ctx.sandbox !== undefined ? { sandbox: ctx.sandbox } : {}),
+      ...(ctx.deleteEnv !== undefined ? { deleteEnv: ctx.deleteEnv } : {}),
+      ...(ctx.extraRwPaths !== undefined ? { extraRwPaths: ctx.extraRwPaths } : {}),
+    };
+
+    const terminal = this._ptyManager.spawn(spawnOpts);
+    const outputBuffer = new OutputBuffer();
+    terminal.output.on('data', (chunk: Buffer | string) => {
+      outputBuffer.push(chunk);
+    });
+
+    const shell: DebugShell = {
+      shellId,
+      parentSessionId: parent.sessionId,
+      terminal,
+      outputBuffer,
+      createdAt: new Date(),
+    };
+
+    terminal.on('exit', () => {
+      this._debugShells.delete(shellId);
+    });
+
+    this._debugShells.set(shellId, shell);
+    return shell;
+  }
+
+  getDebugShell(shellId: string): DebugShell | undefined {
+    return this._debugShells.get(shellId);
+  }
+
+  listDebugShells(parentSessionId: string): DebugShell[] {
+    const shells: DebugShell[] = [];
+    for (const shell of this._debugShells.values()) {
+      if (shell.parentSessionId === parentSessionId) {
+        shells.push(shell);
+      }
+    }
+    return shells;
+  }
+
+  stopDebugShell(shellId: string): void {
+    const shell = this._debugShells.get(shellId);
+    if (shell === undefined) {
+      throw new SessionError(`Debug shell '${shellId}' not found`, 'NOT_FOUND');
+    }
+    shell.terminal.kill('SIGTERM');
+    this._debugShells.delete(shellId);
   }
 }

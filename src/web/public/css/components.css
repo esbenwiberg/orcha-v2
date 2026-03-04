@@ -738,6 +738,35 @@ body.has-fullscreen-terminal {
   display: flex;
 }
 
+/* Debug shell panels */
+.debug-shell-panel {
+  background: #0a0a0a;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+  max-height: 300px;
+}
+.debug-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.5rem;
+  background: var(--color-surface-raised);
+  border-bottom: 1px solid var(--color-border);
+}
+.debug-shell-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.debug-shell-panel .xterm-container {
+  flex: 1 1 0%;
+  min-height: 0;
+}
+
 /* Auth slot — always visible (even in compact mode) when it has content */
 .session-card__auth-slot:empty {
   display: none;
