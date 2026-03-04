@@ -107,7 +107,9 @@ export class PtyManager {
     const sessionEnv = opts.env ?? {};
     const relevantEnvKeys = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_USE_FOUNDRY'];
     const envStatus = relevantEnvKeys.map((k) => `${k}=${sessionEnv[k] !== undefined ? 'SET' : (process.env[k] !== undefined ? 'HOST' : 'UNSET')}`).join(' ');
-    console.log(`[pty] spawn sessionId=${opts.sessionId} command=${command} args=${JSON.stringify(args)} cwd=${opts.cwd} ${envStatus}`);
+    const baseUrl = sessionEnv['ANTHROPIC_BASE_URL'] ?? process.env['ANTHROPIC_BASE_URL'] ?? '';
+    const model = sessionEnv['ANTHROPIC_MODEL'] ?? process.env['ANTHROPIC_MODEL'] ?? '';
+    console.log(`[pty] spawn sessionId=${opts.sessionId} command=${command} args=${JSON.stringify(args)} cwd=${opts.cwd} ${envStatus} baseUrl=${baseUrl} model=${model}`);
 
     // Log credential file existence when HOME is set (for Max/Pro OAuth sessions)
     const homeDir = sessionEnv['HOME'];
