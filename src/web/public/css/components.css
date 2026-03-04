@@ -2361,6 +2361,16 @@ button[aria-busy="true"] .btn-label-loading { display: inline !important; }
   color: var(--color-text-primary);
 }
 
+.preset-picker__item.htmx-request {
+  pointer-events: none;
+  opacity: 0.55;
+  border-color: var(--color-accent);
+}
+.preset-picker__item.htmx-request .preset-picker__meta::after {
+  content: ' — loading…';
+  font-style: italic;
+}
+
 .preset-picker__meta {
   font-size: 11px;
   color: var(--color-text-muted);

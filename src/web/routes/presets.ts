@@ -297,6 +297,12 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
+      // Generate a random branch name: feature/<8 random lowercase letters>
+      const randomSuffix = Array.from({ length: 8 }, () =>
+        String.fromCharCode(97 + Math.floor(Math.random() * 26)),
+      ).join('');
+      const branch = `feature/${randomSuffix}`;
+
       const html = eta.render('partials/new-session-form', {
         repoId: preset.repoId,
         credentialProfileId: preset.credentialProfileId,
@@ -306,6 +312,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         modelConfigs,
         branches,
         defaultBranch,
+        branch,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
