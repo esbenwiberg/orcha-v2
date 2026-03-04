@@ -46,10 +46,13 @@
         <span id="conn-badge" class="conn-badge conn-disconnected" aria-live="polite">&#9679;&nbsp;Disconnected</span>
       </header>
 
-      <!-- Terminal area placeholder -->
+      <!-- Terminal area — two layers: terminal persists, content swaps -->
       <main id="mobile-terminal-area" aria-label="Terminal area">
-        <div id="mobile-content-slot">
-          <p class="mobile-placeholder-text">Select a session to begin</p>
+        <div id="mobile-terminal-layer" style="display:none"></div>
+        <div id="mobile-content-layer">
+          <div id="mobile-content-slot">
+            <p class="mobile-placeholder-text">Select a session to begin</p>
+          </div>
         </div>
       </main>
 
@@ -60,9 +63,10 @@
           aria-label="Sessions"
           data-tab="sessions"
           hx-get="/mobile/sessions"
-          hx-target="#mobile-terminal-area"
+          hx-target="#mobile-content-layer"
           hx-swap="innerHTML"
           hx-trigger="click"
+          onclick="window._showContentLayer()"
         >
           <svg
             class="mobile-tab__icon"
@@ -103,10 +107,10 @@
         </button>
 
         <button
-          class="mobile-tab<%= it.activeTab === 'send' ? ' mobile-tab--active' : '' %>"
-          aria-label="Send command"
-          data-tab="send"
-          onclick="openSendModal()"
+          class="mobile-tab"
+          aria-label="Diff"
+          data-tab="diff"
+          onclick="window._switchToDiff()"
         >
           <svg
             class="mobile-tab__icon"
@@ -117,10 +121,12 @@
             aria-hidden="true"
             xmlns="http://www.w3.org/2000/svg"
           >
-            <line x1="22" y1="2" x2="11" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+            <line x1="6" y1="3" x2="6" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <circle cx="18" cy="6" r="3" stroke="currentColor" stroke-width="2" />
+            <circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="2" />
+            <path d="M18 9a9 9 0 0 1-9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
-          <span class="mobile-tab__label">Send</span>
+          <span class="mobile-tab__label">Diff</span>
         </button>
 
         <button
@@ -128,9 +134,10 @@
           aria-label="Session info"
           data-tab="info"
           hx-get="/mobile/session-info"
-          hx-target="#mobile-terminal-area"
+          hx-target="#mobile-content-layer"
           hx-swap="innerHTML"
           hx-trigger="click"
+          onclick="window._showContentLayer()"
         >
           <svg
             class="mobile-tab__icon"

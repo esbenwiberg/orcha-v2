@@ -93,6 +93,16 @@ body {
   padding-right: env(safe-area-inset-right);
 }
 
+/* Two-layer system: terminal layer persists, content layer swaps */
+#mobile-terminal-layer,
+#mobile-content-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 #mobile-content-slot {
   flex: 1;
   display: flex;
@@ -504,152 +514,44 @@ body {
   padding: 6px 12px;
 }
 
-.swipe-hint {
-  flex-shrink: 0;
-  padding: 6px 0 8px;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-  background-color: #0d0d0d;
-  /* Subtle top separator so the hint reads as outside the terminal */
-  border-top: 1px solid var(--color-border);
-  /* Safe-area inset is handled by the tab bar below; no extra padding needed */
-}
-
 /* -----------------------------------------------------------------------
-   Send modal — fixed overlay with bottom-sheet panel
+   Diff browser — mobile overrides (inline instead of fixed overlay)
    ----------------------------------------------------------------------- */
-
-/* Full-viewport overlay; sits above everything */
-.send-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
+.diff-browser-overlay {
+  position: static;
+  padding: 0;
+  background: none;
+  overflow: hidden;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
 }
 
-/* Semi-transparent backdrop; clicking it dismisses the modal */
-.send-modal-backdrop {
-  position: absolute;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
-/* Bottom sheet — slides up from the bottom */
-.send-modal-sheet {
-  position: relative;
-  z-index: 1;
+.diff-browser {
+  max-height: 100%;
+  height: 100%;
+  border-radius: 0;
+  border: none;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px 16px;
-  /* Safe-area inset for iOS home indicator */
-  padding-bottom: max(env(safe-area-inset-bottom), 20px);
-  background-color: var(--color-surface);
-  border-top: 1px solid var(--color-border);
-  border-radius: 16px 16px 0 0;
 }
 
-/* Label for the textarea */
-.send-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
+.diff-browser__body {
+  flex-direction: column;
 }
 
-/* Textarea — 16px font prevents iOS auto-zoom on focus */
-.send-input {
+.diff-browser__file-pane {
   width: 100%;
-  min-height: 80px;
-  padding: 10px 12px;
-  font-size: 16px;
-  font-family: inherit;
-  line-height: 1.5;
-  color: var(--color-text-primary);
-  background-color: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  resize: none;
-  -webkit-appearance: none;
-  appearance: none;
-  touch-action: manipulation;
+  max-height: 180px;
+  overflow-x: auto;
+  overflow-y: auto;
+  border-right: none;
+  border-bottom: 1px solid var(--color-border);
 }
 
-.send-input:focus {
-  outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 25%, transparent);
-}
-
-/* Action row: cancel on the left, send on the right */
-.send-modal-actions {
-  display: flex;
-  gap: 10px;
-}
-
-/* Shared base for both action buttons */
-.send-cancel-btn,
-.send-submit-btn {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  min-width: 44px;
-  padding: 10px 16px;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  transition: background-color 0.15s, opacity 0.15s;
-}
-
-.send-cancel-btn {
-  background-color: var(--color-surface-raised);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-primary);
-}
-
-.send-cancel-btn:active {
-  background-color: var(--color-border);
-}
-
-.send-submit-btn {
-  background-color: var(--color-accent);
-  border: 1px solid transparent;
-  color: #fff;
-}
-
-.send-submit-btn:active {
-  opacity: 0.8;
-}
-
-/* Result area shown below the action buttons */
-.send-result {
-  min-height: 20px;
-  font-size: 14px;
-  text-align: center;
-}
-
-.send-success {
-  color: #22c55e;
-  font-weight: 500;
-}
-
-.send-error {
-  color: var(--color-error);
-  font-weight: 500;
+.diff-browser__close-btn,
+.diff-browser__view-toggle {
+  display: none;
 }
 
 /* -----------------------------------------------------------------------
@@ -905,14 +807,6 @@ body {
   .session-select-btn:hover {
     background-color: var(--color-surface-raised);
     border-color: var(--color-accent);
-  }
-
-  .send-cancel-btn:hover {
-    background-color: var(--color-surface-raised);
-  }
-
-  .send-submit-btn:hover {
-    opacity: 0.88;
   }
 
   .session-kebab-btn:hover {

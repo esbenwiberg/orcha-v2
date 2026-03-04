@@ -20,16 +20,6 @@ import { eventBus } from '../services/event-bus.js';
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_.-]+$/;
 
-/** Minimal HTML-escape to prevent XSS in inline error messages. */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new SessionStore(deps.db);
@@ -393,63 +383,6 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       res.status(200).send(html);
     } catch (err) {
       next(err);
-    }
-  });
-
-  // GET /send-modal — return the send modal partial for HTMX injection
-  router.get('/send-modal', (_req, res, next) => {
-    try {
-      const html = eta.render('partials/mobile-send-modal', {});
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(200).send(html);
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  // POST /send — write text to the active session's PTY input
-  router.post('/send', (req, res) => {
-    // Parse the active session cookie manually (no cookie-parser)
-    const cookieHeader = req.headers.cookie ?? '';
-    const match = /mobile-session-id=([^;]+)/.exec(cookieHeader);
-    const activeId = match?.[1];
-
-    if (!activeId) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(401).send('<span class="send-error">No active session</span>');
-      return;
-    }
-
-    const rawText: unknown = req.body?.text;
-    if (typeof rawText !== 'string' || rawText.trim().length === 0) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(400).send('<span class="send-error">Text is required</span>');
-      return;
-    }
-
-    if (rawText.length > 4096) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(400).send('<span class="send-error">Text exceeds 4096 character limit</span>');
-      return;
-    }
-
-    const session = deps.sessionEngine.getSession(activeId);
-    if (session === undefined) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(404).send('<span class="send-error">Session not found</span>');
-      return;
-    }
-
-    try {
-      // Append \n so the command is submitted in the PTY; strip any trailing
-      // newline the user may have already typed to avoid a double submission.
-      session.terminal.write(rawText.replace(/\r?\n$/, '') + '\n');
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(200).send('<span class="send-success">Sent</span>');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(500).send(`<span class="send-error">Failed: ${escapeHtml(message)}</span>`);
     }
   });
 

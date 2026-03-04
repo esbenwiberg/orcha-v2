@@ -779,10 +779,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       // After pasting an auth code, Claude prompts through several screens:
       // submit code → disclaimer → trust folder → possibly more.
-      // Auto-dismiss with staggered Enters at generous intervals.
+      // Auto-dismiss with staggered Enters.
       if (active.modelProvider === 'max') {
         active.authCodeSentAt = Date.now();
-        const delays = [2000, 5000, 8000, 11000];
+        const delays = [1000, 2500, 4000, 5500];
         delays.forEach((delay, i) => {
           setTimeout(() => {
             try { active.terminal.write('\r'); } catch { /* exited */ }
