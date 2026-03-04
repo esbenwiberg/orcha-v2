@@ -16,6 +16,8 @@ let _activeTerm = null;
 let _activeWs = null;
 let _activeFitAddon = null;
 let _activeObserver = null;
+/** Base WebSocket URL (without ticket) — stored so we can reconnect after visibility restore. */
+let _baseWsUrl = null;
 /** Auth polling interval for Max sessions — cleared on terminal dispose. */
 let _authPollInterval = null;
 /** The DOM element we already booted a terminal for — prevents re-creation on unrelated HTMX swaps. */
@@ -60,6 +62,37 @@ function updateBadge(state) {
   } else {
     badge.textContent = '\u25CF\u00A0Disconnected';
   }
+}
+
+/**
+ * Fetch a one-time WS auth ticket and append it to the URL.
+ * Falls back to the bare URL if ticket fetch fails (e.g. auth=none).
+ */
+async function _appendWsTicket(wsUrl) {
+  try {
+    const r = await fetch('/api/ws-ticket');
+    if (r.ok) {
+      const data = await r.json();
+      if (typeof data.ticket === 'string' && data.ticket) {
+        const sep = wsUrl.includes('?') ? '&' : '?';
+        return `${wsUrl}${sep}ticket=${data.ticket}`;
+      }
+    }
+  } catch {
+    // Proceed without ticket.
+  }
+  return wsUrl;
+}
+
+/**
+ * Reconnect the active terminal WebSocket with a fresh auth ticket.
+ * Used by visibilitychange and _switchToTerminal when the WS has died.
+ */
+async function _reconnectWs() {
+  if (!_activeTerm || !_activeFitAddon || !_baseWsUrl) return;
+  updateBadge('reconnecting');
+  const ticketedUrl = await _appendWsTicket(_baseWsUrl);
+  connectWs(ticketedUrl, _activeTerm, _activeFitAddon, 0);
 }
 
 /**
@@ -146,20 +179,12 @@ async function openMobileTerminal(_sessionId, wsUrl) {
   // Dispose any previously open terminal
   _disposeMobileTerminal();
 
+  // Store the base URL (without ticket) so we can reconnect later.
+  _baseWsUrl = wsUrl;
+
   // Fetch a one-time auth ticket (needed when the server runs in OIDC mode,
   // where session cookies aren't available at the WS upgrade layer).
-  try {
-    const r = await fetch('/api/ws-ticket');
-    if (r.ok) {
-      const data = await r.json();
-      if (typeof data.ticket === 'string' && data.ticket) {
-        const sep = wsUrl.includes('?') ? '&' : '?';
-        wsUrl = `${wsUrl}${sep}ticket=${data.ticket}`;
-      }
-    }
-  } catch {
-    // If ticket fetch fails (e.g. auth=none), proceed without one.
-  }
+  wsUrl = await _appendWsTicket(wsUrl);
 
   const container = document.getElementById('xterm-container');
   if (!container) {
@@ -298,6 +323,7 @@ function _disposeMobileTerminal() {
     _activeTerm = null;
   }
   _activeFitAddon = null;
+  _baseWsUrl = null;
   _bootedFrame = null;
 }
 
@@ -364,6 +390,10 @@ window._switchToTerminal = function () {
     requestAnimationFrame(() => {
       if (_activeFitAddon) _activeFitAddon.fit();
     });
+    // If the WebSocket died (e.g. while backgrounded), reconnect with a fresh ticket
+    if (_baseWsUrl && (!_activeWs || _activeWs.readyState > WebSocket.OPEN)) {
+      _reconnectWs();
+    }
     return;
   }
 
@@ -611,5 +641,21 @@ document.addEventListener('htmx:afterRequest', (event) => {
       elt.textContent = elt.dataset.origText;
       delete elt.dataset.origText;
     }
+  }
+});
+
+/* -----------------------------------------------------------------------
+   Visibility change — reconnect WebSocket when returning from background.
+   On mobile, browsers suspend background tabs and the WS often dies
+   silently. When the user returns, reconnect immediately instead of
+   showing a stale "disconnected" terminal.
+   ----------------------------------------------------------------------- */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (!_activeTerm || !_baseWsUrl) return;
+
+  // WebSocket.OPEN = 1, CONNECTING = 0 — anything > OPEN means closing/closed
+  if (!_activeWs || _activeWs.readyState > WebSocket.OPEN) {
+    _reconnectWs();
   }
 });
