@@ -550,7 +550,8 @@ body {
 }
 
 .diff-browser__close-btn,
-.diff-browser__view-toggle {
+.diff-browser__view-toggle,
+.diff-browser__toolbar-actions {
   display: none;
 }
 
