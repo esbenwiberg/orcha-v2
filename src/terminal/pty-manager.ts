@@ -105,7 +105,7 @@ export class PtyManager {
     const [command = opts.command, ...args] = sandboxed;
 
     const sessionEnv = opts.env ?? {};
-    const relevantEnvKeys = ['ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_USE_FOUNDRY'];
+    const relevantEnvKeys = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_USE_FOUNDRY'];
     const envStatus = relevantEnvKeys.map((k) => `${k}=${sessionEnv[k] !== undefined ? 'SET' : (process.env[k] !== undefined ? 'HOST' : 'UNSET')}`).join(' ');
     console.log(`[pty] spawn sessionId=${opts.sessionId} command=${command} args=${JSON.stringify(args)} cwd=${opts.cwd} ${envStatus}`);
 

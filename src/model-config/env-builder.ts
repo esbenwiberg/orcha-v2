@@ -34,6 +34,7 @@ export function buildModelEnv(config: ModelConfig): Record<string, string> {
     case 'local':
       if (config.baseUrl) env['ANTHROPIC_BASE_URL'] = config.baseUrl;
       env['ANTHROPIC_API_KEY'] = '';
+      env['ANTHROPIC_AUTH_TOKEN'] = 'local';
       break;
 
     case 'custom':

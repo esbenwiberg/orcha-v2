@@ -21,7 +21,7 @@
       <option value="max" <%= it.provider === 'max' ? 'selected' : '' %>>Max / Pro (OAuth)</option>
       <option value="anthropic" <%= it.provider === 'anthropic' ? 'selected' : '' %>>Anthropic API</option>
       <option value="foundry" <%= it.provider === 'foundry' ? 'selected' : '' %>>Azure AI Foundry</option>
-      <option value="local" <%= it.provider === 'local' ? 'selected' : '' %>>Local (Ollama / Qwen)</option>
+      <option value="local" <%= it.provider === 'local' ? 'selected' : '' %>>Local (Ollama / vLLM)</option>
       <option value="custom" <%= it.provider === 'custom' ? 'selected' : '' %>>Custom Env Vars</option>
     </select>
   </div>
@@ -72,7 +72,8 @@
   <div id="mc-fields-local" class="mc-provider-fields" style="display:<%= it.provider === 'local' ? 'block' : 'none' %>">
     <div class="form-group">
       <label for="mc-local-url">Base URL</label>
-      <input id="mc-local-url" type="text" name="baseUrl" placeholder="http://localhost:11434/v1" value="<%= it.provider === 'local' ? (it.baseUrl ?? '') : '' %>" />
+      <input id="mc-local-url" type="text" name="baseUrl" placeholder="http://localhost:11434 or :8000" value="<%= it.provider === 'local' ? (it.baseUrl ?? '') : '' %>" />
+      <p class="text-xs text-muted" style="margin-top:0.25rem;">Ollama default: <code>:11434</code> &nbsp; vLLM default: <code>:8000</code></p>
     </div>
   </div>
 
