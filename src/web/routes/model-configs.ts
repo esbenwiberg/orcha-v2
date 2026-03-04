@@ -74,6 +74,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
       const baseUrlRaw = getField('baseUrl').trim() || undefined;
       const modelId = getField('modelId').trim() || undefined;
       const foundryResource = getField('foundryResource').trim() || undefined;
+      const authToken = provider === 'local' ? (getField('authToken').trim() || undefined) : undefined;
 
       let baseUrl = baseUrlRaw;
       if (baseUrl) {
@@ -110,6 +111,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         ...(baseUrl !== undefined ? { baseUrl } : {}),
         ...(modelId !== undefined ? { modelId } : {}),
         ...(foundryResource !== undefined ? { foundryResource } : {}),
+        ...(authToken !== undefined ? { authToken } : {}),
         ...(extraEnv !== undefined ? { extraEnv } : {}),
         ...(credentialsJson !== undefined ? { credentialsJson } : {}),
       });
@@ -143,6 +145,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         baseUrl: config.baseUrl,
         modelId: config.modelId,
         foundryResource: config.foundryResource,
+        authToken: config.authToken,
         extraEnv: config.extraEnv,
         credentialsJson: config.credentialsJson,
       });
@@ -179,6 +182,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
       const baseUrlRaw = getField('baseUrl').trim() || undefined;
       const modelId = getField('modelId').trim() || undefined;
       const foundryResource = getField('foundryResource').trim() || undefined;
+      const authToken = provider === 'local' ? (getField('authToken').trim() || undefined) : undefined;
 
       let baseUrl = baseUrlRaw;
       if (baseUrl) {
@@ -213,6 +217,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         ...(baseUrl !== undefined ? { baseUrl } : {}),
         ...(modelId !== undefined ? { modelId } : {}),
         ...(foundryResource !== undefined ? { foundryResource } : {}),
+        ...(authToken !== undefined ? { authToken } : {}),
         ...(extraEnv !== undefined ? { extraEnv } : {}),
         ...(credentialsJson !== undefined ? { credentialsJson } : {}),
       });

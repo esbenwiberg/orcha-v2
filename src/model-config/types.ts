@@ -8,6 +8,7 @@ export interface ModelConfig {
   baseUrl?: string;
   modelId?: string;
   foundryResource?: string;
+  authToken?: string;
   extraEnv?: Record<string, string>;
   credentialsJson?: string;
   createdAt: Date;
@@ -20,6 +21,7 @@ export interface CreateModelConfigInput {
   baseUrl?: string;
   modelId?: string;
   foundryResource?: string;
+  authToken?: string;
   extraEnv?: Record<string, string>;
   credentialsJson?: string;
 }

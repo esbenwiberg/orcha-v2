@@ -16,6 +16,7 @@ export class ModelConfigStore {
     const baseUrl = config['baseUrl'] as string | undefined;
     const modelId = config['modelId'] as string | undefined;
     const foundryResource = config['foundryResource'] as string | undefined;
+    const authToken = config['authToken'] as string | undefined;
     const extraEnv = config['extraEnv'] as Record<string, string> | undefined;
     const credentialsJson = config['credentialsJson'] as string | undefined;
     return {
@@ -27,6 +28,7 @@ export class ModelConfigStore {
       ...(baseUrl !== undefined ? { baseUrl } : {}),
       ...(modelId !== undefined ? { modelId } : {}),
       ...(foundryResource !== undefined ? { foundryResource } : {}),
+      ...(authToken !== undefined ? { authToken } : {}),
       ...(extraEnv !== undefined ? { extraEnv } : {}),
       ...(credentialsJson !== undefined ? { credentialsJson } : {}),
     };
@@ -56,6 +58,7 @@ export class ModelConfigStore {
     if (input.baseUrl !== undefined) configJson['baseUrl'] = input.baseUrl;
     if (input.modelId !== undefined) configJson['modelId'] = input.modelId;
     if (input.foundryResource !== undefined) configJson['foundryResource'] = input.foundryResource;
+    if (input.authToken !== undefined) configJson['authToken'] = input.authToken;
     if (input.extraEnv !== undefined) configJson['extraEnv'] = input.extraEnv;
     if (input.credentialsJson !== undefined) configJson['credentialsJson'] = input.credentialsJson;
 
@@ -80,6 +83,7 @@ export class ModelConfigStore {
       baseUrl: string;
       modelId: string;
       foundryResource: string;
+      authToken: string;
       extraEnv: Record<string, string>;
       credentialsJson: string;
     }>,
@@ -93,6 +97,7 @@ export class ModelConfigStore {
     if (merged.baseUrl !== undefined) configJson['baseUrl'] = merged.baseUrl;
     if (merged.modelId !== undefined) configJson['modelId'] = merged.modelId;
     if (merged.foundryResource !== undefined) configJson['foundryResource'] = merged.foundryResource;
+    if (merged.authToken !== undefined) configJson['authToken'] = merged.authToken;
     if (merged.extraEnv !== undefined) configJson['extraEnv'] = merged.extraEnv;
     if (merged.credentialsJson !== undefined) configJson['credentialsJson'] = merged.credentialsJson;
 
@@ -116,6 +121,7 @@ export class ModelConfigStore {
     if (merged.baseUrl !== undefined) configJson['baseUrl'] = merged.baseUrl;
     if (merged.modelId !== undefined) configJson['modelId'] = merged.modelId;
     if (merged.foundryResource !== undefined) configJson['foundryResource'] = merged.foundryResource;
+    if (merged.authToken !== undefined) configJson['authToken'] = merged.authToken;
     if (merged.extraEnv !== undefined) configJson['extraEnv'] = merged.extraEnv;
     if (merged.credentialsJson !== undefined) configJson['credentialsJson'] = merged.credentialsJson;
 

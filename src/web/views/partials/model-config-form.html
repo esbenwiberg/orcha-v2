@@ -75,6 +75,20 @@
       <input id="mc-local-url" type="text" name="baseUrl" placeholder="http://localhost:11434 or :8000" value="<%= it.provider === 'local' ? (it.baseUrl ?? '') : '' %>" />
       <p class="text-xs text-muted" style="margin-top:0.25rem;">Ollama default: <code>:11434</code> &nbsp; vLLM default: <code>:8000</code></p>
     </div>
+    <div class="form-group">
+      <label for="mc-local-api-key">
+        API Key
+        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — empty if not required)</span>
+      </label>
+      <input id="mc-local-api-key" type="password" name="apiKey" placeholder="e.g. ollama" autocomplete="off" value="<%= it.provider === 'local' ? (it.apiKey ?? '') : '' %>" />
+    </div>
+    <div class="form-group">
+      <label for="mc-local-auth-token">
+        Auth Token
+        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — defaults to "local")</span>
+      </label>
+      <input id="mc-local-auth-token" type="password" name="authToken" placeholder="e.g. ollama" autocomplete="off" value="<%= it.provider === 'local' ? (it.authToken ?? '') : '' %>" />
+    </div>
   </div>
 
   <!-- custom -->
