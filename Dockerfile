@@ -21,7 +21,13 @@ RUN gcc -O2 -static -o /build/landlock-exec sandbox/landlock-exec.c
 FROM node:22-bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git fuse3 ca-certificates \
+    git fuse3 ca-certificates curl \
+    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+       > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update && apt-get install -y --no-install-recommends gh \
+    && apt-get purge -y curl && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g @anthropic-ai/claude-code
@@ -47,7 +53,7 @@ RUN mkdir -p /app/.claude && chown -R orcha:orcha /app/.claude
 
 # Global git config for the orcha user — Azure File Share (SMB) reports all
 # files as 755 and presents them with a different UID, which confuses git.
-RUN printf '[core]\n\tfileMode = false\n[safe]\n\tdirectory = *\n' > /app/.gitconfig \
+RUN printf '[core]\n\tfileMode = false\n[safe]\n\tdirectory = *\n[credential]\n\thelper = store\n' > /app/.gitconfig \
     && chown orcha:orcha /app/.gitconfig
 
 VOLUME ["/data"]

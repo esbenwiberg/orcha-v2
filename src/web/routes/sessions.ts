@@ -266,6 +266,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
           }
 
+          // Copy git credential store so git push/pull can authenticate
+          const srcGitcreds = join(homedir(), '.git-credentials');
+          if (existsSync(srcGitcreds)) {
+            copyFileSync(srcGitcreds, join(sessionHome, '.git-credentials'));
+          }
+
           // Append git user identity from global settings (avoids "Author identity unknown")
           const gitUserName = globalSettingsStore.get('git.user.name');
           const gitUserEmail = globalSettingsStore.get('git.user.email');
@@ -518,6 +524,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           const srcGitconfig = join(homedir(), '.gitconfig');
           if (existsSync(srcGitconfig)) {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
+          }
+
+          // Copy git credential store so git push/pull can authenticate
+          const srcGitcreds = join(homedir(), '.git-credentials');
+          if (existsSync(srcGitcreds)) {
+            copyFileSync(srcGitcreds, join(sessionHome, '.git-credentials'));
           }
 
           // Append git user identity from global settings

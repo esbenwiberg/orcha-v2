@@ -228,6 +228,12 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
           }
 
+          // Copy git credential store so git push/pull can authenticate
+          const srcGitcreds = join(homedir(), '.git-credentials');
+          if (existsSync(srcGitcreds)) {
+            copyFileSync(srcGitcreds, join(sessionHome, '.git-credentials'));
+          }
+
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
