@@ -134,7 +134,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
 
       res.setHeader(
         'Set-Cookie',
-        `mobile-session-id=${sessionId}; HttpOnly; SameSite=Strict; Path=/mobile`,
+        `mobile-session-id=${sessionId}; SameSite=Strict; Path=/mobile`,
       );
 
       const proto = req.protocol === 'https' ? 'wss' : 'ws';
@@ -289,7 +289,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       const dbSessionId = activeSession.dbSessionId ?? sessionId;
       res.setHeader(
         'Set-Cookie',
-        `mobile-session-id=${dbSessionId}; HttpOnly; SameSite=Strict; Path=/mobile`,
+        `mobile-session-id=${dbSessionId}; SameSite=Strict; Path=/mobile`,
       );
 
       const proto = req.protocol === 'https' ? 'wss' : 'ws';
