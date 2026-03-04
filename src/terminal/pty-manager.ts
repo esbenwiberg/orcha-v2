@@ -106,7 +106,19 @@ export class PtyManager {
 
     const sessionEnv = opts.env ?? {};
     const relevantEnvKeys = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_MODEL', 'CLAUDE_CODE_USE_FOUNDRY'];
-    const envStatus = relevantEnvKeys.map((k) => `${k}=${sessionEnv[k] !== undefined ? 'SET' : (process.env[k] !== undefined ? 'HOST' : 'UNSET')}`).join(' ');
+    const mask = (k: string, v: string | undefined): string => {
+      if (v === undefined) return 'UNSET';
+      if (v === '') return 'EMPTY';
+      if (k.includes('KEY') || k.includes('TOKEN')) return `${v.slice(0, 3)}***[${v.length}]`;
+      return v;
+    };
+    const envStatus = relevantEnvKeys.map((k) => {
+      const sessionVal = sessionEnv[k];
+      const hostVal = process.env[k];
+      const source = sessionVal !== undefined ? 'session' : (hostVal !== undefined ? 'host' : 'none');
+      const val = sessionVal ?? hostVal;
+      return `${k}=${mask(k, val)}(${source})`;
+    }).join(' ');
     const baseUrl = sessionEnv['ANTHROPIC_BASE_URL'] ?? process.env['ANTHROPIC_BASE_URL'] ?? '';
     const model = sessionEnv['ANTHROPIC_MODEL'] ?? process.env['ANTHROPIC_MODEL'] ?? '';
     console.log(`[pty] spawn sessionId=${opts.sessionId} command=${command} args=${JSON.stringify(args)} cwd=${opts.cwd} ${envStatus} baseUrl=${baseUrl} model=${model}`);

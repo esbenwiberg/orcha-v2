@@ -115,15 +115,18 @@ export class ModelConfigStore {
     const name = updates.name ?? existing.name;
     const provider = updates.provider ?? existing.provider;
 
-    const merged = { ...existing, ...updates };
+    // Full replacement of form-editable fields — cleared fields are removed.
+    // Preserve credentialsJson from existing if not explicitly provided
+    // (it's set via the auth wizard, not the edit form).
     const configJson: Record<string, unknown> = {};
-    if (merged.apiKey !== undefined) configJson['apiKey'] = merged.apiKey;
-    if (merged.baseUrl !== undefined) configJson['baseUrl'] = merged.baseUrl;
-    if (merged.modelId !== undefined) configJson['modelId'] = merged.modelId;
-    if (merged.foundryResource !== undefined) configJson['foundryResource'] = merged.foundryResource;
-    if (merged.authToken !== undefined) configJson['authToken'] = merged.authToken;
-    if (merged.extraEnv !== undefined) configJson['extraEnv'] = merged.extraEnv;
-    if (merged.credentialsJson !== undefined) configJson['credentialsJson'] = merged.credentialsJson;
+    if (updates.apiKey !== undefined) configJson['apiKey'] = updates.apiKey;
+    if (updates.baseUrl !== undefined) configJson['baseUrl'] = updates.baseUrl;
+    if (updates.modelId !== undefined) configJson['modelId'] = updates.modelId;
+    if (updates.foundryResource !== undefined) configJson['foundryResource'] = updates.foundryResource;
+    if (updates.authToken !== undefined) configJson['authToken'] = updates.authToken;
+    if (updates.extraEnv !== undefined) configJson['extraEnv'] = updates.extraEnv;
+    const creds = updates.credentialsJson ?? existing.credentialsJson;
+    if (creds !== undefined) configJson['credentialsJson'] = creds;
 
     this.#db
       .prepare('UPDATE model_configs SET name = ?, provider = ?, config_json = ? WHERE id = ?')
