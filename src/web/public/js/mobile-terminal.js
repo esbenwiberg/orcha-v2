@@ -555,55 +555,63 @@ document.addEventListener('click', (e) => {
 
 /**
  * Boot the terminal when #terminal-frame appears in the DOM after an HTMX swap.
+ *
+ * IMPORTANT: Only enter the terminal-boot path when the swap target is
+ * #mobile-terminal-layer.  The afterSwap event fires for EVERY HTMX swap on
+ * the page (SSE badge updates, sessions list, info panel, diff, etc.).
+ * Without this guard, unrelated swaps can re-trigger _showTerminalLayer() and
+ * snap the user back to the terminal view.
  */
 document.addEventListener('htmx:afterSwap', (event) => {
-  // --- Terminal frame boot ---
-  // Only boot when a *new* frame element appears (skip unrelated swaps like SSE badge updates)
-  const frame = document.getElementById('terminal-frame');
-  if (frame && frame !== _bootedFrame) {
-    _bootedFrame = frame;
-    const sessionId = frame.dataset.sessionId;
-    const wsUrl = frame.dataset.wsUrl;
+  // --- Terminal frame boot (scoped to terminal-layer swaps only) ---
+  const swapTarget = event.detail?.target;
+  if (swapTarget && swapTarget.id === 'mobile-terminal-layer') {
+    const frame = document.getElementById('terminal-frame');
+    if (frame && frame !== _bootedFrame) {
+      _bootedFrame = frame;
+      const sessionId = frame.dataset.sessionId;
+      const wsUrl = frame.dataset.wsUrl;
 
-    if (!sessionId || !wsUrl) {
-      console.error('[mobile-terminal] terminal-frame missing data-session-id or data-ws-url');
-    } else {
-      // Show the terminal layer when a new terminal boots
-      _showTerminalLayer();
+      if (!sessionId || !wsUrl) {
+        console.error('[mobile-terminal] terminal-frame missing data-session-id or data-ws-url');
+      } else {
+        // Show the terminal layer when a new terminal boots
+        _showTerminalLayer();
 
-      openMobileTerminal(sessionId, wsUrl);
+        openMobileTerminal(sessionId, wsUrl);
 
-      // Wire up on-screen key buttons
-      const keysBar = document.getElementById('mobile-keys');
-      if (keysBar) {
-        // Map semantic key names to actual terminal escape sequences.
-        const KEY_MAP = {
-          'esc': '\x1b',
-          'tab': '\t',
-          'ctrl-c': '\x03',
-          'ctrl-d': '\x04',
-          'ctrl-z': '\x1a',
-          'arrow-up': '\x1b[A',
-          'arrow-down': '\x1b[B',
-        };
+        // Wire up on-screen key buttons
+        const keysBar = document.getElementById('mobile-keys');
+        if (keysBar) {
+          // Map semantic key names to actual terminal escape sequences.
+          const KEY_MAP = {
+            'esc': '\x1b',
+            'tab': '\t',
+            'ctrl-c': '\x03',
+            'ctrl-d': '\x04',
+            'ctrl-z': '\x1a',
+            'arrow-up': '\x1b[A',
+            'arrow-down': '\x1b[B',
+          };
 
-        keysBar.addEventListener('click', (e) => {
-          const btn = e.target.closest('.mobile-key');
-          if (!btn) return;
-          const keyName = btn.dataset.key;
-          const data = KEY_MAP[keyName];
-          if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
-            _activeWs.send(JSON.stringify({ type: 'input', data }));
-          }
-          // Re-focus the terminal so user can keep typing
-          if (_activeTerm) _activeTerm.focus();
-        });
-      }
+          keysBar.addEventListener('click', (e) => {
+            const btn = e.target.closest('.mobile-key');
+            if (!btn) return;
+            const keyName = btn.dataset.key;
+            const data = KEY_MAP[keyName];
+            if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
+              _activeWs.send(JSON.stringify({ type: 'input', data }));
+            }
+            // Re-focus the terminal so user can keep typing
+            if (_activeTerm) _activeTerm.focus();
+          });
+        }
 
-      // Start JS-based auth polling for Max sessions (if auth-slot exists).
-      const authSlot = document.getElementById('auth-slot-mobile');
-      if (authSlot) {
-        _startAuthPolling(sessionId);
+        // Start JS-based auth polling for Max sessions (if auth-slot exists).
+        const authSlot = document.getElementById('auth-slot-mobile');
+        if (authSlot) {
+          _startAuthPolling(sessionId);
+        }
       }
     }
   }
