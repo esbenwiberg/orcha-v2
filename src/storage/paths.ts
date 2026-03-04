@@ -16,12 +16,13 @@ export function getStoragePaths(): StoragePaths {
 
   const dataDir = process.env['ORCHA_DATA_DIR'] ?? '/data';
   const dbDir = process.env['ORCHA_DB_DIR'] ?? dataDir;
+  const worktreeDir = process.env['ORCHA_WORKTREE_DIR'] ?? '/tmp/orcha-worktrees';
 
   _cached = {
     dataDir,
     dbPath: `${dbDir}/orcha.db`,
     bareRepoDir: `${dataDir}/bare-repos`,
-    worktreeBaseDir: `${dataDir}/worktrees`,
+    worktreeBaseDir: worktreeDir,
     logsDir: `${dataDir}/logs`,
     caddyDataDir: `${dataDir}/caddy`,
   };

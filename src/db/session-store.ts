@@ -224,6 +224,33 @@ export class SessionStore {
     return this.getSession(id)!;
   }
 
+  /**
+   * Updates the worktree path in worktree_json, preserving all other fields.
+   * Used when a worktree is restored to a different location (e.g. migration
+   * from /data/worktrees to /tmp/orcha-worktrees after container restart).
+   */
+  updateWorktreePath(id: string, newWorktreePath: string): Session {
+    const session = this.getSession(id);
+    if (session === undefined) {
+      throw new TypeError(`Session not found: ${id}`);
+    }
+
+    const worktreeJson = JSON.stringify({
+      worktreePath: newWorktreePath,
+      branch: session.worktree.branch,
+      headSha: session.worktree.headSha,
+      repoRoot: session.worktree.repoRoot,
+      createdAt: session.worktree.createdAt.toISOString(),
+    });
+
+    const now = new Date().toISOString();
+    this.#db
+      .prepare('UPDATE sessions SET worktree_json = ?, updated_at = ? WHERE id = ?')
+      .run(worktreeJson, now, id);
+
+    return this.getSession(id)!;
+  }
+
   findByBranchAndRepo(branch: string, repoRoot: string): Session | undefined {
     const row = this.#db
       .prepare(

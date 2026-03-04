@@ -314,15 +314,30 @@ export class SessionManager {
     }
 
     // Step 2: Extract worktree path and original sessionId
-    const worktreePath = dbSession.worktree.worktreePath;
+    let worktreePath = dbSession.worktree.worktreePath;
     const sessionId = basename(worktreePath);
 
-    // Verify worktree directory exists
+    // Restore worktree if missing (e.g. container restarted, /tmp cleared)
     if (!existsSync(worktreePath)) {
-      throw new SessionError(
-        `Worktree directory no longer exists: ${worktreePath}`,
-        'WORKTREE_FAILED',
-      );
+      try {
+        const restored = await this._worktreeManager.restoreWorktree(
+          sessionId,
+          dbSession.worktree.branch,
+          dbSession.worktree.repoRoot,
+        );
+        // If restored to a different path (migration from /data/worktrees to /tmp),
+        // update DB so future reopens use the new location
+        if (restored.path !== worktreePath) {
+          this._sessionStore.updateWorktreePath(dbSessionId, restored.path);
+        }
+        worktreePath = restored.path;
+      } catch (err) {
+        throw new SessionError(
+          `Failed to restore worktree for session '${sessionId}': ${String(err)}`,
+          'WORKTREE_FAILED',
+          err,
+        );
+      }
     }
 
     // Check not already active
