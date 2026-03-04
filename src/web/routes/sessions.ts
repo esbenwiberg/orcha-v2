@@ -266,10 +266,11 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
           }
 
-          // Copy git credential store so git push/pull can authenticate
-          const srcGitcreds = join(homedir(), '.git-credentials');
-          if (existsSync(srcGitcreds)) {
-            copyFileSync(srcGitcreds, join(sessionHome, '.git-credentials'));
+          // Generate .git-credentials from session env so git push/pull can authenticate.
+          // GH_TOKEN comes from the credential profile's GitHub provider.
+          const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'];
+          if (ghToken) {
+            writeFileSync(join(sessionHome, '.git-credentials'), `https://oauth2:${ghToken}@github.com\n`);
           }
 
           // Append git user identity from global settings (avoids "Author identity unknown")
@@ -526,10 +527,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
           }
 
-          // Copy git credential store so git push/pull can authenticate
-          const srcGitcreds = join(homedir(), '.git-credentials');
-          if (existsSync(srcGitcreds)) {
-            copyFileSync(srcGitcreds, join(sessionHome, '.git-credentials'));
+          // Generate .git-credentials from session env so git push/pull can authenticate
+          const ghToken = originalEnv['GH_TOKEN'] ?? originalEnv['GITHUB_TOKEN'];
+          if (ghToken) {
+            writeFileSync(join(sessionHome, '.git-credentials'), `https://oauth2:${ghToken}@github.com\n`);
           }
 
           // Append git user identity from global settings

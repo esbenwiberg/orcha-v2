@@ -228,10 +228,10 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
           }
 
-          // Copy git credential store so git push/pull can authenticate
-          const srcGitcreds = join(homedir(), '.git-credentials');
-          if (existsSync(srcGitcreds)) {
-            copyFileSync(srcGitcreds, join(sessionHome, '.git-credentials'));
+          // Generate .git-credentials from session env so git push/pull can authenticate
+          const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'];
+          if (ghToken) {
+            writeFileSync(join(sessionHome, '.git-credentials'), `https://oauth2:${ghToken}@github.com\n`);
           }
 
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
