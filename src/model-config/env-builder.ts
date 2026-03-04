@@ -35,7 +35,7 @@ export function buildModelEnv(config: ModelConfig): Record<string, string> {
       let baseUrl = config.baseUrl ?? '';
       if (baseUrl && !/^https?:\/\//i.test(baseUrl)) baseUrl = `http://${baseUrl}`;
       if (baseUrl) env['ANTHROPIC_BASE_URL'] = baseUrl.replace(/\/+$/, '');
-      env['ANTHROPIC_API_KEY'] = config.apiKey ?? '';
+      if (config.apiKey) env['ANTHROPIC_API_KEY'] = config.apiKey;
       env['ANTHROPIC_AUTH_TOKEN'] = config.authToken ?? 'local';
       break;
     }
