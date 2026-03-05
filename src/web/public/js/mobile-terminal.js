@@ -923,12 +923,26 @@ document.addEventListener('htmx:afterSwap', (event) => {
             'arrow-down': '\x1b[B',
           };
 
-          // Keys that should NOT re-focus the terminal (avoids opening the keyboard)
-          const NO_FOCUS_KEYS = new Set(['enter', 'arrow-up', 'arrow-down', 'esc', 'ctrl-c', 'ctrl-o', 'copy']);
-
-          keysBar.addEventListener('click', (e) => {
+          // Handle mobile key presses via touchstart to prevent the virtual
+          // keyboard from popping up. preventDefault on touchstart stops the
+          // browser from converting the touch into a focus/click chain that
+          // would focus xterm's hidden textarea.
+          // Fall back to click for non-touch (desktop) environments.
+          let _touchHandled = false;
+          function _handleMobileKey(e) {
             const btn = e.target.closest('.mobile-key');
             if (!btn) return;
+
+            // On touch devices both touchstart and click fire — skip the
+            // redundant click so we don't send the key twice.
+            if (e.type === 'touchstart') {
+              _touchHandled = true;
+              e.preventDefault(); // prevent keyboard popup
+            } else if (e.type === 'click' && _touchHandled) {
+              _touchHandled = false;
+              return;
+            }
+
             const keyName = btn.dataset.key;
             if (keyName === 'copy') {
               _copyLastOutput();
@@ -938,10 +952,12 @@ document.addEventListener('htmx:afterSwap', (event) => {
             if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
               _activeWs.send(JSON.stringify({ type: 'input', data }));
             }
-            // Re-focus the terminal so user can keep typing — but skip for
-            // keys where the user likely doesn't want the keyboard to pop up.
-            if (_activeTerm && !NO_FOCUS_KEYS.has(keyName)) _activeTerm.focus();
-          });
+            // Only re-focus the terminal for Tab (user likely wants to type)
+            if (_activeTerm && keyName === 'tab') _activeTerm.focus();
+          }
+
+          keysBar.addEventListener('touchstart', _handleMobileKey, { passive: false });
+          keysBar.addEventListener('click', _handleMobileKey);
         }
 
         // Start JS-based auth polling for Max sessions (if auth-slot exists).

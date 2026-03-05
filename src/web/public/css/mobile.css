@@ -527,6 +527,12 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Hide the blinking cursor on mobile — input goes through on-screen keys,
+   so the cursor is just visual noise (and sits at 0,0 looking broken). */
+.xterm-container .xterm-cursor-layer {
+  display: none !important;
+}
+
 /* On-screen key buttons for mobile (Esc, Tab, Ctrl+C, etc.) */
 .mobile-keys {
   flex-shrink: 0;
