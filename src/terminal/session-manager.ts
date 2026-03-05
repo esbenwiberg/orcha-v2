@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { WorktreeManager } from './worktree-manager.js';
 import type { WorktreeInfo } from './worktree-manager.js';
@@ -138,12 +138,23 @@ export class SessionManager {
       extraRwPaths.push(opts.repoRoot);
     }
 
+    // Per-session Azure CLI config dir so `az login` inside a sandboxed
+    // session writes tokens to /tmp (already RW in landlock) instead of
+    // ~/.azure/ (blocked).  Each session gets its own dir — no cross-session
+    // credential leakage.
+    const azureConfigDir = `/tmp/orcha-azure-${sessionId}`;
+    mkdirSync(azureConfigDir, { recursive: true });
+    const sessionEnv: Record<string, string> = {
+      ...opts.env,
+      AZURE_CONFIG_DIR: azureConfigDir,
+    };
+
     const spawnOpts: PtySpawnOptions = {
       sessionId,
       cwd: worktree.path,
       command: opts.command,
       ...(opts.args !== undefined ? { args: opts.args } : {}),
-      ...(opts.env !== undefined ? { env: opts.env } : {}),
+      env: sessionEnv,
       size: {
         cols: opts.cols ?? 220,
         rows: opts.rows ?? 50,
@@ -212,7 +223,7 @@ export class SessionManager {
           branch: worktree.branch,
           worktreePath: worktree.path,
           prompt: '',
-          env: opts.env ?? {},
+          env: sessionEnv,
           maxRuntimeSeconds: 0,
           ...(opts.args !== undefined ? { args: opts.args } : {}),
           ...(opts.deleteEnv !== undefined ? { deleteEnv: opts.deleteEnv } : {}),
@@ -384,6 +395,12 @@ export class SessionManager {
     const reopenArgs = [...originalArgs];
     const originalEnv = dbSession.config.env ?? {};
     const homeDir = originalEnv['HOME'];
+
+    // Re-create per-session Azure CLI config dir (may have been lost on restart)
+    const azCfg = originalEnv['AZURE_CONFIG_DIR'];
+    if (azCfg) {
+      mkdirSync(azCfg, { recursive: true });
+    }
     const modelConfigId = dbSession.config.modelConfigId;
     const modelProvider = dbSession.config.modelProvider;
 
