@@ -87,6 +87,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const modelConfigId = (
         typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : ''
       ).trim();
+      const webAccess = req.body['webAccess'] === '1';
       const validateMode = (typeof req.body['validateMode'] === 'string' ? req.body['validateMode'] : '').trim();
       const validateBuild = (typeof req.body['validateBuild'] === 'string' ? req.body['validateBuild'] : '').trim();
       const validateStart = (typeof req.body['validateStart'] === 'string' ? req.body['validateStart'] : '').trim();
@@ -116,6 +117,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           validateBuild,
           validateStart,
           validateHealth,
+          webAccess,
           validateComposeFile,
           validateTimeout,
           repos,
@@ -129,7 +131,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       store.createPreset({
-        name, repoId, credentialProfileId, modelConfigId,
+        name, repoId, credentialProfileId, modelConfigId, webAccess,
         ...(validateMode ? { validateMode } : {}),
         ...(validateBuild ? { validateBuild } : {}),
         ...(validateStart ? { validateStart } : {}),
@@ -168,6 +170,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         repoId: preset.repoId,
         credentialProfileId: preset.credentialProfileId,
         modelConfigId: preset.modelConfigId,
+        webAccess: preset.webAccess,
         validateMode: preset.validateMode ?? '',
         validateBuild: preset.validateBuild ?? '',
         validateStart: preset.validateStart ?? '',
@@ -204,6 +207,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const validateComposeFile = (typeof req.body['validateComposeFile'] === 'string' ? req.body['validateComposeFile'] : '').trim();
       const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
       const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
+      const webAccess = req.body['webAccess'] === '1';
 
       const errors: string[] = [];
 
@@ -223,6 +227,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           repoId,
           credentialProfileId,
           modelConfigId,
+          webAccess,
           validateMode,
           validateBuild,
           validateStart,
@@ -240,7 +245,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       store.updatePreset(id, {
-        name, repoId, credentialProfileId, modelConfigId,
+        name, repoId, credentialProfileId, modelConfigId, webAccess,
         ...(validateMode ? { validateMode } : {}),
         ...(validateBuild ? { validateBuild } : {}),
         ...(validateStart ? { validateStart } : {}),

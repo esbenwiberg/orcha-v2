@@ -79,6 +79,33 @@ body {
 }
 
 /* -----------------------------------------------------------------------
+   Header toggle buttons (wake lock, notifications)
+   ----------------------------------------------------------------------- */
+.header-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+}
+
+.header-toggle--active {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+/* -----------------------------------------------------------------------
    Terminal / main content area — fills all remaining vertical space
    ----------------------------------------------------------------------- */
 #mobile-terminal-area {
@@ -324,12 +351,26 @@ body {
   border-color: var(--color-accent);
 }
 
+.session-select-btn__labels {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  margin-right: 8px;
+  text-align: left;
+}
+.session-select-btn__repo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
 .session-select-btn__branch {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
-  margin-right: 8px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
 }
 
 /* -----------------------------------------------------------------------
@@ -512,6 +553,56 @@ body {
 
 .mobile-key--arrow {
   padding: 6px 12px;
+}
+
+.mobile-key--copy {
+  margin-left: auto;
+  background: color-mix(in srgb, var(--color-accent) 20%, var(--color-surface-raised));
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.mobile-key--copy:active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* -----------------------------------------------------------------------
+   Toast notifications — bottom-center popup for copy/notification feedback
+   ----------------------------------------------------------------------- */
+#toast-container {
+  position: fixed;
+  bottom: calc(60px + max(env(safe-area-inset-bottom), 8px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  animation: toast-in 0.2s ease, toast-out 0.3s ease 2s forwards;
+  pointer-events: auto;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-out {
+  to { opacity: 0; transform: translateY(8px); }
 }
 
 /* -----------------------------------------------------------------------

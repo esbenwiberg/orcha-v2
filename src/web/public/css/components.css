@@ -964,6 +964,14 @@ body.has-fullscreen-terminal {
   border: 1px solid var(--color-success);
 }
 .auth-banner--waiting { opacity: 0.6; }
+
+/* In compact mode, fade out + collapse the success banner after 3s */
+.compact-cards .auth-banner--success {
+  animation: auth-banner-fade 1s ease 3s forwards;
+}
+@keyframes auth-banner-fade {
+  to { opacity: 0; max-height: 0; margin: 0; padding: 0; border-width: 0; overflow: hidden; }
+}
 .auth-banner__icon { font-size: 0.875rem; }
 .auth-banner__text { flex: 1; }
 
