@@ -315,6 +315,27 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
+          // Write .config.json to skip onboarding prompts and pre-approve API keys.
+          // Claude Code stores onboarding state and API key approvals in ~/.claude/.config.json.
+          // Without this, interactive sessions prompt for theme selection, disclaimer,
+          // folder trust, and API key approval on every launch.
+          const claudeConfig: Record<string, unknown> = {
+            hasCompletedOnboarding: true,
+            theme: 'dark',
+          };
+          if (modelConfigId) {
+            const mc = modelConfigStore.getConfig(modelConfigId);
+            if (mc?.apiKey) {
+              // Claude Code identifies approved keys by their last 20 characters
+              const keyFingerprint = mc.apiKey.slice(-20);
+              claudeConfig['customApiKeyResponses'] = {
+                approved: [keyFingerprint],
+                rejected: [],
+              };
+            }
+          }
+          writeFileSync(join(claudeDir, '.config.json'), JSON.stringify(claudeConfig), 'utf8');
+
           // Inject CLAUDE.md and soul.md from global settings (if configured)
           const claudeMd = getClaudeFileContent(globalSettingsStore, 'claude_md');
           if (claudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), claudeMd, 'utf8');
@@ -672,6 +693,25 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           };
           settings['mcpServers'] = mcpServers;
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+
+          // Rebuild .config.json (onboarding + API key approval)
+          const reopenConfig: Record<string, unknown> = {
+            hasCompletedOnboarding: true,
+            theme: 'dark',
+          };
+          const reopenModelConfigId = existing.config.modelConfigId;
+          if (reopenModelConfigId) {
+            const mcStore = new ModelConfigStore(deps.db);
+            const mc = mcStore.getConfig(reopenModelConfigId);
+            if (mc?.apiKey) {
+              const keyFingerprint = mc.apiKey.slice(-20);
+              reopenConfig['customApiKeyResponses'] = {
+                approved: [keyFingerprint],
+                rejected: [],
+              };
+            }
+          }
+          writeFileSync(join(claudeDir, '.config.json'), JSON.stringify(reopenConfig), 'utf8');
 
           // Inject CLAUDE.md and soul.md from global settings (if configured)
           const claudeMd = getClaudeFileContent(globalSettingsStore, 'claude_md');
