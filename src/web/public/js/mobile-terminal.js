@@ -413,7 +413,8 @@ async function openMobileTerminal(_sessionId, wsUrl) {
     },
     cursorBlink: true,
     scrollback: 1000,
-    scrollSensitivity: 3,
+    scrollSensitivity: 8,
+    fastScrollSensitivity: 15,
     allowProposedApi: false,
   });
 
