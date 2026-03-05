@@ -437,8 +437,11 @@ function _installTouchScroll(container, term) {
 
     if (!isVertical) return; // let horizontal gestures pass through
 
-    // Stop xterm.js from also processing this touch scroll
+    // Stop xterm.js from also processing this touch scroll, and prevent
+    // the browser's native viewport scroll (belt-and-suspenders with the
+    // CSS touch-action: none on .xterm-container).
     e.stopPropagation();
+    e.preventDefault();
 
     const dy = lastY - y; // positive = scroll down
     const now = Date.now();
@@ -448,11 +451,11 @@ function _installTouchScroll(container, term) {
       velocity = 0.7 * (dy / dt) + 0.3 * velocity;
     }
 
-    viewport.scrollTop += dy * 2.5;
+    viewport.scrollTop += dy * 3;
 
     lastY = y;
     lastTime = now;
-  }, { passive: true, capture: true });
+  }, { passive: false, capture: true });
 
   container.addEventListener('touchend', () => {
     if (!tracking) return;
@@ -461,15 +464,16 @@ function _installTouchScroll(container, term) {
     if (!isVertical) return;
 
     // Ignore negligible velocity
-    if (Math.abs(velocity) < 0.15) return;
+    if (Math.abs(velocity) < 0.1) return;
 
-    // Momentum phase — decay velocity over time
-    let v = velocity * 1200;
-    const friction = 0.95;
+    // Momentum phase — decay velocity over time.
+    // Higher seed + slower friction = longer, smoother glide.
+    let v = velocity * 2400;
+    const friction = 0.97;
 
     function step() {
       v *= friction;
-      if (Math.abs(v) < 1) return;
+      if (Math.abs(v) < 0.5) return;
       viewport.scrollTop += v * (1 / 60);
       momentumRaf = requestAnimationFrame(step);
     }

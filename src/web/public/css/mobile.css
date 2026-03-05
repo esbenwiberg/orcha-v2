@@ -508,6 +508,10 @@ body {
   /* xterm.js writes its own canvas; allow it to fill the flex item */
   min-height: 0;
   min-width: 0;
+  /* Prevent browser from handling vertical touch scroll — our custom
+     _installTouchScroll handler is the sole scroll source. Without this,
+     native scroll and the JS handler fight, producing jerky 1-2 line jumps. */
+  touch-action: none;
 }
 
 /* Ensure xterm's internal viewport fills the container */
