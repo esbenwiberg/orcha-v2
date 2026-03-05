@@ -762,6 +762,12 @@ body.has-fullscreen-terminal {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+.debug-shell-label--host {
+  color: var(--color-warning, #e5a800);
+}
+.terminal-header__btn--deploy {
+  color: var(--color-warning, #e5a800);
+}
 .debug-shell-panel .xterm-container {
   flex: 1 1 0%;
   min-height: 0;

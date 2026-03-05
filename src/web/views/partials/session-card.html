@@ -36,6 +36,16 @@
             <polyline points="4 15 1 15 1 12" /><polyline points="12 15 15 15 15 12" />
           </svg>
         </button>
+        <% if (it.deployCommand) { %>
+        <button class="terminal-header__btn terminal-header__btn--deploy" title="Deploy"
+          hx-post="/api/sessions/<%= it.id %>/deploy"
+          hx-target="#debug-shells-<%= it.id %>"
+          hx-swap="beforeend">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2v10M4 8l4 4 4-4" /><path d="M2 14h12" />
+          </svg>
+        </button>
+        <% } %>
         <button class="terminal-header__btn" title="More" onclick="window.__termCloseMenu('<%= it.id %>', this)">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="8" cy="3" r="1.2" fill="currentColor" /><circle cx="8" cy="8" r="1.2" fill="currentColor" /><circle cx="8" cy="13" r="1.2" fill="currentColor" />

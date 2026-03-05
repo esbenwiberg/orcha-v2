@@ -362,7 +362,7 @@ function showCloseMenu(sessionId, anchorBtn) {
   if (status === 'running' || status === 'completed' || status === 'failed' || status === 'cancelled') {
     const shellItem = document.createElement('button');
     shellItem.className = 'term-close-menu__item';
-    shellItem.textContent = 'Shell';
+    shellItem.textContent = 'Session Shell';
     shellItem.addEventListener('click', () => {
       menu.remove();
       fetch(`/api/sessions/${sessionId}/debug-shell`, { method: 'POST' })
@@ -388,6 +388,35 @@ function showCloseMenu(sessionId, anchorBtn) {
         .catch(() => showToast('Failed to spawn debug shell', 'error'));
     });
     menu.appendChild(shellItem);
+
+    // Host shell — same worktree, host env, session-scoped az config
+    const hostShellItem = document.createElement('button');
+    hostShellItem.className = 'term-close-menu__item';
+    hostShellItem.textContent = 'Host Shell';
+    hostShellItem.addEventListener('click', () => {
+      menu.remove();
+      fetch(`/api/sessions/${sessionId}/host-shell`, { method: 'POST' })
+        .then((r) => {
+          if (r.ok) return r.text();
+          throw new Error('Failed to spawn host shell');
+        })
+        .then((html) => {
+          if (html) {
+            let container = document.getElementById(`debug-shells-${sessionId}`);
+            if (!container) {
+              const termSlot = document.getElementById(`terminal-slot-${sessionId}`);
+              if (termSlot) {
+                container = document.createElement('div');
+                container.id = `debug-shells-${sessionId}`;
+                termSlot.after(container);
+              }
+            }
+            if (container) container.insertAdjacentHTML('beforeend', html);
+          }
+        })
+        .catch(() => showToast('Failed to spawn host shell', 'error'));
+    });
+    menu.appendChild(hostShellItem);
   }
 
   // Stop (SIGTERM) — only if session is running

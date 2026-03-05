@@ -43,6 +43,8 @@ interface SessionCardViewModel {
   credentials?: CredStripViewModel;
   /** Model provider type — used to show auth URL polling slot for 'max' sessions. */
   modelProvider?: string;
+  /** Deploy command from repo settings — when set, shows Deploy button on card. */
+  deployCommand?: string;
 }
 
 /** UUID pattern for detecting bare-repo directory names that are UUIDs. */
@@ -60,6 +62,7 @@ function toViewModel(
   creds?: import('../../credentials/types.js').ActiveCredentials,
   modelProvider?: string,
   repoName?: string,
+  deployCommand?: string | null,
 ): SessionCardViewModel {
   let credentials: CredStripViewModel | undefined;
   if (creds && !creds.revokedAt) {
@@ -82,6 +85,7 @@ function toViewModel(
     updatedAt: formatRelativeTime(session.updatedAt),
     ...(credentials !== undefined ? { credentials } : {}),
     ...(modelProvider !== undefined ? { modelProvider } : {}),
+    ...(deployCommand ? { deployCommand } : {}),
   };
 }
 
@@ -463,7 +467,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
-      const html = eta.render('partials/session-card', toViewModel(session, undefined, undefined, repo?.displayName));
+      const html = eta.render('partials/session-card', toViewModel(session, undefined, undefined, repo?.displayName, repo?.deployCommand));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -503,7 +507,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
-      const html = eta.render('partials/session-card', toViewModel(session, undefined, undefined, repo?.displayName));
+      const html = eta.render('partials/session-card', toViewModel(session, undefined, undefined, repo?.displayName, repo?.deployCommand));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -544,6 +548,64 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         // Already dead — fine
       }
       res.status(200).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /api/sessions/:id/host-shell — spawn an unsandboxed shell with host env
+  router.post('/sessions/:id/host-shell', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+
+      const existing = store.getSession(id);
+      if (existing === undefined) {
+        res.status(404).send('Session not found');
+        return;
+      }
+
+      const shell = deps.sessionEngine.spawnHostShell(id);
+      const html = eta.render('partials/debug-shell-panel', {
+        shellId: shell.shellId,
+        sessionId: id,
+        label: 'Host Shell',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /api/sessions/:id/deploy — run repo's deploy command in a host shell
+  router.post('/sessions/:id/deploy', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+
+      const existing = store.getSession(id);
+      if (existing === undefined) {
+        res.status(404).send('Session not found');
+        return;
+      }
+
+      // Look up repo to get deploy command + deploy env vars
+      const repo = repoStore.getRepoByBarePath(existing.config.repoRoot);
+      if (!repo?.deployCommand) {
+        res.status(422).send('No deploy command configured for this repo');
+        return;
+      }
+
+      const shell = deps.sessionEngine.spawnHostShell(id, {
+        command: [repo.deployCommand],
+        extraEnv: repo.deployEnvVars,
+      });
+      const html = eta.render('partials/debug-shell-panel', {
+        shellId: shell.shellId,
+        sessionId: id,
+        label: 'Deploy',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
     } catch (err) {
       next(err);
     }
@@ -780,16 +842,20 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   router.get('/sessions/cards', (_req, res, next) => {
     try {
       const sessions = store.listSessions();
-      // Build barePath → displayName map for repo name resolution
+      // Build barePath → displayName / deployCommand maps for repo resolution
       const repoNameMap = new Map<string, string>();
+      const deployCmdMap = new Map<string, string>();
       for (const repo of repoStore.listRepos()) {
         if (repo.barePath !== null) {
           repoNameMap.set(repo.barePath, repo.displayName);
+          if (repo.deployCommand) {
+            deployCmdMap.set(repo.barePath, repo.deployCommand);
+          }
         }
       }
       const viewModels = sessions.map((s) => {
         const active = deps.sessionEngine.getSessionByDbId(s.id);
-        return toViewModel(s, credStore.getBySessionId(s.id), active?.modelProvider, repoNameMap.get(s.config.repoRoot));
+        return toViewModel(s, credStore.getBySessionId(s.id), active?.modelProvider, repoNameMap.get(s.config.repoRoot), deployCmdMap.get(s.config.repoRoot));
       });
       const html = eta.render('partials/session-grid', { sessions: viewModels });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -814,7 +880,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const active = deps.sessionEngine.getSessionByDbId(id);
       const creds = credStore.getBySessionId(id);
       const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
-      const html = eta.render('partials/session-card', toViewModel(session, creds, active?.modelProvider, repo?.displayName));
+      const html = eta.render('partials/session-card', toViewModel(session, creds, active?.modelProvider, repo?.displayName, repo?.deployCommand));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {

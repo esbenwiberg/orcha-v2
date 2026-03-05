@@ -1,6 +1,6 @@
 <div class="debug-shell-panel" id="debug-shell-<%= it.shellId %>">
   <div class="debug-shell-header">
-    <span class="debug-shell-label">Shell</span>
+    <span class="debug-shell-label<%= it.label ? ' debug-shell-label--host' : '' %>"><%= it.label || 'Shell' %></span>
     <button class="terminal-header__btn" title="Close shell"
       hx-post="/api/sessions/<%= it.sessionId %>/debug-shell/<%= it.shellId %>/stop"
       hx-target="#debug-shell-<%= it.shellId %>"

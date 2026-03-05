@@ -613,6 +613,73 @@ export class SessionManager {
     return shell;
   }
 
+  /**
+   * Spawn a sandboxed shell in the session's worktree with the host's
+   * environment + session-scoped AZURE_CONFIG_DIR.
+   *
+   * Use case: Claude writes scripts, operator runs them with their own
+   * credentials. `az login` inside the shell writes to /tmp (session-scoped)
+   * so all CLI auth is cleaned up when the session closes.
+   */
+  spawnHostShell(parentSessionId: string, opts?: { extraEnv?: Record<string, string>; command?: string[] }): DebugShell {
+    const parent = this._active.get(parentSessionId) ?? this.getSessionByDbId(parentSessionId);
+    if (parent === undefined) {
+      throw new SessionError(`Parent session '${parentSessionId}' not found`, 'NOT_FOUND');
+    }
+
+    const shellId = `shell-${randomUUID()}`;
+    const ctx = parent.spawnContext ?? {};
+
+    // Inherit session-scoped AZURE_CONFIG_DIR so `az login` is ephemeral.
+    // Everything else comes from host env (process.env via PtyManager merge).
+    const env: Record<string, string> = {
+      ...opts?.extraEnv,
+    };
+    const parentAzDir = ctx.env?.['AZURE_CONFIG_DIR'];
+    if (parentAzDir !== undefined) {
+      env['AZURE_CONFIG_DIR'] = parentAzDir;
+    }
+
+    // If a command is provided (e.g. deploy script), run it via bash -c.
+    // Otherwise open an interactive bash shell.
+    const command = 'bash';
+    const args = opts?.command ? ['-c', opts.command.join(' ')] : undefined;
+
+    const spawnOpts: PtySpawnOptions = {
+      sessionId: shellId,
+      cwd: parent.worktree.path,
+      command,
+      ...(args !== undefined ? { args } : {}),
+      env,
+      size: { cols: 220, rows: 50 },
+      // Keep sandbox + extra paths from parent
+      ...(ctx.sandbox !== undefined ? { sandbox: ctx.sandbox } : {}),
+      ...(ctx.extraRwPaths !== undefined ? { extraRwPaths: ctx.extraRwPaths } : {}),
+      // No deleteEnv — don't strip host vars
+    };
+
+    const terminal = this._ptyManager.spawn(spawnOpts);
+    const outputBuffer = new OutputBuffer();
+    terminal.output.on('data', (chunk: Buffer | string) => {
+      outputBuffer.push(chunk);
+    });
+
+    const shell: DebugShell = {
+      shellId,
+      parentSessionId: parent.sessionId,
+      terminal,
+      outputBuffer,
+      createdAt: new Date(),
+    };
+
+    terminal.on('exit', () => {
+      this._debugShells.delete(shellId);
+    });
+
+    this._debugShells.set(shellId, shell);
+    return shell;
+  }
+
   getDebugShell(shellId: string): DebugShell | undefined {
     return this._debugShells.get(shellId);
   }

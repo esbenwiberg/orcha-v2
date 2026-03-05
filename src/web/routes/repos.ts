@@ -52,6 +52,8 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         validateHealth: repo.validateHealth ?? '',
         validateComposeFile: repo.validateComposeFile ?? '',
         validateTimeout: repo.validateTimeout,
+        deployCommand: repo.deployCommand ?? '',
+        deployEnvVars: repo.deployEnvVars,
         envVars: repo.envVars,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -84,6 +86,8 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
           validateHealth: repo?.validateHealth ?? '',
           validateComposeFile: repo?.validateComposeFile ?? '',
           validateTimeout: repo?.validateTimeout ?? 300,
+          deployCommand: repo?.deployCommand ?? '',
+          deployEnvVars: repo?.deployEnvVars ?? {},
           envVars: repo?.envVars ?? {},
         });
         const html = eta.render('partials/form-error', { errors, formHtml });
@@ -119,6 +123,23 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
       const validateComposeFile = (typeof req.body['validateComposeFile'] === 'string' ? req.body['validateComposeFile'] : '').trim();
       const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
       const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
+      const deployCommand = (typeof req.body['deployCommand'] === 'string' ? req.body['deployCommand'] : '').trim();
+
+      // Parse deploy env vars
+      const deployEnvKeys = req.body['deployEnvKeys[]'];
+      const deployEnvValues = req.body['deployEnvValues[]'];
+      const deployEnvKeysArr: string[] = Array.isArray(deployEnvKeys) ? deployEnvKeys : (deployEnvKeys ? [deployEnvKeys] : []);
+      const deployEnvValuesArr: string[] = Array.isArray(deployEnvValues) ? deployEnvValues : (deployEnvValues ? [deployEnvValues] : []);
+      const deployEnvVars: Record<string, string> = {};
+      for (let i = 0; i < deployEnvKeysArr.length; i++) {
+        const rawKey = deployEnvKeysArr[i];
+        const rawVal = deployEnvValuesArr[i];
+        const k = (typeof rawKey === 'string' ? rawKey : '').trim();
+        const v = typeof rawVal === 'string' ? rawVal : '';
+        if (k.length > 0) {
+          deployEnvVars[k] = v;
+        }
+      }
 
       store.updateValidation(id, {
         validateMode,
@@ -126,6 +147,8 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         validateStart,
         validateHealth,
         validateComposeFile,
+        deployCommand,
+        deployEnvVars,
         ...(validateTimeout !== undefined && !isNaN(validateTimeout) ? { validateTimeout } : {}),
       });
 

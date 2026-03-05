@@ -57,6 +57,49 @@
   <% if (it.editId) { %>
     <details style="margin-top:0.75rem;border-top:1px solid var(--color-border);padding-top:0.5rem;">
       <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--color-text-primary);user-select:none;">
+        Deploy
+      </summary>
+      <div style="margin-top:0.5rem;">
+        <div class="form-group">
+          <label for="ar-deploy-command">Deploy Command</label>
+          <input id="ar-deploy-command" type="text" name="deployCommand" placeholder="bash scripts/deploy-app.sh" autocomplete="off" value="<%= it.deployCommand ?? '' %>" />
+          <span style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">
+            Runs in a host shell (your env) from the session worktree. Shows a Deploy button on session cards.
+          </span>
+        </div>
+        <div style="margin-top:0.5rem;">
+          <label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--color-text-secondary);">Deploy Environment Variables</label>
+          <div id="deploy-env-vars-container" style="margin-top:0.25rem;">
+            <% const dEntries = it.deployEnvVars ? Object.entries(it.deployEnvVars) : []; %>
+            <% if (dEntries.length > 0) { %>
+              <% dEntries.forEach(function([key, val]) { %>
+                <div class="env-row" style="display:flex;gap:0.25rem;margin-bottom:0.25rem;align-items:center;">
+                  <input type="text" name="deployEnvKeys[]" placeholder="KEY" autocomplete="off" value="<%= key %>" style="flex:1;font-family:var(--font-mono);font-size:12px;" />
+                  <input type="password" name="deployEnvValues[]" placeholder="value" autocomplete="off" value="<%= val %>" style="flex:2;font-family:var(--font-mono);font-size:12px;" />
+                  <button type="button" class="btn btn-ghost" style="padding:0.15rem 0.35rem;font-size:11px;line-height:1;" onclick="this.parentElement.remove()">×</button>
+                </div>
+              <% }); %>
+            <% } %>
+          </div>
+          <button type="button" class="btn btn-ghost" style="font-size:11px;margin-top:0.25rem;" onclick="
+            var c = document.getElementById('deploy-env-vars-container');
+            var row = document.createElement('div');
+            row.className = 'env-row';
+            row.style.cssText = 'display:flex;gap:0.25rem;margin-bottom:0.25rem;align-items:center;';
+            row.innerHTML = '<input type=&quot;text&quot; name=&quot;deployEnvKeys[]&quot; placeholder=&quot;KEY&quot; autocomplete=&quot;off&quot; style=&quot;flex:1;font-family:var(--font-mono);font-size:12px;&quot; />'
+              + '<input type=&quot;password&quot; name=&quot;deployEnvValues[]&quot; placeholder=&quot;value&quot; autocomplete=&quot;off&quot; style=&quot;flex:2;font-family:var(--font-mono);font-size:12px;&quot; />'
+              + '<button type=&quot;button&quot; class=&quot;btn btn-ghost&quot; style=&quot;padding:0.15rem 0.35rem;font-size:11px;line-height:1;&quot; onclick=&quot;this.parentElement.remove()&quot;>×</button>';
+            c.appendChild(row);
+          ">+ Add Variable</button>
+          <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">
+            Only injected into deploy shells — Claude sessions never see these.
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <details style="margin-top:0.75rem;border-top:1px solid var(--color-border);padding-top:0.5rem;">
+      <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--color-text-primary);user-select:none;">
         Validation Config
       </summary>
       <div style="margin-top:0.5rem;">

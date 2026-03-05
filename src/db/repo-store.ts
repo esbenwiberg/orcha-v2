@@ -25,6 +25,8 @@ export interface Repo extends RepoValidateFields {
   status: RepoStatus;
   error: string | null;
   envVars: Record<string, string>;
+  deployCommand: string | null;
+  deployEnvVars: Record<string, string>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -92,6 +94,11 @@ export class RepoStore {
       validateHealth: (row['validate_health'] as string | null) ?? null,
       validateComposeFile: (row['validate_compose_file'] as string | null) ?? null,
       validateTimeout: (row['validate_timeout'] as number | null) ?? 300,
+      deployCommand: (row['deploy_command'] as string | null) ?? null,
+      deployEnvVars: (() => {
+        const raw = row['deploy_env_json'] as string | null;
+        return raw ? decryptJson<Record<string, string>>(raw) : {};
+      })(),
       createdAt: new Date(row['created_at'] as string),
       updatedAt: new Date(row['updated_at'] as string),
     };
@@ -185,17 +192,21 @@ export class RepoStore {
       validateHealth?: string;
       validateComposeFile?: string;
       validateTimeout?: number;
+      deployCommand?: string;
+      deployEnvVars?: Record<string, string>;
     },
   ): Repo | undefined {
     const existing = this.getRepo(id);
     if (existing === undefined) return undefined;
 
     const now = new Date().toISOString();
+    const hasDeployEnv = fields.deployEnvVars && Object.keys(fields.deployEnvVars).length > 0;
     this.#db
       .prepare(
         `UPDATE repos SET
            validate_mode = ?, validate_build = ?, validate_start = ?,
            validate_health = ?, validate_compose_file = ?, validate_timeout = ?,
+           deploy_command = ?, deploy_env_json = ?,
            updated_at = ?
          WHERE id = ?`,
       )
@@ -206,6 +217,8 @@ export class RepoStore {
         fields.validateHealth || null,
         fields.validateComposeFile || null,
         fields.validateTimeout ?? existing.validateTimeout,
+        fields.deployCommand || null,
+        hasDeployEnv ? encryptJson(fields.deployEnvVars!) : null,
         now,
         id,
       );
