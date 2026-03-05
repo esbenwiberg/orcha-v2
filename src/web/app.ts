@@ -20,6 +20,7 @@ import { createReposRouter } from './routes/repos.js';
 import { createEventsRouter } from './routes/events.js';
 import { createCredentialsRouter } from './routes/credentials.js';
 import { createClaudePermissionsRouter } from './routes/claude-permissions.js';
+import { createClaudeFilesRouter } from './routes/claude-files.js';
 import { createMcpServersRouter } from './routes/mcp-servers.js';
 import { createGitIdentityRouter } from './routes/git-identity.js';
 import { createSystemRouter } from './routes/system.js';
@@ -134,6 +135,9 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // Claude permissions editor router
   app.use('/api', createClaudePermissionsRouter(eta, deps.db));
+
+  // CLAUDE.md / soul.md editor router
+  app.use('/api', createClaudeFilesRouter(eta, deps.db));
 
   // MCP servers management router
   app.use('/api', createMcpServersRouter(eta, deps.db));

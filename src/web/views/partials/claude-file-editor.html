@@ -1,0 +1,23 @@
+<div id="claude-file-<%= it.key %>">
+  <form
+    hx-post="/api/claude-files/<%= it.key %>"
+    hx-target="#claude-file-<%= it.key %>"
+    hx-swap="outerHTML"
+  >
+    <textarea
+      name="content"
+      class="input"
+      style="width:100%;min-height:12rem;font-family:var(--font-mono);font-size:0.8125rem;line-height:1.5;resize:vertical;white-space:pre;tab-size:2"
+      placeholder="Paste your <%= it.filename %> content here..."
+    ><%= it.content %></textarea>
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-top:0.75rem">
+      <button class="btn btn-primary btn-sm">Save</button>
+      <% if (it.saved) { %>
+        <span class="badge badge--completed" style="animation:fadeIn 0.2s">Saved</span>
+      <% } %>
+      <% if (!it.content) { %>
+        <span class="text-xs text-muted">Empty — file will not be written to sessions</span>
+      <% } %>
+    </div>
+  </form>
+</div>

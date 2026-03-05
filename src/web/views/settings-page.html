@@ -17,6 +17,40 @@
 <div class="page-section">
   <div class="page-section__header">
     <div>
+      <h2 class="page-section__title">CLAUDE.md</h2>
+      <p class="page-section__subtitle">Global instructions injected into every session's <code class="font-mono text-xs">~/.claude/CLAUDE.md</code></p>
+    </div>
+  </div>
+  <div
+    hx-get="/api/claude-files/claude_md"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row" style="margin-top:0.5rem"></div>
+  </div>
+</div>
+
+<div class="page-section">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">soul.md</h2>
+      <p class="page-section__subtitle">Voice and style guide injected into every session's <code class="font-mono text-xs">~/.claude/soul.md</code></p>
+    </div>
+  </div>
+  <div
+    hx-get="/api/claude-files/soul_md"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row" style="margin-top:0.5rem"></div>
+  </div>
+</div>
+
+<div class="page-section">
+  <div class="page-section__header">
+    <div>
       <h2 class="page-section__title">Claude Permissions</h2>
       <p class="page-section__subtitle">Tool allow/deny rules written to <code class="font-mono text-xs">.claude/settings.json</code></p>
     </div>

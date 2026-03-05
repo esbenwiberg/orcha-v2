@@ -12,6 +12,7 @@ import { CredentialStore } from '../../db/credential-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
 import { readSettingsFromDb } from './claude-settings-db.js';
+import { getClaudeFileContent } from './claude-files.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
@@ -298,6 +299,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           settings['mcpServers'] = mcpServers;
 
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+
+          // Inject CLAUDE.md and soul.md from global settings (if configured)
+          const claudeMd = getClaudeFileContent(globalSettingsStore, 'claude_md');
+          if (claudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), claudeMd, 'utf8');
+          const soulMd = getClaudeFileContent(globalSettingsStore, 'soul_md');
+          if (soulMd) writeFileSync(join(claudeDir, 'soul.md'), soulMd, 'utf8');
 
           // Inject model credentials if available
           if (modelConfigId) {
@@ -592,6 +599,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           };
           settings['mcpServers'] = mcpServers;
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+
+          // Inject CLAUDE.md and soul.md from global settings (if configured)
+          const claudeMd = getClaudeFileContent(globalSettingsStore, 'claude_md');
+          if (claudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), claudeMd, 'utf8');
+          const soulMd = getClaudeFileContent(globalSettingsStore, 'soul_md');
+          if (soulMd) writeFileSync(join(claudeDir, 'soul.md'), soulMd, 'utf8');
 
           // Restore credentials if available
           const modelConfigId = existing.config.modelConfigId;
