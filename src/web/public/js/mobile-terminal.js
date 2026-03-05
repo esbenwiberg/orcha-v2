@@ -543,6 +543,12 @@ async function openMobileTerminal(_sessionId, wsUrl) {
 
   const fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
+
+  // Make URLs in terminal output clickable (opens in new tab on tap)
+  if (window.WebLinksAddon?.WebLinksAddon) {
+    term.loadAddon(new window.WebLinksAddon.WebLinksAddon());
+  }
+
   term.open(container);
   fitAddon.fit();
 

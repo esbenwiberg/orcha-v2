@@ -737,6 +737,12 @@ export async function openTerminal(sessionId, containerId, wsPrefix = '/ws/termi
 
   const fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
+
+  // Make URLs in terminal output clickable
+  if (window.WebLinksAddon?.WebLinksAddon) {
+    term.loadAddon(new window.WebLinksAddon.WebLinksAddon());
+  }
+
   term.open(container);
 
   // Intercept keys before xterm processes them (Ctrl+A prefix, Ctrl+V paste)
