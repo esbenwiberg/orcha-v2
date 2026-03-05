@@ -265,12 +265,30 @@ async function _appendWsTicket(wsUrl) {
 /**
  * Reconnect the active terminal WebSocket with a fresh auth ticket.
  * Used by visibilitychange and _switchToTerminal when the WS has died.
+ *
+ * Closes the old socket first and waits briefly for the network stack to
+ * stabilise after the browser wakes from a suspended state (screen lock,
+ * tab background).
  */
+let _reconnecting = false;
 async function _reconnectWs() {
   if (!_activeTerm || !_activeFitAddon || !_baseWsUrl) return;
+  if (_reconnecting) return; // prevent concurrent reconnects
+  _reconnecting = true;
   updateBadge('reconnecting');
+
+  // Close the old socket so the server cleans up listeners
+  if (_activeWs) {
+    try { _activeWs.close(); } catch {}
+    _activeWs = null;
+  }
+
+  // Brief delay — mobile browsers need a moment to restore networking
+  await new Promise((r) => setTimeout(r, 500));
+
   const ticketedUrl = await _appendWsTicket(_baseWsUrl);
   connectWs(ticketedUrl, _activeTerm, _activeFitAddon, 0);
+  _reconnecting = false;
 }
 
 /**
@@ -283,8 +301,8 @@ async function _reconnectWs() {
  * @param {number}    retryCount - How many reconnect attempts have been made so far.
  */
 function connectWs(wsUrl, term, fitAddon, retryCount) {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY_MS = 3000; // 3s, 6s, 9s
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY_MS = 2000;
 
   const ws = new WebSocket(wsUrl);
   _activeWs = ws;
@@ -319,7 +337,10 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
   };
 
   ws.onerror = () => {
-    term.write('\r\n[mobile-terminal] WebSocket error — connection lost\r\n');
+    // Suppress noisy error messages during retries
+    if (retryCount === 0) {
+      term.write('\r\n\x1b[33m[reconnecting…]\x1b[0m');
+    }
   };
 
   ws.onclose = () => {
@@ -330,22 +351,24 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
     if (retryCount < MAX_RETRIES) {
       updateBadge('reconnecting');
       const delay = RETRY_DELAY_MS * (retryCount + 1);
-      term.write(`\r\n[mobile-terminal] Reconnecting in ${delay / 1000}s… (attempt ${retryCount + 1}/${MAX_RETRIES})\r\n`);
-      setTimeout(() => {
+      setTimeout(async () => {
         // Only retry if this ws is still the active one (not disposed in the meantime).
-        if (_activeWs === ws) {
-          connectWs(wsUrl, term, fitAddon, retryCount + 1);
+        if (_activeWs !== ws) return;
+        // Fetch a fresh ticket for each retry (tickets are one-time use)
+        if (_baseWsUrl) {
+          const freshUrl = await _appendWsTicket(_baseWsUrl);
+          connectWs(freshUrl, term, fitAddon, retryCount + 1);
         }
       }, delay);
     } else {
       updateBadge('disconnected');
-      term.write('\r\n[mobile-terminal] Disconnected\r\n');
+      term.write('\r\n\x1b[31m[disconnected]\x1b[0m\r\n');
       // Append a user-visible reconnect-failed notice to #terminal-frame.
       const frame = document.getElementById('terminal-frame');
       if (frame) {
         const notice = document.createElement('div');
         notice.className = 'reconnect-failed-msg';
-        notice.textContent = 'Connection lost.';
+        notice.textContent = 'Connection lost. Tap the session to reconnect.';
         frame.appendChild(notice);
       }
     }
