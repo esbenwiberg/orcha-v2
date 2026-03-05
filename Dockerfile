@@ -33,9 +33,13 @@ RUN npm install -g @anthropic-ai/claude-code
 
 RUN groupadd -r orcha && useradd -r -g orcha -d /app orcha
 
+# Let orcha user update global npm packages (claude-code) at boot
+RUN chown -R orcha:orcha /usr/local/lib/node_modules /usr/local/bin
+
 WORKDIR /app
 
 COPY --from=builder /build/landlock-exec /usr/local/bin/landlock-exec
+COPY scripts/entrypoint.sh /app/entrypoint.sh
 COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json ./package.json
@@ -65,4 +69,4 @@ ENV NODE_ENV=production \
 
 USER orcha
 
-CMD node dist/web/start-server.js 2>&1
+CMD ["bash", "/app/entrypoint.sh"]
