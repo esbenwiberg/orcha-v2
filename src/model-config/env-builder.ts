@@ -20,9 +20,13 @@ export function buildModelEnv(config: ModelConfig): Record<string, string> {
       env['ANTHROPIC_API_KEY'] = ENV_DELETE;
       break;
 
-    case 'anthropic':
+    case 'anthropic': {
       if (config.apiKey) env['ANTHROPIC_API_KEY'] = config.apiKey;
+      let anthropicUrl = config.baseUrl ?? '';
+      if (anthropicUrl && !/^https?:\/\//i.test(anthropicUrl)) anthropicUrl = `https://${anthropicUrl}`;
+      if (anthropicUrl) env['ANTHROPIC_BASE_URL'] = anthropicUrl.replace(/\/+$/, '');
       break;
+    }
 
     case 'foundry':
       env['CLAUDE_CODE_USE_FOUNDRY'] = '1';

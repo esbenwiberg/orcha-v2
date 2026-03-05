@@ -44,6 +44,13 @@
       <label for="mc-api-key">API Key</label>
       <input id="mc-api-key" type="password" name="apiKey" placeholder="sk-ant-…" autocomplete="off" value="<%= it.apiKey ?? '' %>" />
     </div>
+    <div class="form-group">
+      <label for="mc-anthropic-url">
+        Base URL
+        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — for API proxies / third-party brokers)</span>
+      </label>
+      <input id="mc-anthropic-url" type="text" name="baseUrl" placeholder="https://api.anthropic.com" value="<%= it.provider === 'anthropic' ? (it.baseUrl ?? '') : '' %>" />
+    </div>
   </div>
 
   <!-- foundry -->
