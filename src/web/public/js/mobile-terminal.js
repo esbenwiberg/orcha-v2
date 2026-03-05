@@ -377,6 +377,106 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
   return ws;
 }
 
+/* -----------------------------------------------------------------------
+   Touch scroll with momentum — replaces xterm.js's jerky built-in touch
+   scrolling with native-feeling inertia on mobile.
+   ----------------------------------------------------------------------- */
+function _installTouchScroll(container, term) {
+  const viewport = container.querySelector('.xterm-viewport');
+  if (!viewport) return;
+
+  let startY = 0;
+  let lastY = 0;
+  let lastTime = 0;
+  let velocity = 0;
+  let momentumRaf = 0;
+  let tracking = false;
+  let startX = 0;
+  // Direction lock — if the initial gesture is mostly horizontal, let it through
+  let directionLocked = false;
+  let isVertical = false;
+
+  function cancelMomentum() {
+    if (momentumRaf) {
+      cancelAnimationFrame(momentumRaf);
+      momentumRaf = 0;
+    }
+  }
+
+  // Use capture phase to intercept before xterm.js's own touch handlers,
+  // which would otherwise cause jittery double-scrolling.
+  container.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    cancelMomentum();
+    tracking = true;
+    directionLocked = false;
+    isVertical = false;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    lastY = startY;
+    lastTime = Date.now();
+    velocity = 0;
+  }, { passive: true, capture: true });
+
+  container.addEventListener('touchmove', (e) => {
+    if (!tracking || e.touches.length !== 1) return;
+
+    const y = e.touches[0].clientY;
+    const x = e.touches[0].clientX;
+
+    // Lock direction on first significant move
+    if (!directionLocked) {
+      const dx = Math.abs(x - startX);
+      const dy = Math.abs(y - startY);
+      if (dy > 5 || dx > 5) {
+        directionLocked = true;
+        isVertical = dy >= dx;
+      }
+      if (!directionLocked) return;
+    }
+
+    if (!isVertical) return; // let horizontal gestures pass through
+
+    // Stop xterm.js from also processing this touch scroll
+    e.stopPropagation();
+
+    const dy = lastY - y; // positive = scroll down
+    const now = Date.now();
+    const dt = now - lastTime;
+
+    if (dt > 0) {
+      velocity = 0.7 * (dy / dt) + 0.3 * velocity;
+    }
+
+    viewport.scrollTop += dy * 2.5;
+
+    lastY = y;
+    lastTime = now;
+  }, { passive: true, capture: true });
+
+  container.addEventListener('touchend', () => {
+    if (!tracking) return;
+    tracking = false;
+
+    if (!isVertical) return;
+
+    // Ignore negligible velocity
+    if (Math.abs(velocity) < 0.15) return;
+
+    // Momentum phase — decay velocity over time
+    let v = velocity * 1200;
+    const friction = 0.95;
+
+    function step() {
+      v *= friction;
+      if (Math.abs(v) < 1) return;
+      viewport.scrollTop += v * (1 / 60);
+      momentumRaf = requestAnimationFrame(step);
+    }
+    momentumRaf = requestAnimationFrame(step);
+  }, { passive: true, capture: true });
+}
+
 /**
  * Open a mobile terminal inside #xterm-container and connect it to the
  * WebSocket endpoint for the given session.
@@ -471,6 +571,10 @@ async function openMobileTerminal(_sessionId, wsUrl) {
   _activeTerm = term;
   _activeFitAddon = fitAddon;
   _activeObserver = observer;
+
+  // Custom touch scroll with momentum — xterm.js's built-in touch handler
+  // has no inertia, making scrolling feel clunky on mobile.
+  _installTouchScroll(container, term);
 
   return { disconnect: _disposeMobileTerminal };
 }
@@ -802,11 +906,15 @@ document.addEventListener('htmx:afterSwap', (event) => {
           const KEY_MAP = {
             'esc': '\x1b',
             'tab': '\t',
+            'enter': '\r',
             'ctrl-c': '\x03',
             'ctrl-o': '\x0f',
             'arrow-up': '\x1b[A',
             'arrow-down': '\x1b[B',
           };
+
+          // Keys that should NOT re-focus the terminal (avoids opening the keyboard)
+          const NO_FOCUS_KEYS = new Set(['enter', 'arrow-up', 'arrow-down', 'esc', 'ctrl-c', 'ctrl-o', 'copy']);
 
           keysBar.addEventListener('click', (e) => {
             const btn = e.target.closest('.mobile-key');
@@ -820,8 +928,9 @@ document.addEventListener('htmx:afterSwap', (event) => {
             if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
               _activeWs.send(JSON.stringify({ type: 'input', data }));
             }
-            // Re-focus the terminal so user can keep typing
-            if (_activeTerm) _activeTerm.focus();
+            // Re-focus the terminal so user can keep typing — but skip for
+            // keys where the user likely doesn't want the keyboard to pop up.
+            if (_activeTerm && !NO_FOCUS_KEYS.has(keyName)) _activeTerm.focus();
           });
         }
 

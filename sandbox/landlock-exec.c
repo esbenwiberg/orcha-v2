@@ -137,6 +137,7 @@ int main(int argc, char *argv[]) {
     static const char *ro_paths[] = {
         "/usr", "/lib", "/lib64", "/bin", "/sbin",
         "/etc", "/proc", "/run",
+        "/opt",            /* azure-cli lives in /opt/az */
         "/var/lib/dpkg",   /* dpkg db — some tools query it */
         "/sys",            /* sysfs — some Node.js internals read it */
         NULL,

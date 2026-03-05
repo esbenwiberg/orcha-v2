@@ -9,7 +9,7 @@ import type { SandboxConfig } from './sandbox-config.js';
  *   Applies Linux Landlock LSM restrictions — no privileges or user namespaces
  *   required. Works in unprivileged ACA containers.
  *   Allowed RW: worktree, ~/.claude, /tmp, any extraRwPaths
- *   Allowed RO: /usr /lib /lib64 /bin /sbin /etc /proc /run
+ *   Allowed RO: /usr /lib /lib64 /bin /sbin /etc /proc /run /opt
  *
  * none: returns command unchanged.
  */
