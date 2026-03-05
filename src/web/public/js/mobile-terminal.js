@@ -24,6 +24,184 @@ let _authPollInterval = null;
 let _bootedFrame = null;
 
 /* -----------------------------------------------------------------------
+   Rolling output buffer — stores the last chunk of terminal output for
+   the "Copy" button on the mobile key bar.
+   ----------------------------------------------------------------------- */
+let _lastOutputChunk = '';
+const MAX_OUTPUT_BUFFER = 8000;
+
+/* -----------------------------------------------------------------------
+   Wake Lock — keeps the screen on while toggle is active.
+   Auto-releases after 5 minutes of no terminal output.
+   ----------------------------------------------------------------------- */
+let _wakeLock = null;
+let _wakeLockIdleTimer = null;
+const WAKELOCK_IDLE_MINUTES = 5;
+
+async function _acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return false;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+    _wakeLock.addEventListener('release', () => { _wakeLock = null; _updateWakeLockUI(); });
+    _resetWakeLockIdleTimer();
+    return true;
+  } catch { return false; }
+}
+
+function _releaseWakeLock() {
+  if (_wakeLockIdleTimer) { clearTimeout(_wakeLockIdleTimer); _wakeLockIdleTimer = null; }
+  if (_wakeLock) { _wakeLock.release(); _wakeLock = null; }
+  _updateWakeLockUI();
+}
+
+function _resetWakeLockIdleTimer() {
+  if (_wakeLockIdleTimer) clearTimeout(_wakeLockIdleTimer);
+  if (!_wakeLock) return;
+  _wakeLockIdleTimer = setTimeout(() => {
+    _releaseWakeLock();
+    localStorage.removeItem('orcha-wakelock');
+    _showToast('Screen lock released (idle)');
+  }, WAKELOCK_IDLE_MINUTES * 60 * 1000);
+}
+
+function _updateWakeLockUI() {
+  const btn = document.getElementById('wakelock-toggle');
+  if (btn) btn.classList.toggle('header-toggle--active', !!_wakeLock);
+}
+
+window._toggleWakeLock = async function () {
+  if (_wakeLock) {
+    _releaseWakeLock();
+    localStorage.removeItem('orcha-wakelock');
+  } else {
+    const ok = await _acquireWakeLock();
+    if (ok) {
+      localStorage.setItem('orcha-wakelock', '1');
+      _showToast('Screen will stay on');
+    } else {
+      _showToast('Wake lock not supported');
+    }
+  }
+  _updateWakeLockUI();
+};
+
+/* -----------------------------------------------------------------------
+   Notifications — browser Notification API for session events.
+   Enabled via header toggle. Fires for:
+   - Session completed/failed (via SSE)
+   - Auth input needed (via SSE)
+   - Idle for 60s after being active (badge indicator only until idle 5min)
+   ----------------------------------------------------------------------- */
+let _notificationsEnabled = localStorage.getItem('orcha-notifications') === '1';
+let _lastOutputTime = 0;
+let _idleCheckInterval = null;
+const IDLE_SECONDS = 60;
+const IDLE_NOTIFY_SECONDS = 300;
+
+function _updateNotifyUI() {
+  const btn = document.getElementById('notify-toggle');
+  if (btn) btn.classList.toggle('header-toggle--active', _notificationsEnabled);
+}
+
+window._toggleNotifications = async function () {
+  if (_notificationsEnabled) {
+    _notificationsEnabled = false;
+    localStorage.removeItem('orcha-notifications');
+    _stopIdleCheck();
+    _stopNotifySSE();
+    _showToast('Notifications off');
+  } else {
+    if (!('Notification' in window)) {
+      _showToast('Notifications not supported');
+      return;
+    }
+    let perm = Notification.permission;
+    if (perm === 'default') {
+      perm = await Notification.requestPermission();
+    }
+    if (perm === 'granted') {
+      _notificationsEnabled = true;
+      localStorage.setItem('orcha-notifications', '1');
+      _startIdleCheck();
+      _startNotifySSE();
+      _showToast('Notifications on');
+    } else {
+      _showToast('Notification permission denied');
+    }
+  }
+  _updateNotifyUI();
+};
+
+function _sendNotification(title, body) {
+  if (!_notificationsEnabled || Notification.permission !== 'granted') return;
+  if (document.visibilityState === 'visible') return; // only notify when backgrounded
+  try { new Notification(title, { body, icon: '/favicon.ico', tag: 'orcha-' + title }); } catch {}
+}
+
+function _startIdleCheck() {
+  _stopIdleCheck();
+  if (!_notificationsEnabled) return;
+  _idleCheckInterval = setInterval(() => {
+    if (_lastOutputTime === 0) return;
+    const idleSec = (Date.now() - _lastOutputTime) / 1000;
+
+    // Update idle badge on session items
+    document.querySelectorAll('.badge--running').forEach((b) => {
+      if (idleSec > IDLE_SECONDS) {
+        if (!b.dataset.origText) b.dataset.origText = b.textContent;
+        b.textContent = 'idle';
+        b.style.opacity = '0.6';
+      } else if (b.dataset.origText) {
+        b.textContent = b.dataset.origText;
+        b.style.opacity = '';
+        delete b.dataset.origText;
+      }
+    });
+
+    // Send a notification after prolonged idle
+    if (idleSec > IDLE_NOTIFY_SECONDS) {
+      _sendNotification('Session idle', 'Your agent session has been idle for 5+ minutes');
+      _lastOutputTime = Date.now(); // reset so we don't spam
+    }
+  }, 5000);
+}
+
+function _stopIdleCheck() {
+  if (_idleCheckInterval) { clearInterval(_idleCheckInterval); _idleCheckInterval = null; }
+}
+
+/* -----------------------------------------------------------------------
+   Toast helper — show a brief popup message
+   ----------------------------------------------------------------------- */
+function _showToast(message) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
+/* -----------------------------------------------------------------------
+   Copy last output — copies the rolling output buffer to clipboard
+   ----------------------------------------------------------------------- */
+async function _copyLastOutput() {
+  if (!_lastOutputChunk) {
+    _showToast('Nothing to copy');
+    return;
+  }
+  try {
+    // Strip ANSI escape sequences for clean text
+    const clean = _lastOutputChunk.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    await navigator.clipboard.writeText(clean);
+    _showToast('Copied to clipboard');
+  } catch {
+    _showToast('Copy failed');
+  }
+}
+
+/* -----------------------------------------------------------------------
    Layer visibility helpers — terminal persists in one layer while
    sessions/info/diff content swaps in the other
    ----------------------------------------------------------------------- */
@@ -125,6 +303,15 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
       const msg = JSON.parse(event.data);
       if (msg.type === 'output' && typeof msg.data === 'string') {
         term.write(msg.data);
+        // Append to rolling output buffer
+        _lastOutputChunk += msg.data;
+        if (_lastOutputChunk.length > MAX_OUTPUT_BUFFER) {
+          _lastOutputChunk = _lastOutputChunk.slice(-MAX_OUTPUT_BUFFER);
+        }
+        // Track last output time for idle detection
+        _lastOutputTime = Date.now();
+        // Reset wake lock idle timer on terminal activity
+        if (_wakeLock) _resetWakeLockIdleTimer();
       }
     } catch {
       // Ignore unparseable messages.
@@ -178,6 +365,10 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
 async function openMobileTerminal(_sessionId, wsUrl) {
   // Dispose any previously open terminal
   _disposeMobileTerminal();
+
+  // Reset output buffer for new session
+  _lastOutputChunk = '';
+  _lastOutputTime = 0;
 
   // Store the base URL (without ticket) so we can reconnect later.
   _baseWsUrl = wsUrl;
@@ -588,8 +779,7 @@ document.addEventListener('htmx:afterSwap', (event) => {
             'esc': '\x1b',
             'tab': '\t',
             'ctrl-c': '\x03',
-            'ctrl-d': '\x04',
-            'ctrl-z': '\x1a',
+            'ctrl-o': '\x0f',
             'arrow-up': '\x1b[A',
             'arrow-down': '\x1b[B',
           };
@@ -598,6 +788,10 @@ document.addEventListener('htmx:afterSwap', (event) => {
             const btn = e.target.closest('.mobile-key');
             if (!btn) return;
             const keyName = btn.dataset.key;
+            if (keyName === 'copy') {
+              _copyLastOutput();
+              return;
+            }
             const data = KEY_MAP[keyName];
             if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
               _activeWs.send(JSON.stringify({ type: 'input', data }));
@@ -666,4 +860,58 @@ document.addEventListener('visibilitychange', () => {
   if (!_activeWs || _activeWs.readyState > WebSocket.OPEN) {
     _reconnectWs();
   }
+
+  // Re-acquire wake lock (browser releases it when tab goes background)
+  if (localStorage.getItem('orcha-wakelock') === '1' && !_wakeLock) {
+    _acquireWakeLock();
+  }
 });
+
+/* -----------------------------------------------------------------------
+   SSE notification listener — dedicated EventSource for session status
+   changes (completed/failed). Fires browser notifications when backgrounded.
+   ----------------------------------------------------------------------- */
+let _notifyEventSource = null;
+
+function _startNotifySSE() {
+  if (_notifyEventSource) return;
+  _notifyEventSource = new EventSource('/api/events');
+  _notifyEventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'status') {
+        if (data.status === 'completed') {
+          _sendNotification('Session completed', 'An agent session has finished successfully.');
+        } else if (data.status === 'failed') {
+          _sendNotification('Session failed', 'An agent session has failed.');
+        }
+      }
+    } catch {}
+  };
+  _notifyEventSource.onerror = () => {
+    // EventSource auto-reconnects; no action needed
+  };
+}
+
+function _stopNotifySSE() {
+  if (_notifyEventSource) {
+    _notifyEventSource.close();
+    _notifyEventSource = null;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Restore persisted toggle states on page load
+   ----------------------------------------------------------------------- */
+(function _restoreToggles() {
+  // Wake lock
+  if (localStorage.getItem('orcha-wakelock') === '1') {
+    _acquireWakeLock();
+  }
+  // Notifications
+  _updateNotifyUI();
+  if (_notificationsEnabled) {
+    _startIdleCheck();
+    _startNotifySSE();
+  }
+})();

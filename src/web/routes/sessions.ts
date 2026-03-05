@@ -155,6 +155,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // Checkboxes: present = "1"
       const sandbox = req.body['sandbox'] === '1';
       const skipPermissions = req.body['skipPermissions'] === '1';
+      const webAccess = req.body['webAccess'] === '1';
 
       // Validate
       const errors: string[] = [];
@@ -202,7 +203,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       if (errors.length > 0) {
         const modelConfigs = modelConfigStore.listConfigs();
-        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, sandbox, skipPermissions });
+        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, sandbox, skipPermissions, webAccess });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
@@ -297,6 +298,16 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
           };
           settings['mcpServers'] = mcpServers;
+
+          // Deny web tools when web access is disabled
+          if (!webAccess) {
+            const perms = (settings['permissions'] ?? {}) as Record<string, unknown>;
+            const deny = Array.isArray(perms['deny']) ? [...perms['deny']] : [];
+            if (!deny.includes('WebFetch')) deny.push('WebFetch');
+            if (!deny.includes('WebSearch')) deny.push('WebSearch');
+            perms['deny'] = deny;
+            settings['permissions'] = perms;
+          }
 
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
@@ -668,6 +679,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const skipPermissions = source.config.args?.includes('--dangerously-skip-permissions') ?? false;
       // Default sandbox to true (matching form default)
       const sandbox = true;
+      // Default web access to true
+      const webAccess = true;
 
       // Pre-fill model config from source session
       const modelConfigId = source.config.modelConfigId ?? '';
@@ -686,6 +699,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         modelConfigId,
         sandbox,
         skipPermissions,
+        webAccess,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

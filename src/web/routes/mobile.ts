@@ -227,6 +227,17 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
 
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
+
+          // Deny web tools when preset has web access disabled
+          if (!preset.webAccess) {
+            const perms = (settings['permissions'] ?? {}) as Record<string, unknown>;
+            const deny = Array.isArray(perms['deny']) ? [...perms['deny']] : [];
+            if (!deny.includes('WebFetch')) deny.push('WebFetch');
+            if (!deny.includes('WebSearch')) deny.push('WebSearch');
+            perms['deny'] = deny;
+            settings['permissions'] = perms;
+          }
+
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
           writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
 
