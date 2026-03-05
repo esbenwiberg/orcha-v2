@@ -518,6 +518,11 @@ body {
   width: 100% !important;
 }
 
+/* Enable native momentum scrolling on the xterm viewport for iOS */
+.xterm-container .xterm-viewport {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* On-screen key buttons for mobile (Esc, Tab, Ctrl+C, etc.) */
 .mobile-keys {
   flex-shrink: 0;
