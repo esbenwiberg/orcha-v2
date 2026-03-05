@@ -324,12 +324,26 @@ body {
   border-color: var(--color-accent);
 }
 
+.session-select-btn__labels {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  margin-right: 8px;
+  text-align: left;
+}
+.session-select-btn__repo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
 .session-select-btn__branch {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
-  margin-right: 8px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
 }
 
 /* -----------------------------------------------------------------------
