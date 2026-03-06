@@ -61,8 +61,8 @@ export function createMcpServersRouter(eta: Eta, db: Database.Database): Router 
           for (const line of headersRaw.split('\n')) {
             const idx = line.indexOf(':');
             if (idx > 0) {
-              const key = line.slice(0, idx).trim();
-              const val = line.slice(idx + 1).trim();
+              const key = line.slice(0, idx).trim().replace(/^["']|["']$/g, '');
+              const val = line.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
               if (key) headers[key] = val;
             }
           }
