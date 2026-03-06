@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# deploy-app-env.sh — Deploy Orcha using environment variables (no parameters.json needed).
+#
+# Designed to be called from Orcha's repo Deploy button. All config comes from
+# env vars set in the repo's Deploy Env Vars settings.
+#
+# Required env vars:
+#   ORCHA_ACR_NAME          — Azure Container Registry name
+#   ORCHA_CONTAINER_APP     — Container App name
+#
+# Optional env vars:
+#   ORCHA_RESOURCE_GROUP    — Resource group (default: "orcha")
+#   ORCHA_DOMAIN            — Domain for health check (skipped if unset)
+#   ORCHA_TAG               — Image tag (default: short git SHA)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+info()  { echo "  $*"; }
+ok()    { echo "✓ $*"; }
+die()   { echo "✗ $*" >&2; exit 1; }
+
+echo ""
+echo "=== Orcha deploy (env-based) ==="
+echo ""
+
+# ── Validate required env vars ───────────────────────────────────────────────
+[[ -n "${ORCHA_ACR_NAME:-}" ]]      || die "ORCHA_ACR_NAME is not set"
+[[ -n "${ORCHA_CONTAINER_APP:-}" ]] || die "ORCHA_CONTAINER_APP is not set"
+
+ACR_NAME="${ORCHA_ACR_NAME}"
+CONTAINER_APP_NAME="${ORCHA_CONTAINER_APP}"
+RESOURCE_GROUP="${ORCHA_RESOURCE_GROUP:-orcha}"
+ORCHA_DOMAIN="${ORCHA_DOMAIN:-}"
+
+# ── Image tag ────────────────────────────────────────────────────────────────
+TAG="${ORCHA_TAG:-$(git -C "${REPO_ROOT}" rev-parse --short=8 HEAD 2>/dev/null || echo "latest")}"
+info "Image tag: ${TAG}"
+
+# ── Pre-flight ───────────────────────────────────────────────────────────────
+command -v az >/dev/null 2>&1 || die "az CLI not found"
+info "Checking Azure login..."
+az account show --output none 2>/dev/null || die "Not logged in to Azure. Run: az login"
+ok "Azure login confirmed"
+
+ACR_SERVER=$(az acr show --name "${ACR_NAME}" --query loginServer -o tsv)
+
+# ── Build via ACR Tasks (remote — no Docker needed) ─────────────────────────
+echo ""
+info "Building orcha image via ACR Tasks..."
+az acr build \
+  --registry "${ACR_NAME}" \
+  --image "orcha:${TAG}" \
+  --image "orcha:latest" \
+  "${REPO_ROOT}"
+ok "orcha image built and pushed (${TAG})"
+
+echo ""
+info "Building orcha-caddy image via ACR Tasks..."
+az acr build \
+  --registry "${ACR_NAME}" \
+  --image "orcha-caddy:${TAG}" \
+  --image "orcha-caddy:latest" \
+  "${REPO_ROOT}/caddy"
+ok "orcha-caddy image built and pushed (${TAG})"
+
+# ── Update Container App ────────────────────────────────────────────────────
+echo ""
+info "Updating Container App '${CONTAINER_APP_NAME}' to tag '${TAG}'..."
+az containerapp update \
+  --name "${CONTAINER_APP_NAME}" \
+  --resource-group "${RESOURCE_GROUP}" \
+  --container-name orcha \
+  --image "${ACR_SERVER}/orcha:${TAG}" \
+  --output none
+ok "Container App update triggered"
+
+# ── Poll revision ────────────────────────────────────────────────────────────
+info "Waiting for new revision..."
+ATTEMPTS=0
+MAX_ATTEMPTS=20
+while [[ ${ATTEMPTS} -lt ${MAX_ATTEMPTS} ]]; do
+  STATE=$(az containerapp revision list \
+    --name "${CONTAINER_APP_NAME}" \
+    --resource-group "${RESOURCE_GROUP}" \
+    --query "[0].properties.provisioningState" \
+    -o tsv 2>/dev/null || echo "unknown")
+
+  if [[ "${STATE}" == "Provisioned" ]]; then
+    ok "Revision provisioned"
+    break
+  elif [[ "${STATE}" == "Failed" ]]; then
+    die "Revision provisioning failed"
+  fi
+
+  ATTEMPTS=$((ATTEMPTS + 1))
+  info "State: ${STATE} — waiting 15s... (${ATTEMPTS}/${MAX_ATTEMPTS})"
+  sleep 15
+done
+
+[[ ${ATTEMPTS} -lt ${MAX_ATTEMPTS} ]] || die "Timed out waiting for revision"
+
+# ── Health check ─────────────────────────────────────────────────────────────
+echo ""
+if [[ -n "${ORCHA_DOMAIN}" ]]; then
+  HEALTH_URL="https://${ORCHA_DOMAIN}/health"
+  info "Health check: ${HEALTH_URL}"
+  RESPONSE=$(curl --silent --retry 6 --retry-delay 5 --retry-connrefused \
+    --max-time 10 --fail "${HEALTH_URL}" 2>/dev/null || echo "")
+
+  if [[ -n "${RESPONSE}" ]]; then
+    STATUS=$(echo "${RESPONSE}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+    if [[ "${STATUS}" == "ok" ]]; then
+      ok "Health check passed"
+    else
+      die "Health check returned: ${RESPONSE}"
+    fi
+  else
+    die "Health check failed — no response from ${HEALTH_URL}"
+  fi
+else
+  info "Skipping health check (ORCHA_DOMAIN not set)"
+fi
+
+# ── Done ─────────────────────────────────────────────────────────────────────
+echo ""
+ok "Deployment complete — tag: ${TAG}"
+[[ -n "${ORCHA_DOMAIN}" ]] && echo "  https://${ORCHA_DOMAIN}"
+echo ""
