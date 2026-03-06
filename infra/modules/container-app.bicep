@@ -133,6 +133,12 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
               value: '/tmp/orcha-db'
             }
             {
+              // Worktrees need chmod (npm install etc.) which Azure File Share
+              // (SMB) does not support. Use local ephemeral disk instead.
+              name: 'ORCHA_WORKTREE_DIR'
+              value: '/tmp/orcha-worktrees'
+            }
+            {
               name: 'AUTH_MODE'
               value: 'token'
             }

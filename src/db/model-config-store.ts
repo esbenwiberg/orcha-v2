@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import type { ModelConfig, ModelProvider, CreateModelConfigInput } from '../model-config/types.js';
+import { encryptJson, decryptJson } from '../credentials/crypto.js';
 
 export class ModelConfigStore {
   #db: Database.Database;
@@ -10,11 +11,12 @@ export class ModelConfigStore {
   }
 
   #rowToModelConfig(row: Record<string, unknown>): ModelConfig {
-    const config = JSON.parse(row['config_json'] as string) as Record<string, unknown>;
+    const config = decryptJson<Record<string, unknown>>(row['config_json'] as string);
     const apiKey = config['apiKey'] as string | undefined;
     const baseUrl = config['baseUrl'] as string | undefined;
     const modelId = config['modelId'] as string | undefined;
     const foundryResource = config['foundryResource'] as string | undefined;
+    const authToken = config['authToken'] as string | undefined;
     const extraEnv = config['extraEnv'] as Record<string, string> | undefined;
     const credentialsJson = config['credentialsJson'] as string | undefined;
     return {
@@ -26,6 +28,7 @@ export class ModelConfigStore {
       ...(baseUrl !== undefined ? { baseUrl } : {}),
       ...(modelId !== undefined ? { modelId } : {}),
       ...(foundryResource !== undefined ? { foundryResource } : {}),
+      ...(authToken !== undefined ? { authToken } : {}),
       ...(extraEnv !== undefined ? { extraEnv } : {}),
       ...(credentialsJson !== undefined ? { credentialsJson } : {}),
     };
@@ -55,6 +58,7 @@ export class ModelConfigStore {
     if (input.baseUrl !== undefined) configJson['baseUrl'] = input.baseUrl;
     if (input.modelId !== undefined) configJson['modelId'] = input.modelId;
     if (input.foundryResource !== undefined) configJson['foundryResource'] = input.foundryResource;
+    if (input.authToken !== undefined) configJson['authToken'] = input.authToken;
     if (input.extraEnv !== undefined) configJson['extraEnv'] = input.extraEnv;
     if (input.credentialsJson !== undefined) configJson['credentialsJson'] = input.credentialsJson;
 
@@ -63,7 +67,7 @@ export class ModelConfigStore {
         `INSERT INTO model_configs (id, name, provider, config_json, created_at)
          VALUES (?, ?, ?, ?, ?)`,
       )
-      .run(id, input.name, input.provider, JSON.stringify(configJson), now);
+      .run(id, input.name, input.provider, encryptJson(configJson), now);
 
     return this.getConfig(id)!;
   }
@@ -79,6 +83,7 @@ export class ModelConfigStore {
       baseUrl: string;
       modelId: string;
       foundryResource: string;
+      authToken: string;
       extraEnv: Record<string, string>;
       credentialsJson: string;
     }>,
@@ -92,12 +97,13 @@ export class ModelConfigStore {
     if (merged.baseUrl !== undefined) configJson['baseUrl'] = merged.baseUrl;
     if (merged.modelId !== undefined) configJson['modelId'] = merged.modelId;
     if (merged.foundryResource !== undefined) configJson['foundryResource'] = merged.foundryResource;
+    if (merged.authToken !== undefined) configJson['authToken'] = merged.authToken;
     if (merged.extraEnv !== undefined) configJson['extraEnv'] = merged.extraEnv;
     if (merged.credentialsJson !== undefined) configJson['credentialsJson'] = merged.credentialsJson;
 
     this.#db
       .prepare('UPDATE model_configs SET config_json = ? WHERE id = ?')
-      .run(JSON.stringify(configJson), id);
+      .run(encryptJson(configJson), id);
 
     return this.getConfig(id);
   }
@@ -109,18 +115,22 @@ export class ModelConfigStore {
     const name = updates.name ?? existing.name;
     const provider = updates.provider ?? existing.provider;
 
-    const merged = { ...existing, ...updates };
+    // Full replacement of form-editable fields — cleared fields are removed.
+    // Preserve credentialsJson from existing if not explicitly provided
+    // (it's set via the auth wizard, not the edit form).
     const configJson: Record<string, unknown> = {};
-    if (merged.apiKey !== undefined) configJson['apiKey'] = merged.apiKey;
-    if (merged.baseUrl !== undefined) configJson['baseUrl'] = merged.baseUrl;
-    if (merged.modelId !== undefined) configJson['modelId'] = merged.modelId;
-    if (merged.foundryResource !== undefined) configJson['foundryResource'] = merged.foundryResource;
-    if (merged.extraEnv !== undefined) configJson['extraEnv'] = merged.extraEnv;
-    if (merged.credentialsJson !== undefined) configJson['credentialsJson'] = merged.credentialsJson;
+    if (updates.apiKey !== undefined) configJson['apiKey'] = updates.apiKey;
+    if (updates.baseUrl !== undefined) configJson['baseUrl'] = updates.baseUrl;
+    if (updates.modelId !== undefined) configJson['modelId'] = updates.modelId;
+    if (updates.foundryResource !== undefined) configJson['foundryResource'] = updates.foundryResource;
+    if (updates.authToken !== undefined) configJson['authToken'] = updates.authToken;
+    if (updates.extraEnv !== undefined) configJson['extraEnv'] = updates.extraEnv;
+    const creds = updates.credentialsJson ?? existing.credentialsJson;
+    if (creds !== undefined) configJson['credentialsJson'] = creds;
 
     this.#db
       .prepare('UPDATE model_configs SET name = ?, provider = ?, config_json = ? WHERE id = ?')
-      .run(name, provider, JSON.stringify(configJson), id);
+      .run(name, provider, encryptJson(configJson), id);
 
     return this.getConfig(id);
   }

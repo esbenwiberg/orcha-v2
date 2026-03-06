@@ -3,10 +3,15 @@
     <button
       class="session-select-btn"
       hx-post="/mobile/connect/<%= it.sessionId %>"
-      hx-target="#mobile-terminal-area"
+      hx-target="#mobile-terminal-layer"
       hx-swap="innerHTML"
     >
-      <span class="session-select-btn__branch"><%= it.repoName ? `${it.repoName} / ${it.branch}` : it.branch %></span>
+      <span class="session-select-btn__labels">
+        <span class="session-select-btn__repo"><%= it.repoName || it.branch %></span>
+        <% if (it.repoName) { %>
+        <span class="session-select-btn__branch"><%= it.branch %></span>
+        <% } %>
+      </span>
       <span class="badge badge--<%= it.status %>" id="badge-<%= it.sessionId %>" sse-swap="session-status-<%= it.sessionId %>" hx-swap="outerHTML"><%= it.status %></span>
     </button>
     <button

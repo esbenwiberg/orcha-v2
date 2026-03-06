@@ -16,10 +16,213 @@ let _activeTerm = null;
 let _activeWs = null;
 let _activeFitAddon = null;
 let _activeObserver = null;
+/** Base WebSocket URL (without ticket) — stored so we can reconnect after visibility restore. */
+let _baseWsUrl = null;
 /** Auth polling interval for Max sessions — cleared on terminal dispose. */
 let _authPollInterval = null;
 /** The DOM element we already booted a terminal for — prevents re-creation on unrelated HTMX swaps. */
 let _bootedFrame = null;
+
+/* -----------------------------------------------------------------------
+   Rolling output buffer — stores the last chunk of terminal output for
+   the "Copy" button on the mobile key bar.
+   ----------------------------------------------------------------------- */
+let _lastOutputChunk = '';
+const MAX_OUTPUT_BUFFER = 8000;
+
+/* -----------------------------------------------------------------------
+   Wake Lock — keeps the screen on while toggle is active.
+   Auto-releases after 5 minutes of no terminal output.
+   ----------------------------------------------------------------------- */
+let _wakeLock = null;
+let _wakeLockIdleTimer = null;
+const WAKELOCK_IDLE_MINUTES = 5;
+
+async function _acquireWakeLock() {
+  if (!('wakeLock' in navigator)) return false;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+    _wakeLock.addEventListener('release', () => { _wakeLock = null; _updateWakeLockUI(); });
+    _resetWakeLockIdleTimer();
+    return true;
+  } catch { return false; }
+}
+
+function _releaseWakeLock() {
+  if (_wakeLockIdleTimer) { clearTimeout(_wakeLockIdleTimer); _wakeLockIdleTimer = null; }
+  if (_wakeLock) { _wakeLock.release(); _wakeLock = null; }
+  _updateWakeLockUI();
+}
+
+function _resetWakeLockIdleTimer() {
+  if (_wakeLockIdleTimer) clearTimeout(_wakeLockIdleTimer);
+  if (!_wakeLock) return;
+  _wakeLockIdleTimer = setTimeout(() => {
+    _releaseWakeLock();
+    localStorage.removeItem('orcha-wakelock');
+    _showToast('Screen lock released (idle)');
+  }, WAKELOCK_IDLE_MINUTES * 60 * 1000);
+}
+
+function _updateWakeLockUI() {
+  const btn = document.getElementById('wakelock-toggle');
+  if (btn) btn.classList.toggle('header-toggle--active', !!_wakeLock);
+}
+
+window._toggleWakeLock = async function () {
+  if (_wakeLock) {
+    _releaseWakeLock();
+    localStorage.removeItem('orcha-wakelock');
+  } else {
+    const ok = await _acquireWakeLock();
+    if (ok) {
+      localStorage.setItem('orcha-wakelock', '1');
+      _showToast('Screen will stay on');
+    } else {
+      _showToast('Wake lock not supported');
+    }
+  }
+  _updateWakeLockUI();
+};
+
+/* -----------------------------------------------------------------------
+   Notifications — browser Notification API for session events.
+   Enabled via header toggle. Fires for:
+   - Session completed/failed (via SSE)
+   - Auth input needed (via SSE)
+   - Idle for 60s after being active (badge indicator only until idle 5min)
+   ----------------------------------------------------------------------- */
+let _notificationsEnabled = localStorage.getItem('orcha-notifications') === '1';
+let _lastOutputTime = 0;
+let _idleCheckInterval = null;
+const IDLE_SECONDS = 60;
+const IDLE_NOTIFY_SECONDS = 300;
+
+function _updateNotifyUI() {
+  const btn = document.getElementById('notify-toggle');
+  if (btn) btn.classList.toggle('header-toggle--active', _notificationsEnabled);
+}
+
+window._toggleNotifications = async function () {
+  if (_notificationsEnabled) {
+    _notificationsEnabled = false;
+    localStorage.removeItem('orcha-notifications');
+    _stopIdleCheck();
+    _stopNotifySSE();
+    _showToast('Notifications off');
+  } else {
+    if (!('Notification' in window)) {
+      _showToast('Notifications not supported');
+      return;
+    }
+    let perm = Notification.permission;
+    if (perm === 'default') {
+      perm = await Notification.requestPermission();
+    }
+    if (perm === 'granted') {
+      _notificationsEnabled = true;
+      localStorage.setItem('orcha-notifications', '1');
+      _startIdleCheck();
+      _startNotifySSE();
+      _showToast('Notifications on');
+    } else {
+      _showToast('Notification permission denied');
+    }
+  }
+  _updateNotifyUI();
+};
+
+function _sendNotification(title, body) {
+  if (!_notificationsEnabled || Notification.permission !== 'granted') return;
+  if (document.visibilityState === 'visible') return; // only notify when backgrounded
+  try { new Notification(title, { body, icon: '/favicon.ico', tag: 'orcha-' + title }); } catch {}
+}
+
+function _startIdleCheck() {
+  _stopIdleCheck();
+  if (!_notificationsEnabled) return;
+  _idleCheckInterval = setInterval(() => {
+    if (_lastOutputTime === 0) return;
+    const idleSec = (Date.now() - _lastOutputTime) / 1000;
+
+    // Update idle badge on session items
+    document.querySelectorAll('.badge--running').forEach((b) => {
+      if (idleSec > IDLE_SECONDS) {
+        if (!b.dataset.origText) b.dataset.origText = b.textContent;
+        b.textContent = 'idle';
+        b.style.opacity = '0.6';
+      } else if (b.dataset.origText) {
+        b.textContent = b.dataset.origText;
+        b.style.opacity = '';
+        delete b.dataset.origText;
+      }
+    });
+
+    // Send a notification after prolonged idle
+    if (idleSec > IDLE_NOTIFY_SECONDS) {
+      _sendNotification('Session idle', 'Your agent session has been idle for 5+ minutes');
+      _lastOutputTime = Date.now(); // reset so we don't spam
+    }
+  }, 5000);
+}
+
+function _stopIdleCheck() {
+  if (_idleCheckInterval) { clearInterval(_idleCheckInterval); _idleCheckInterval = null; }
+}
+
+/* -----------------------------------------------------------------------
+   Toast helper — show a brief popup message
+   ----------------------------------------------------------------------- */
+function _showToast(message) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
+/* -----------------------------------------------------------------------
+   Copy last output — copies the rolling output buffer to clipboard
+   ----------------------------------------------------------------------- */
+async function _copyLastOutput() {
+  if (!_lastOutputChunk) {
+    _showToast('Nothing to copy');
+    return;
+  }
+  try {
+    // Strip ANSI escape sequences for clean text
+    const clean = _lastOutputChunk.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    await navigator.clipboard.writeText(clean);
+    _showToast('Copied to clipboard');
+  } catch {
+    _showToast('Copy failed');
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Layer visibility helpers — terminal persists in one layer while
+   sessions/info/diff content swaps in the other
+   ----------------------------------------------------------------------- */
+
+/** Show the terminal layer, hide the content layer. */
+function _showTerminalLayer() {
+  const termLayer = document.getElementById('mobile-terminal-layer');
+  const contentLayer = document.getElementById('mobile-content-layer');
+  if (termLayer) termLayer.style.display = '';
+  if (contentLayer) contentLayer.style.display = 'none';
+}
+window._showTerminalLayer = _showTerminalLayer;
+
+/** Show the content layer, hide the terminal layer. */
+function _showContentLayer() {
+  const termLayer = document.getElementById('mobile-terminal-layer');
+  const contentLayer = document.getElementById('mobile-content-layer');
+  if (termLayer) termLayer.style.display = 'none';
+  if (contentLayer) contentLayer.style.display = '';
+}
+window._showContentLayer = _showContentLayer;
 
 /**
  * Update the #conn-badge element to reflect the current WebSocket state.
@@ -40,6 +243,55 @@ function updateBadge(state) {
 }
 
 /**
+ * Fetch a one-time WS auth ticket and append it to the URL.
+ * Falls back to the bare URL if ticket fetch fails (e.g. auth=none).
+ */
+async function _appendWsTicket(wsUrl) {
+  try {
+    const r = await fetch('/api/ws-ticket');
+    if (r.ok) {
+      const data = await r.json();
+      if (typeof data.ticket === 'string' && data.ticket) {
+        const sep = wsUrl.includes('?') ? '&' : '?';
+        return `${wsUrl}${sep}ticket=${data.ticket}`;
+      }
+    }
+  } catch {
+    // Proceed without ticket.
+  }
+  return wsUrl;
+}
+
+/**
+ * Reconnect the active terminal WebSocket with a fresh auth ticket.
+ * Used by visibilitychange and _switchToTerminal when the WS has died.
+ *
+ * Closes the old socket first and waits briefly for the network stack to
+ * stabilise after the browser wakes from a suspended state (screen lock,
+ * tab background).
+ */
+let _reconnecting = false;
+async function _reconnectWs() {
+  if (!_activeTerm || !_activeFitAddon || !_baseWsUrl) return;
+  if (_reconnecting) return; // prevent concurrent reconnects
+  _reconnecting = true;
+  updateBadge('reconnecting');
+
+  // Close the old socket so the server cleans up listeners
+  if (_activeWs) {
+    try { _activeWs.close(); } catch {}
+    _activeWs = null;
+  }
+
+  // Brief delay — mobile browsers need a moment to restore networking
+  await new Promise((r) => setTimeout(r, 500));
+
+  const ticketedUrl = await _appendWsTicket(_baseWsUrl);
+  connectWs(ticketedUrl, _activeTerm, _activeFitAddon, 0);
+  _reconnecting = false;
+}
+
+/**
  * Connect (or reconnect) a WebSocket for the given terminal, with exponential
  * backoff. Up to MAX_RETRIES attempts after the first failure.
  *
@@ -49,8 +301,8 @@ function updateBadge(state) {
  * @param {number}    retryCount - How many reconnect attempts have been made so far.
  */
 function connectWs(wsUrl, term, fitAddon, retryCount) {
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY_MS = 3000; // 3s, 6s, 9s
+  const MAX_RETRIES = 5;
+  const RETRY_DELAY_MS = 2000;
 
   const ws = new WebSocket(wsUrl);
   _activeWs = ws;
@@ -69,6 +321,15 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
       const msg = JSON.parse(event.data);
       if (msg.type === 'output' && typeof msg.data === 'string') {
         term.write(msg.data);
+        // Append to rolling output buffer
+        _lastOutputChunk += msg.data;
+        if (_lastOutputChunk.length > MAX_OUTPUT_BUFFER) {
+          _lastOutputChunk = _lastOutputChunk.slice(-MAX_OUTPUT_BUFFER);
+        }
+        // Track last output time for idle detection
+        _lastOutputTime = Date.now();
+        // Reset wake lock idle timer on terminal activity
+        if (_wakeLock) _resetWakeLockIdleTimer();
       }
     } catch {
       // Ignore unparseable messages.
@@ -76,7 +337,10 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
   };
 
   ws.onerror = () => {
-    term.write('\r\n[mobile-terminal] WebSocket error — connection lost\r\n');
+    // Suppress noisy error messages during retries
+    if (retryCount === 0) {
+      term.write('\r\n\x1b[33m[reconnecting…]\x1b[0m');
+    }
   };
 
   ws.onclose = () => {
@@ -87,28 +351,134 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
     if (retryCount < MAX_RETRIES) {
       updateBadge('reconnecting');
       const delay = RETRY_DELAY_MS * (retryCount + 1);
-      term.write(`\r\n[mobile-terminal] Reconnecting in ${delay / 1000}s… (attempt ${retryCount + 1}/${MAX_RETRIES})\r\n`);
-      setTimeout(() => {
+      setTimeout(async () => {
         // Only retry if this ws is still the active one (not disposed in the meantime).
-        if (_activeWs === ws) {
-          connectWs(wsUrl, term, fitAddon, retryCount + 1);
+        if (_activeWs !== ws) return;
+        // Fetch a fresh ticket for each retry (tickets are one-time use)
+        if (_baseWsUrl) {
+          const freshUrl = await _appendWsTicket(_baseWsUrl);
+          connectWs(freshUrl, term, fitAddon, retryCount + 1);
         }
       }, delay);
     } else {
       updateBadge('disconnected');
-      term.write('\r\n[mobile-terminal] Disconnected\r\n');
+      term.write('\r\n\x1b[31m[disconnected]\x1b[0m\r\n');
       // Append a user-visible reconnect-failed notice to #terminal-frame.
       const frame = document.getElementById('terminal-frame');
       if (frame) {
         const notice = document.createElement('div');
         notice.className = 'reconnect-failed-msg';
-        notice.textContent = 'Connection lost. Swipe down to return to sessions.';
+        notice.textContent = 'Connection lost. Tap the session to reconnect.';
         frame.appendChild(notice);
       }
     }
   };
 
   return ws;
+}
+
+/* -----------------------------------------------------------------------
+   Touch scroll with momentum — replaces xterm.js's jerky built-in touch
+   scrolling with native-feeling inertia on mobile.
+   ----------------------------------------------------------------------- */
+function _installTouchScroll(container, term) {
+  const viewport = container.querySelector('.xterm-viewport');
+  if (!viewport) return;
+
+  let startY = 0;
+  let lastY = 0;
+  let lastTime = 0;
+  let velocity = 0;
+  let momentumRaf = 0;
+  let tracking = false;
+  let startX = 0;
+  // Direction lock — if the initial gesture is mostly horizontal, let it through
+  let directionLocked = false;
+  let isVertical = false;
+
+  function cancelMomentum() {
+    if (momentumRaf) {
+      cancelAnimationFrame(momentumRaf);
+      momentumRaf = 0;
+    }
+  }
+
+  // Use capture phase to intercept before xterm.js's own touch handlers,
+  // which would otherwise cause jittery double-scrolling.
+  container.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    cancelMomentum();
+    tracking = true;
+    directionLocked = false;
+    isVertical = false;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    lastY = startY;
+    lastTime = Date.now();
+    velocity = 0;
+  }, { passive: true, capture: true });
+
+  container.addEventListener('touchmove', (e) => {
+    if (!tracking || e.touches.length !== 1) return;
+
+    const y = e.touches[0].clientY;
+    const x = e.touches[0].clientX;
+
+    // Lock direction on first significant move
+    if (!directionLocked) {
+      const dx = Math.abs(x - startX);
+      const dy = Math.abs(y - startY);
+      if (dy > 5 || dx > 5) {
+        directionLocked = true;
+        isVertical = dy >= dx;
+      }
+      if (!directionLocked) return;
+    }
+
+    if (!isVertical) return; // let horizontal gestures pass through
+
+    // Stop xterm.js from also processing this touch scroll, and prevent
+    // the browser's native viewport scroll (belt-and-suspenders with the
+    // CSS touch-action: none on .xterm-container).
+    e.stopPropagation();
+    e.preventDefault();
+
+    const dy = lastY - y; // positive = scroll down
+    const now = Date.now();
+    const dt = now - lastTime;
+
+    if (dt > 0) {
+      velocity = 0.7 * (dy / dt) + 0.3 * velocity;
+    }
+
+    viewport.scrollTop += dy * 3;
+
+    lastY = y;
+    lastTime = now;
+  }, { passive: false, capture: true });
+
+  container.addEventListener('touchend', () => {
+    if (!tracking) return;
+    tracking = false;
+
+    if (!isVertical) return;
+
+    // Ignore negligible velocity
+    if (Math.abs(velocity) < 0.1) return;
+
+    // Momentum phase — decay velocity over time.
+    // Higher seed + slower friction = longer, smoother glide.
+    let v = velocity * 2400;
+    const friction = 0.97;
+
+    function step() {
+      v *= friction;
+      if (Math.abs(v) < 0.5) return;
+      viewport.scrollTop += v * (1 / 60);
+      momentumRaf = requestAnimationFrame(step);
+    }
+    momentumRaf = requestAnimationFrame(step);
+  }, { passive: true, capture: true });
 }
 
 /**
@@ -123,20 +493,16 @@ async function openMobileTerminal(_sessionId, wsUrl) {
   // Dispose any previously open terminal
   _disposeMobileTerminal();
 
+  // Reset output buffer for new session
+  _lastOutputChunk = '';
+  _lastOutputTime = 0;
+
+  // Store the base URL (without ticket) so we can reconnect later.
+  _baseWsUrl = wsUrl;
+
   // Fetch a one-time auth ticket (needed when the server runs in OIDC mode,
   // where session cookies aren't available at the WS upgrade layer).
-  try {
-    const r = await fetch('/api/ws-ticket');
-    if (r.ok) {
-      const data = await r.json();
-      if (typeof data.ticket === 'string' && data.ticket) {
-        const sep = wsUrl.includes('?') ? '&' : '?';
-        wsUrl = `${wsUrl}${sep}ticket=${data.ticket}`;
-      }
-    }
-  } catch {
-    // If ticket fetch fails (e.g. auth=none), proceed without one.
-  }
+  wsUrl = await _appendWsTicket(wsUrl);
 
   const container = document.getElementById('xterm-container');
   if (!container) {
@@ -174,11 +540,19 @@ async function openMobileTerminal(_sessionId, wsUrl) {
     },
     cursorBlink: true,
     scrollback: 1000,
+    scrollSensitivity: 8,
+    fastScrollSensitivity: 15,
     allowProposedApi: false,
   });
 
   const fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
+
+  // Make URLs in terminal output clickable (opens in new tab on tap)
+  if (window.WebLinksAddon?.WebLinksAddon) {
+    term.loadAddon(new window.WebLinksAddon.WebLinksAddon());
+  }
+
   term.open(container);
   fitAddon.fit();
 
@@ -208,6 +582,10 @@ async function openMobileTerminal(_sessionId, wsUrl) {
   _activeFitAddon = fitAddon;
   _activeObserver = observer;
 
+  // Custom touch scroll with momentum — xterm.js's built-in touch handler
+  // has no inertia, making scrolling feel clunky on mobile.
+  _installTouchScroll(container, term);
+
   return { disconnect: _disposeMobileTerminal };
 }
 
@@ -233,10 +611,6 @@ function _startAuthPolling(sessionId) {
       if (html !== lastHtml) {
         lastHtml = html;
         slot.innerHTML = html;
-        // Note: no htmx.process() here — the banner's interactive elements
-        // (links, onclick buttons) are plain HTML/JS. Processing would
-        // activate the banner's hx-trigger="every 3s" and re-introduce
-        // the polling-via-HTMX problem we're fixing.
       }
       // Stop polling once auth is resolved or session gone
       if (res.status === 286 || html.includes('auth-banner--success') || html.trim() === '') {
@@ -278,67 +652,9 @@ function _disposeMobileTerminal() {
     _activeTerm = null;
   }
   _activeFitAddon = null;
+  _baseWsUrl = null;
   _bootedFrame = null;
 }
-
-/**
- * Attach swipe-down-to-disconnect gesture to the given frame element.
- *
- * @param {HTMLElement} frameEl - The #terminal-frame element.
- * @param {() => void} onDisconnect - Called when the downward swipe is detected.
- */
-function initSwipeToDisconnect(frameEl, onDisconnect) {
-  let startY = 0;
-
-  frameEl.addEventListener(
-    'touchstart',
-    (e) => {
-      const touch = e.touches[0];
-      if (touch) {
-        startY = touch.clientY;
-      }
-    },
-    { passive: true },
-  );
-
-  frameEl.addEventListener(
-    'touchend',
-    (e) => {
-      const touch = e.changedTouches[0];
-      if (!touch) return;
-      const endY = touch.clientY;
-      // Downward swipe of more than 80px triggers disconnect
-      if (endY - startY > 80) {
-        onDisconnect();
-      }
-    },
-    { passive: true },
-  );
-}
-
-/**
- * Open the Send modal by fetching it from the server and injecting it into
- * #mobile-shell as a fixed overlay. After injection, focus the textarea.
- */
-function openSendModal() {
-  // Remove any stale modal first (idempotent)
-  const existing = document.getElementById('send-modal');
-  if (existing) existing.remove();
-
-  htmx.ajax('GET', '/mobile/send-modal', {
-    target: '#mobile-shell',
-    swap: 'beforeend',
-  });
-}
-
-/** Remove the send modal from the DOM. */
-function _closeSendModal() {
-  const modal = document.getElementById('send-modal');
-  if (modal) modal.remove();
-}
-
-// Expose openSendModal globally so onclick= in mobile.html can call it.
-window.openSendModal = openSendModal;
 
 /**
  * Open the action sheet for a session by fetching it from the server.
@@ -384,36 +700,70 @@ window._onActionSheetResult = function (event) {
 
   // For stop — just refresh the sessions list
   if (detail.successful) {
+    _showContentLayer();
     htmx.ajax('GET', '/mobile/sessions', {
-      target: '#mobile-terminal-area',
+      target: '#mobile-content-layer',
       swap: 'innerHTML',
     });
   }
 };
 
 /**
- * Switch to the terminal tab. If a terminal frame is already showing, no-op.
- * Otherwise, try to reconnect to the active session from the cookie.
+ * Switch to the terminal tab. If a terminal is already booted, just show
+ * the terminal layer and re-fit. Otherwise, reconnect to the active session.
  */
 window._switchToTerminal = function () {
-  const frame = document.getElementById('terminal-frame');
-  if (frame) return; // Already showing the terminal
+  // If a terminal is already alive, just reveal it and re-fit
+  if (_activeTerm && _bootedFrame) {
+    _showTerminalLayer();
+    requestAnimationFrame(() => {
+      if (_activeFitAddon) _activeFitAddon.fit();
+    });
+    // If the WebSocket died (e.g. while backgrounded), reconnect with a fresh ticket
+    if (_baseWsUrl && (!_activeWs || _activeWs.readyState > WebSocket.OPEN)) {
+      _reconnectWs();
+    }
+    return;
+  }
 
   // Read the mobile-session-id cookie
   const cookieMatch = /mobile-session-id=([^;]+)/.exec(document.cookie);
   const sessionId = cookieMatch?.[1];
   if (!sessionId) {
-    // No active session — show placeholder
-    const area = document.getElementById('mobile-terminal-area');
-    if (area) {
-      area.innerHTML = '<div id="mobile-content-slot"><p class="mobile-placeholder-text">No session connected. Select one from the Sessions tab.</p></div>';
+    // No active session — show placeholder in content layer
+    _showContentLayer();
+    const layer = document.getElementById('mobile-content-layer');
+    if (layer) {
+      layer.innerHTML = '<div id="mobile-content-slot"><p class="mobile-placeholder-text">No session connected. Select one from the Sessions tab.</p></div>';
     }
     return;
   }
 
-  // Re-fetch the terminal frame for the active session
+  // Fetch the terminal frame into the terminal layer
   htmx.ajax('GET', `/mobile/terminal/${sessionId}`, {
-    target: '#mobile-terminal-area',
+    target: '#mobile-terminal-layer',
+    swap: 'innerHTML',
+  });
+};
+
+/**
+ * Switch to the Diff tab — load the diff browser for the active session.
+ */
+window._switchToDiff = function () {
+  const cookieMatch = /mobile-session-id=([^;]+)/.exec(document.cookie);
+  const sessionId = cookieMatch?.[1];
+  if (!sessionId) {
+    _showContentLayer();
+    const layer = document.getElementById('mobile-content-layer');
+    if (layer) {
+      layer.innerHTML = '<div id="mobile-content-slot"><p class="mobile-placeholder-text">No session connected. Select one from the Sessions tab.</p></div>';
+    }
+    return;
+  }
+
+  _showContentLayer();
+  htmx.ajax('GET', `/api/sessions/${sessionId}/diff-browser`, {
+    target: '#mobile-content-layer',
     swap: 'innerHTML',
   });
 };
@@ -438,7 +788,7 @@ window._onInfoPanelAction = function (event) {
   // Refresh the info panel to show updated state
   if (detail.successful) {
     htmx.ajax('GET', '/mobile/session-info', {
-      target: '#mobile-terminal-area',
+      target: '#mobile-content-layer',
       swap: 'innerHTML',
     });
   }
@@ -482,8 +832,9 @@ document.addEventListener('click', (e) => {
         if (cookieMatch && cookieMatch[1] === sessionId) {
           _disposeMobileTerminal();
           document.cookie = 'mobile-session-id=; Max-Age=0; Path=/mobile';
+          _showContentLayer();
           htmx.ajax('GET', '/mobile/sessions', {
-            target: '#mobile-terminal-area',
+            target: '#mobile-content-layer',
             swap: 'innerHTML',
           });
         }
@@ -503,8 +854,9 @@ document.addEventListener('click', (e) => {
       if (r.ok) {
         _disposeMobileTerminal();
         document.cookie = 'mobile-session-id=; Max-Age=0; Path=/mobile';
+        _showContentLayer();
         htmx.ajax('GET', '/mobile/sessions', {
-          target: '#mobile-terminal-area',
+          target: '#mobile-content-layer',
           swap: 'innerHTML',
         });
       }
@@ -531,67 +883,88 @@ document.addEventListener('click', (e) => {
 })();
 
 /**
- * Boot the terminal when #terminal-frame appears in the DOM after an HTMX swap,
- * or wire up the send modal when it appears.
+ * Boot the terminal when #terminal-frame appears in the DOM after an HTMX swap.
+ *
+ * IMPORTANT: Only enter the terminal-boot path when the swap target is
+ * #mobile-terminal-layer.  The afterSwap event fires for EVERY HTMX swap on
+ * the page (SSE badge updates, sessions list, info panel, diff, etc.).
+ * Without this guard, unrelated swaps can re-trigger _showTerminalLayer() and
+ * snap the user back to the terminal view.
  */
 document.addEventListener('htmx:afterSwap', (event) => {
-  // --- Terminal frame boot ---
-  // Only boot when a *new* frame element appears (skip unrelated swaps like SSE badge updates)
-  const frame = document.getElementById('terminal-frame');
-  if (frame && frame !== _bootedFrame) {
-    _bootedFrame = frame;
-    const sessionId = frame.dataset.sessionId;
-    const wsUrl = frame.dataset.wsUrl;
+  // --- Terminal frame boot (scoped to terminal-layer swaps only) ---
+  const swapTarget = event.detail?.target;
+  if (swapTarget && swapTarget.id === 'mobile-terminal-layer') {
+    const frame = document.getElementById('terminal-frame');
+    if (frame && frame !== _bootedFrame) {
+      _bootedFrame = frame;
+      const sessionId = frame.dataset.sessionId;
+      const wsUrl = frame.dataset.wsUrl;
 
-    if (!sessionId || !wsUrl) {
-      console.error('[mobile-terminal] terminal-frame missing data-session-id or data-ws-url');
-    } else {
-      openMobileTerminal(sessionId, wsUrl).then(({ disconnect }) => {
-        initSwipeToDisconnect(frame, () => {
-          disconnect();
-          // Navigate back to the sessions list
-          htmx.ajax('GET', '/mobile/sessions', {
-            target: '#mobile-terminal-area',
-            swap: 'innerHTML',
-          });
-        });
-      });
+      if (!sessionId || !wsUrl) {
+        console.error('[mobile-terminal] terminal-frame missing data-session-id or data-ws-url');
+      } else {
+        // Show the terminal layer when a new terminal boots
+        _showTerminalLayer();
 
-      // Wire up on-screen key buttons
-      const keysBar = document.getElementById('mobile-keys');
-      if (keysBar) {
-        // Map semantic key names to actual terminal escape sequences.
-        // HTML data-* attributes cannot carry raw control bytes — \x1b in HTML
-        // is the literal string "\x1b", not the escape char.
-        const KEY_MAP = {
-          'esc': '\x1b',
-          'tab': '\t',
-          'ctrl-c': '\x03',
-          'ctrl-d': '\x04',
-          'ctrl-z': '\x1a',
-          'arrow-up': '\x1b[A',
-          'arrow-down': '\x1b[B',
-        };
+        openMobileTerminal(sessionId, wsUrl);
 
-        keysBar.addEventListener('click', (e) => {
-          const btn = e.target.closest('.mobile-key');
-          if (!btn) return;
-          const keyName = btn.dataset.key;
-          const data = KEY_MAP[keyName];
-          if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
-            _activeWs.send(JSON.stringify({ type: 'input', data }));
+        // Wire up on-screen key buttons
+        const keysBar = document.getElementById('mobile-keys');
+        if (keysBar) {
+          // Map semantic key names to actual terminal escape sequences.
+          const KEY_MAP = {
+            'esc': '\x1b',
+            'tab': '\t',
+            'enter': '\r',
+            'ctrl-c': '\x03',
+            'ctrl-o': '\x0f',
+            'arrow-up': '\x1b[A',
+            'arrow-down': '\x1b[B',
+          };
+
+          // Handle mobile key presses via touchstart to prevent the virtual
+          // keyboard from popping up. preventDefault on touchstart stops the
+          // browser from converting the touch into a focus/click chain that
+          // would focus xterm's hidden textarea.
+          // Fall back to click for non-touch (desktop) environments.
+          let _touchHandled = false;
+          function _handleMobileKey(e) {
+            const btn = e.target.closest('.mobile-key');
+            if (!btn) return;
+
+            // On touch devices both touchstart and click fire — skip the
+            // redundant click so we don't send the key twice.
+            if (e.type === 'touchstart') {
+              _touchHandled = true;
+              e.preventDefault(); // prevent keyboard popup
+            } else if (e.type === 'click' && _touchHandled) {
+              _touchHandled = false;
+              return;
+            }
+
+            const keyName = btn.dataset.key;
+            if (keyName === 'copy') {
+              _copyLastOutput();
+              return;
+            }
+            const data = KEY_MAP[keyName];
+            if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
+              _activeWs.send(JSON.stringify({ type: 'input', data }));
+            }
+            // Only re-focus the terminal for Tab (user likely wants to type)
+            if (_activeTerm && keyName === 'tab') _activeTerm.focus();
           }
-          // Re-focus the terminal so user can keep typing
-          if (_activeTerm) _activeTerm.focus();
-        });
-      }
 
-      // Start JS-based auth polling for Max sessions (if auth-slot exists).
-      // Uses fetch + DOM-diff to avoid the HTMX innerHTML swap that causes
-      // xterm focus loss on mobile browsers.
-      const authSlot = document.getElementById('auth-slot-mobile');
-      if (authSlot) {
-        _startAuthPolling(sessionId);
+          keysBar.addEventListener('touchstart', _handleMobileKey, { passive: false });
+          keysBar.addEventListener('click', _handleMobileKey);
+        }
+
+        // Start JS-based auth polling for Max sessions (if auth-slot exists).
+        const authSlot = document.getElementById('auth-slot-mobile');
+        if (authSlot) {
+          _startAuthPolling(sessionId);
+        }
       }
     }
   }
@@ -606,56 +979,6 @@ document.addEventListener('htmx:afterSwap', (event) => {
   const infoPanel = document.querySelector('.info-panel');
   if (infoPanel) {
     htmx.process(infoPanel);
-  }
-
-  // --- Send modal wiring ---
-  const modal = document.getElementById('send-modal');
-  if (modal) {
-    // Focus the textarea
-    const input = document.getElementById('send-input');
-    if (input) {
-      // Delay slightly so the element is fully rendered before focus
-      setTimeout(() => input.focus(), 50);
-
-      // Submit on Enter (but not Shift+Enter which inserts a newline)
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          const sendBtn = modal.querySelector('.send-submit-btn');
-          if (sendBtn) htmx.trigger(sendBtn, 'click');
-        }
-      });
-    }
-
-    // Close on backdrop click
-    const backdrop = modal.querySelector('.send-modal-backdrop');
-    if (backdrop) {
-      backdrop.addEventListener('click', _closeSendModal);
-    }
-
-    // Close on cancel button click
-    const cancelBtn = modal.querySelector('.send-cancel-btn');
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', _closeSendModal);
-    }
-  }
-});
-
-/**
- * Auto-dismiss the send modal 600ms after a successful POST /mobile/send.
- */
-document.addEventListener('htmx:afterRequest', (event) => {
-  const detail = event.detail;
-  if (!detail) return;
-  // Only react to successful requests targeting /mobile/send.
-  // htmx places the request path on detail.pathInfo.requestPath, not
-  // on detail.requestConfig.path (which does not exist).
-  if (
-    detail.successful &&
-    detail.pathInfo &&
-    detail.pathInfo.requestPath === '/mobile/send'
-  ) {
-    setTimeout(_closeSendModal, 600);
   }
 });
 
@@ -681,3 +1004,73 @@ document.addEventListener('htmx:afterRequest', (event) => {
     }
   }
 });
+
+/* -----------------------------------------------------------------------
+   Visibility change — reconnect WebSocket when returning from background.
+   On mobile, browsers suspend background tabs and the WS often dies
+   silently. When the user returns, reconnect immediately instead of
+   showing a stale "disconnected" terminal.
+   ----------------------------------------------------------------------- */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (!_activeTerm || !_baseWsUrl) return;
+
+  // WebSocket.OPEN = 1, CONNECTING = 0 — anything > OPEN means closing/closed
+  if (!_activeWs || _activeWs.readyState > WebSocket.OPEN) {
+    _reconnectWs();
+  }
+
+  // Re-acquire wake lock (browser releases it when tab goes background)
+  if (localStorage.getItem('orcha-wakelock') === '1' && !_wakeLock) {
+    _acquireWakeLock();
+  }
+});
+
+/* -----------------------------------------------------------------------
+   SSE notification listener — dedicated EventSource for session status
+   changes (completed/failed). Fires browser notifications when backgrounded.
+   ----------------------------------------------------------------------- */
+let _notifyEventSource = null;
+
+function _startNotifySSE() {
+  if (_notifyEventSource) return;
+  _notifyEventSource = new EventSource('/api/events');
+  _notifyEventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'status') {
+        if (data.status === 'completed') {
+          _sendNotification('Session completed', 'An agent session has finished successfully.');
+        } else if (data.status === 'failed') {
+          _sendNotification('Session failed', 'An agent session has failed.');
+        }
+      }
+    } catch {}
+  };
+  _notifyEventSource.onerror = () => {
+    // EventSource auto-reconnects; no action needed
+  };
+}
+
+function _stopNotifySSE() {
+  if (_notifyEventSource) {
+    _notifyEventSource.close();
+    _notifyEventSource = null;
+  }
+}
+
+/* -----------------------------------------------------------------------
+   Restore persisted toggle states on page load
+   ----------------------------------------------------------------------- */
+(function _restoreToggles() {
+  // Wake lock
+  if (localStorage.getItem('orcha-wakelock') === '1') {
+    _acquireWakeLock();
+  }
+  // Notifications
+  _updateNotifyUI();
+  if (_notificationsEnabled) {
+    _startIdleCheck();
+    _startNotifySSE();
+  }
+})();

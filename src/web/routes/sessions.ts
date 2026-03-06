@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, statSync, realpathSync, copyFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, readdirSync, statSync, realpathSync, copyFileSync, appendFileSync } from 'node:fs';
 import { basename, join, resolve, relative, extname } from 'node:path';
 import { marked } from 'marked';
 import type { Eta } from 'eta';
@@ -10,6 +10,9 @@ import { SessionStore } from '../../db/session-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
+import { GlobalSettingsStore } from '../../db/global-settings-store.js';
+import { readSettingsFromDb } from './claude-settings-db.js';
+import { buildSessionClaudeMd } from './claude-files.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { McpServerStore } from '../../db/mcp-server-store.js';
@@ -41,6 +44,8 @@ interface SessionCardViewModel {
   credentials?: CredStripViewModel;
   /** Model provider type — used to show auth URL polling slot for 'max' sessions. */
   modelProvider?: string;
+  /** Deploy command from repo settings — when set, shows Deploy button on card. */
+  deployCommand?: string;
 }
 
 /** UUID pattern for detecting bare-repo directory names that are UUIDs. */
@@ -58,6 +63,7 @@ function toViewModel(
   creds?: import('../../credentials/types.js').ActiveCredentials,
   modelProvider?: string,
   repoName?: string,
+  deployCommand?: string | null,
 ): SessionCardViewModel {
   let credentials: CredStripViewModel | undefined;
   if (creds && !creds.revokedAt) {
@@ -80,6 +86,7 @@ function toViewModel(
     updatedAt: formatRelativeTime(session.updatedAt),
     ...(credentials !== undefined ? { credentials } : {}),
     ...(modelProvider !== undefined ? { modelProvider } : {}),
+    ...(deployCommand ? { deployCommand } : {}),
   };
 }
 
@@ -90,6 +97,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   const credStore = new CredentialStore(deps.db);
   const modelConfigStore = new ModelConfigStore(deps.db);
   const mcpServerStore = new McpServerStore(deps.db);
+  const globalSettingsStore = new GlobalSettingsStore(deps.db);
 
   // GET /api/sessions/new-form — render the new-session form partial
   router.get('/sessions/new-form', (_req, res, next) => {
@@ -154,6 +162,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // Checkboxes: present = "1"
       const sandbox = req.body['sandbox'] === '1';
       const skipPermissions = req.body['skipPermissions'] === '1';
+      const webAccess = req.body['webAccess'] === '1';
 
       // mcpServerIds comes as repeated checkbox values — ensure array
       const rawMcpIds = req.body['mcpServerIds'];
@@ -210,7 +219,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       if (errors.length > 0) {
         const modelConfigs = modelConfigStore.listConfigs();
         const mcpServers = mcpServerStore.listServers();
-        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions });
+        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
@@ -221,6 +230,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       // Provision credentials if a profile was selected
       const env: Record<string, string> = {};
+
+      // 1. Repo-level env vars (lowest priority — overridable by credentials + model config)
+      if (repo.envVars) {
+        Object.assign(env, repo.envVars);
+      }
+
       let provisionedCreds: import('../../credentials/credential-manager.js').ProvisionResult | undefined;
 
       if (credentialProfileId) {
@@ -269,13 +284,26 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
           }
 
-          // Build settings.json for this session: start from shared settings,
-          // then ensure theme=dark is set so claude skips the first-run picker.
-          const sharedSettings = join(homedir(), '.claude', 'settings.json');
-          let settings: Record<string, unknown> = {};
-          if (existsSync(sharedSettings)) {
-            try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
+          // Generate .git-credentials from session env so git push/pull can authenticate.
+          // GH_TOKEN comes from the credential profile's GitHub provider.
+          const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'];
+          if (ghToken) {
+            writeFileSync(join(sessionHome, '.git-credentials'), `https://oauth2:${ghToken}@github.com\n`);
           }
+
+          // Append git user identity from global settings (avoids "Author identity unknown")
+          const gitUserName = globalSettingsStore.get('git.user.name');
+          const gitUserEmail = globalSettingsStore.get('git.user.email');
+          if (gitUserName || gitUserEmail) {
+            let section = '\n[user]\n';
+            if (gitUserName) section += `\tname = ${gitUserName}\n`;
+            if (gitUserEmail) section += `\temail = ${gitUserEmail}\n`;
+            appendFileSync(join(sessionHome, '.gitconfig'), section);
+          }
+
+          // Build settings.json for this session: start from DB-persisted settings,
+          // then ensure theme=dark is set so claude skips the first-run picker.
+          const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
           // Inject user-selected MCP servers from the registry
@@ -293,7 +321,43 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           };
           settings['mcpServers'] = mcpServers;
 
+          // Deny web tools when web access is disabled
+          if (!webAccess) {
+            const perms = (settings['permissions'] ?? {}) as Record<string, unknown>;
+            const deny = Array.isArray(perms['deny']) ? [...perms['deny']] : [];
+            if (!deny.includes('WebFetch')) deny.push('WebFetch');
+            if (!deny.includes('WebSearch')) deny.push('WebSearch');
+            perms['deny'] = deny;
+            settings['permissions'] = perms;
+          }
+
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+
+          // Write .config.json to skip onboarding prompts and pre-approve API keys.
+          // Claude Code stores onboarding state and API key approvals in ~/.claude/.config.json.
+          // Without this, interactive sessions prompt for theme selection, disclaimer,
+          // folder trust, and API key approval on every launch.
+          const claudeConfig: Record<string, unknown> = {
+            hasCompletedOnboarding: true,
+            theme: 'dark',
+          };
+          if (modelConfigId) {
+            const mc = modelConfigStore.getConfig(modelConfigId);
+            if (mc?.apiKey) {
+              // Claude Code identifies approved keys by their last 20 characters
+              const keyFingerprint = mc.apiKey.slice(-20);
+              claudeConfig['customApiKeyResponses'] = {
+                approved: [keyFingerprint],
+                rejected: [],
+              };
+            }
+          }
+          writeFileSync(join(claudeDir, '.config.json'), JSON.stringify(claudeConfig), 'utf8');
+
+          // Inject merged CLAUDE.md (includes soul.md content inline so it's
+          // auto-loaded by Claude Code — soul.md is not a natively recognised file)
+          const mergedClaudeMd = buildSessionClaudeMd(globalSettingsStore);
+          if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
 
           // Inject model credentials if available
           if (modelConfigId) {
@@ -442,7 +506,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
-      const html = eta.render('partials/session-card', toViewModel(session, undefined, undefined, repo?.displayName));
+      const html = eta.render('partials/session-card', toViewModel(session, undefined, undefined, repo?.displayName, repo?.deployCommand));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -482,7 +546,103 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
-      const html = eta.render('partials/session-card', toViewModel(session, undefined, undefined, repo?.displayName));
+      const html = eta.render('partials/session-card', toViewModel(session, undefined, undefined, repo?.displayName, repo?.deployCommand));
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /api/sessions/:id/debug-shell — spawn a bash shell in the session's worktree
+  router.post('/sessions/:id/debug-shell', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+
+      const existing = store.getSession(id);
+      if (existing === undefined) {
+        res.status(404).send('Session not found');
+        return;
+      }
+
+      const shell = deps.sessionEngine.spawnDebugShell(id);
+      const html = eta.render('partials/debug-shell-panel', {
+        shellId: shell.shellId,
+        sessionId: id,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /api/sessions/:id/debug-shell/:shellId/stop — stop a debug shell
+  router.post('/sessions/:id/debug-shell/:shellId/stop', (req, res, next) => {
+    try {
+      const shellId = req.params['shellId'] ?? '';
+      try {
+        deps.sessionEngine.stopDebugShell(shellId);
+      } catch {
+        // Already dead — fine
+      }
+      res.status(200).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /api/sessions/:id/host-shell — spawn an unsandboxed shell with host env
+  router.post('/sessions/:id/host-shell', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+
+      const existing = store.getSession(id);
+      if (existing === undefined) {
+        res.status(404).send('Session not found');
+        return;
+      }
+
+      const shell = deps.sessionEngine.spawnHostShell(id);
+      const html = eta.render('partials/debug-shell-panel', {
+        shellId: shell.shellId,
+        sessionId: id,
+        label: 'Host Shell',
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /api/sessions/:id/deploy — run repo's deploy command in a host shell
+  router.post('/sessions/:id/deploy', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+
+      const existing = store.getSession(id);
+      if (existing === undefined) {
+        res.status(404).send('Session not found');
+        return;
+      }
+
+      // Look up repo to get deploy command + deploy env vars
+      const repo = repoStore.getRepoByBarePath(existing.config.repoRoot);
+      if (!repo?.deployCommand) {
+        res.status(422).send('No deploy command configured for this repo');
+        return;
+      }
+
+      const shell = deps.sessionEngine.spawnHostShell(id, {
+        command: [repo.deployCommand],
+        extraEnv: repo.deployEnvVars,
+      });
+      const html = eta.render('partials/debug-shell-panel', {
+        shellId: shell.shellId,
+        sessionId: id,
+        label: 'Deploy',
+      });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -524,12 +684,24 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
           }
 
-          // Rebuild settings.json with theme + MCP servers + validation server
-          const sharedSettings = join(homedir(), '.claude', 'settings.json');
-          let settings: Record<string, unknown> = {};
-          if (existsSync(sharedSettings)) {
-            try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
+          // Generate .git-credentials from session env so git push/pull can authenticate
+          const ghToken = originalEnv['GH_TOKEN'] ?? originalEnv['GITHUB_TOKEN'];
+          if (ghToken) {
+            writeFileSync(join(sessionHome, '.git-credentials'), `https://oauth2:${ghToken}@github.com\n`);
           }
+
+          // Append git user identity from global settings
+          const gitUserName = globalSettingsStore.get('git.user.name');
+          const gitUserEmail = globalSettingsStore.get('git.user.email');
+          if (gitUserName || gitUserEmail) {
+            let section = '\n[user]\n';
+            if (gitUserName) section += `\tname = ${gitUserName}\n`;
+            if (gitUserEmail) section += `\temail = ${gitUserEmail}\n`;
+            appendFileSync(join(sessionHome, '.gitconfig'), section);
+          }
+
+          // Rebuild settings.json with theme + MCP validation server
+          const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
           // Re-inject user-selected MCP servers from the registry
@@ -547,6 +719,29 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           };
           settings['mcpServers'] = mcpServers;
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+
+          // Rebuild .config.json (onboarding + API key approval)
+          const reopenConfig: Record<string, unknown> = {
+            hasCompletedOnboarding: true,
+            theme: 'dark',
+          };
+          const reopenModelConfigId = existing.config.modelConfigId;
+          if (reopenModelConfigId) {
+            const mcStore = new ModelConfigStore(deps.db);
+            const mc = mcStore.getConfig(reopenModelConfigId);
+            if (mc?.apiKey) {
+              const keyFingerprint = mc.apiKey.slice(-20);
+              reopenConfig['customApiKeyResponses'] = {
+                approved: [keyFingerprint],
+                rejected: [],
+              };
+            }
+          }
+          writeFileSync(join(claudeDir, '.config.json'), JSON.stringify(reopenConfig), 'utf8');
+
+          // Inject merged CLAUDE.md (includes soul.md content inline)
+          const mergedClaudeMd = buildSessionClaudeMd(globalSettingsStore);
+          if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
 
           // Restore credentials if available
           const modelConfigId = existing.config.modelConfigId;
@@ -610,6 +805,11 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const skipPermissions = source.config.args?.includes('--dangerously-skip-permissions') ?? false;
       // Default sandbox to true (matching form default)
       const sandbox = true;
+      // Default web access to true
+      const webAccess = true;
+
+      // Pre-fill model config from source session
+      const modelConfigId = source.config.modelConfigId ?? '';
 
       // Pre-fill branch name with -fork suffix
       const forkBranch = `${source.worktree.branch}-fork`;
@@ -622,12 +822,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         branch: forkBranch,
         sourceBranch: headSha,
         credentialProfileId,
+        modelConfigId,
         sandbox,
         skipPermissions,
+        webAccess,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
+      console.error(`[sessions] fork-form failed for session ${req.params['id']}:`, err);
       next(err);
     }
   });
@@ -703,16 +906,20 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   router.get('/sessions/cards', (_req, res, next) => {
     try {
       const sessions = store.listSessions();
-      // Build barePath → displayName map for repo name resolution
+      // Build barePath → displayName / deployCommand maps for repo resolution
       const repoNameMap = new Map<string, string>();
+      const deployCmdMap = new Map<string, string>();
       for (const repo of repoStore.listRepos()) {
         if (repo.barePath !== null) {
           repoNameMap.set(repo.barePath, repo.displayName);
+          if (repo.deployCommand) {
+            deployCmdMap.set(repo.barePath, repo.deployCommand);
+          }
         }
       }
       const viewModels = sessions.map((s) => {
         const active = deps.sessionEngine.getSessionByDbId(s.id);
-        return toViewModel(s, credStore.getBySessionId(s.id), active?.modelProvider, repoNameMap.get(s.config.repoRoot));
+        return toViewModel(s, credStore.getBySessionId(s.id), active?.modelProvider, repoNameMap.get(s.config.repoRoot), deployCmdMap.get(s.config.repoRoot));
       });
       const html = eta.render('partials/session-grid', { sessions: viewModels });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -737,7 +944,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const active = deps.sessionEngine.getSessionByDbId(id);
       const creds = credStore.getBySessionId(id);
       const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
-      const html = eta.render('partials/session-card', toViewModel(session, creds, active?.modelProvider, repo?.displayName));
+      const html = eta.render('partials/session-card', toViewModel(session, creds, active?.modelProvider, repo?.displayName, repo?.deployCommand));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -767,10 +974,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       // After pasting an auth code, Claude prompts through several screens:
       // submit code → disclaimer → trust folder → possibly more.
-      // Auto-dismiss with staggered Enters at generous intervals.
+      // Auto-dismiss with staggered Enters.
       if (active.modelProvider === 'max') {
         active.authCodeSentAt = Date.now();
-        const delays = [2000, 5000, 8000, 11000];
+        const delays = [1000, 2500, 4000, 5500];
         delays.forEach((delay, i) => {
           setTimeout(() => {
             try { active.terminal.write('\r'); } catch { /* exited */ }

@@ -158,6 +158,34 @@ export class WorktreeManager {
     };
   }
 
+  /**
+   * Restores a worktree from an existing branch (e.g. after container restart).
+   * Prunes stale worktree entries, then re-adds the worktree without creating a new branch.
+   */
+  async restoreWorktree(sessionId: string, branch: string, repoRootOverride?: string): Promise<WorktreeInfo> {
+    WorktreeManager.assertNoInjection(sessionId, 'sessionId');
+    const safeBranch = WorktreeManager.sanitiseBranchName(branch);
+    const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
+    const cwd = repoRootOverride ?? undefined;
+
+    // Clean stale entries pointing to old deleted paths
+    await this.execGit(['worktree', 'prune'], cwd);
+
+    // Add worktree from existing branch (no -b flag)
+    await this.execGit(['worktree', 'add', worktreePath, safeBranch], cwd);
+
+    const commitShaRaw = await this.execGit(['rev-parse', 'HEAD'], worktreePath);
+    const commitSha = commitShaRaw.trim();
+
+    return {
+      id: sessionId,
+      path: worktreePath,
+      branch: safeBranch,
+      commitSha,
+      createdAt: new Date(),
+    };
+  }
+
   async deleteBranch(branch: string, repoRootOverride?: string): Promise<void> {
     const safeBranch = WorktreeManager.sanitiseBranchName(branch);
     const cwd = repoRootOverride ?? undefined;

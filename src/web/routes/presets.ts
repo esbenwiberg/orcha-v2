@@ -90,6 +90,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const modelConfigId = (
         typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : ''
       ).trim();
+      const webAccess = req.body['webAccess'] === '1';
       const validateMode = (typeof req.body['validateMode'] === 'string' ? req.body['validateMode'] : '').trim();
       const validateBuild = (typeof req.body['validateBuild'] === 'string' ? req.body['validateBuild'] : '').trim();
       const validateStart = (typeof req.body['validateStart'] === 'string' ? req.body['validateStart'] : '').trim();
@@ -129,6 +130,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           validateBuild,
           validateStart,
           validateHealth,
+          webAccess,
           validateComposeFile,
           validateTimeout,
           repos,
@@ -143,7 +145,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       store.createPreset({
-        name, repoId, credentialProfileId, modelConfigId,
+        name, repoId, credentialProfileId, modelConfigId, webAccess,
         ...(mcpServerIds.length > 0 ? { mcpServerIds } : {}),
         ...(validateMode ? { validateMode } : {}),
         ...(validateBuild ? { validateBuild } : {}),
@@ -185,6 +187,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         credentialProfileId: preset.credentialProfileId,
         modelConfigId: preset.modelConfigId,
         mcpServerIds: preset.mcpServerIds,
+        webAccess: preset.webAccess,
         validateMode: preset.validateMode ?? '',
         validateBuild: preset.validateBuild ?? '',
         validateStart: preset.validateStart ?? '',
@@ -222,6 +225,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const validateComposeFile = (typeof req.body['validateComposeFile'] === 'string' ? req.body['validateComposeFile'] : '').trim();
       const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
       const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
+      const webAccess = req.body['webAccess'] === '1';
 
       const rawMcpIds = req.body['mcpServerIds'];
       const mcpServerIds: string[] = Array.isArray(rawMcpIds)
@@ -250,6 +254,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           credentialProfileId,
           modelConfigId,
           mcpServerIds,
+          webAccess,
           validateMode,
           validateBuild,
           validateStart,
@@ -268,7 +273,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       store.updatePreset(id, {
-        name, repoId, credentialProfileId, modelConfigId,
+        name, repoId, credentialProfileId, modelConfigId, webAccess,
         mcpServerIds,
         ...(validateMode ? { validateMode } : {}),
         ...(validateBuild ? { validateBuild } : {}),
@@ -327,6 +332,13 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const mcpServers = mcpServerStore.listServers();
+
+      // Generate a random branch name: feature/<8 random lowercase letters>
+      const randomSuffix = Array.from({ length: 8 }, () =>
+        String.fromCharCode(97 + Math.floor(Math.random() * 26)),
+      ).join('');
+      const branch = `feature/${randomSuffix}`;
+
       const html = eta.render('partials/new-session-form', {
         repoId: preset.repoId,
         credentialProfileId: preset.credentialProfileId,
@@ -338,6 +350,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         mcpServers,
         branches,
         defaultBranch,
+        branch,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

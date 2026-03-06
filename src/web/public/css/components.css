@@ -421,6 +421,49 @@
   color: var(--color-text-muted);
 }
 
+/* Scope checkbox grid */
+.scope-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+.scope-category {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem 0.5rem;
+}
+.scope-category-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  width: 5rem;
+  flex-shrink: 0;
+}
+.scope-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.scope-opt input[type="checkbox"] {
+  width: 0.85rem;
+  height: 0.85rem;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
 /* -----------------------------------------------------------------------
    Small button modifier
    ----------------------------------------------------------------------- */
@@ -695,6 +738,49 @@ body.has-fullscreen-terminal {
   display: flex;
 }
 
+/* Debug shell panels */
+.debug-shell-panel {
+  background: #0a0a0a;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+  max-height: 300px;
+}
+.debug-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0.5rem;
+  background: var(--color-surface-raised);
+  border-bottom: 1px solid var(--color-border);
+}
+.debug-shell-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.debug-shell-label--host {
+  color: var(--color-warning, #e5a800);
+}
+.terminal-header__btn--deploy {
+  color: var(--color-warning, #e5a800);
+}
+.debug-shell-panel .xterm-container {
+  flex: 1 1 0%;
+  min-height: 0;
+}
+
+/* Auth slot — always visible (even in compact mode) when it has content */
+.session-card__auth-slot:empty {
+  display: none;
+}
+.session-card__auth-slot {
+  padding: 0 0.75rem;
+}
+
 /* -----------------------------------------------------------------------
    Confirm dialog (overlays the card body)
    ----------------------------------------------------------------------- */
@@ -884,6 +970,14 @@ body.has-fullscreen-terminal {
   border: 1px solid var(--color-success);
 }
 .auth-banner--waiting { opacity: 0.6; }
+
+/* In compact mode, fade out + collapse the success banner after 3s */
+.compact-cards .auth-banner--success {
+  animation: auth-banner-fade 1s ease 3s forwards;
+}
+@keyframes auth-banner-fade {
+  to { opacity: 0; max-height: 0; margin: 0; padding: 0; border-width: 0; overflow: hidden; }
+}
 .auth-banner__icon { font-size: 0.875rem; }
 .auth-banner__text { flex: 1; }
 
@@ -2279,6 +2373,16 @@ button[aria-busy="true"] .btn-label-loading { display: inline !important; }
   font-weight: 500;
   font-size: 13px;
   color: var(--color-text-primary);
+}
+
+.preset-picker__item.htmx-request {
+  pointer-events: none;
+  opacity: 0.55;
+  border-color: var(--color-accent);
+}
+.preset-picker__item.htmx-request .preset-picker__meta::after {
+  content: ' — loading…';
+  font-style: italic;
 }
 
 .preset-picker__meta {

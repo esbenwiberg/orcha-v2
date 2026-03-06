@@ -6,6 +6,7 @@ import type {
   CreateCredentialProfileInput,
   CreateSessionCredentialsInput,
 } from '../credentials/types.js';
+import { encryptJson, decryptJson } from '../credentials/crypto.js';
 export class CredentialStore {
   #db: Database.Database;
 
@@ -15,32 +16,15 @@ export class CredentialStore {
 
   // ── Credential Profiles ──────────────────────────────────────────────────
 
-  #decryptGithub(raw: string): CredentialProfile['github'] {
-    const parsed = JSON.parse(raw) as { repos: string[]; permissions: string[] };
-    return { repos: parsed.repos, permissions: parsed.permissions };
-  }
-
-  #encryptGithub(github: { repos: string[]; permissions: string[] }): string {
-    return JSON.stringify({ repos: github.repos, permissions: github.permissions });
-  }
-
-  #decryptDevops(raw: string): CredentialProfile['devops'] {
-    const parsed = JSON.parse(raw) as { org: string; project: string; scopes: string[] };
-    return { org: parsed.org, project: parsed.project, scopes: parsed.scopes };
-  }
-
-  #encryptDevops(devops: { org: string; project: string; scopes: string[] }): string {
-    return JSON.stringify({ org: devops.org, project: devops.project, scopes: devops.scopes });
-  }
-
   #rowToProfile(row: Record<string, unknown>): CredentialProfile {
-    const github = row['github_json'] ? this.#decryptGithub(row['github_json'] as string) : undefined;
-    const devops = row['devops_json'] ? this.#decryptDevops(row['devops_json'] as string) : undefined;
+    const azure = row['azure_json'] ? decryptJson<NonNullable<CredentialProfile['azure']>>(row['azure_json'] as string) : undefined;
+    const github = row['github_json'] ? decryptJson<NonNullable<CredentialProfile['github']>>(row['github_json'] as string) : undefined;
+    const devops = row['devops_json'] ? decryptJson<NonNullable<CredentialProfile['devops']>>(row['devops_json'] as string) : undefined;
     return {
       id: row['id'] as string,
       name: row['name'] as string,
       durationHours: row['duration_hours'] as number,
-      azure: row['azure_json'] ? JSON.parse(row['azure_json'] as string) : undefined,
+      ...(azure !== undefined ? { azure } : {}),
       ...(github !== undefined ? { github } : {}),
       ...(devops !== undefined ? { devops } : {}),
       createdAt: new Date(row['created_at'] as string),
@@ -75,9 +59,9 @@ export class CredentialStore {
         id,
         input.name,
         input.durationHours,
-        input.azure ? JSON.stringify(input.azure) : null,
-        input.github ? this.#encryptGithub(input.github) : null,
-        input.devops ? this.#encryptDevops(input.devops) : null,
+        input.azure ? encryptJson(input.azure) : null,
+        input.github ? encryptJson(input.github) : null,
+        input.devops ? encryptJson(input.devops) : null,
         now,
       );
 
@@ -101,9 +85,9 @@ export class CredentialStore {
       .run(
         name,
         durationHours,
-        azure ? JSON.stringify(azure) : null,
-        github ? this.#encryptGithub(github) : null,
-        devops ? this.#encryptDevops(devops) : null,
+        azure ? encryptJson(azure) : null,
+        github ? encryptJson(github) : null,
+        devops ? encryptJson(devops) : null,
         id,
       );
 

@@ -58,9 +58,9 @@ export class CredentialManager {
       // GitHub
       if (githubResult.status === 'fulfilled' && githubResult.value !== null) {
         const { patId, env: ghEnv } = githubResult.value;
-        githubPatId = patId;
+        if (patId) githubPatId = patId;
         Object.assign(env, ghEnv);
-        rollbacks.push(() => this.#github.revoke(patId));
+        // No rollback needed — we don't create tokens
       } else if (githubResult.status === 'rejected') {
         throw githubResult.reason as Error;
       }
@@ -131,7 +131,7 @@ export class CredentialManager {
 
   async #provisionGitHub(profile: CredentialProfile) {
     if (!profile.github) return null;
-    return this.#github.provision({ ...profile.github, durationHours: profile.durationHours });
+    return this.#github.provision(profile.github);
   }
 
   async #provisionDevOps(profile: CredentialProfile) {

@@ -10,8 +10,7 @@ export interface TaskProfile {
     role: string;
   };
   github?: {
-    repos: string[];
-    permissions: string[];
+    pat?: string;
   };
   devops?: {
     org: string;
@@ -89,7 +88,7 @@ export function scaffoldConfig(cwd: string, name: string): void {
     ? `    azure:\n      subscriptionId: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"\n      resourceGroups: []\n      role: "Contributor"\n`
     : '';
   const githubSection = services.includes('github')
-    ? `    github:\n      repos: []\n      permissions: ["contents:write", "pull_requests:write"]\n`
+    ? `    github: {}\n`
     : '';
   const devopsSection = services.includes('devops')
     ? `    devops:\n      org: "https://dev.azure.com/myorg"\n      project: "myproject"\n      scopes: ["vso.code_write", "vso.work_write"]\n`
@@ -106,7 +105,7 @@ export function scaffoldConfig(cwd: string, name: string): void {
     `  readonly:`,
     `    durationHours: 2`,
     services.includes('azure') ? `    azure:\n      role: "Reader"\n` : '',
-    services.includes('github') ? `    github:\n      permissions: ["contents:read"]\n` : '',
+    services.includes('github') ? `    github: {}\n` : '',
     services.includes('devops') ? `    devops:\n      scopes: ["vso.code"]\n` : '',
   ].join('\n');
 

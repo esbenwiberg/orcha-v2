@@ -2,21 +2,24 @@ import { Router, type Request, type Response } from 'express';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { getStoragePaths } from '../../storage/paths.js';
-import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
 import { SessionStore } from '../../db/session-store.js';
 import type { Deployer } from '../../deploy/deployer.js';
 import type { DeployConfig } from '../../deploy/deploy-config.js';
 
-function getDirSizeBytes(dirPath: string): number {
-  try {
-    if (!fs.existsSync(dirPath)) return 0;
-    const output = execSync(`du -sb "${dirPath}" 2>/dev/null`, { encoding: 'utf8' });
-    return parseInt(output.split('\t')[0] ?? '0', 10);
-  } catch {
-    return 0;
-  }
+function getDirSizeBytes(dirPath: string): Promise<number> {
+  return new Promise((resolve) => {
+    execFile('du', ['-sb', dirPath], { timeout: 30_000 }, (err, stdout) => {
+      if (err) {
+        resolve(0);
+        return;
+      }
+      const bytes = parseInt(stdout.split('\t')[0] ?? '0', 10);
+      resolve(Number.isNaN(bytes) ? 0 : bytes);
+    });
+  });
 }
 
 function formatBytes(bytes: number): string {
@@ -36,7 +39,54 @@ function formatUptime(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-function buildStats(deps: AppDeps, deployConfig: DeployConfig | null, deployer: Deployer | null) {
+// ── Disk size cache (60s TTL, stale-while-revalidate) ────────────────────────
+interface DiskCache {
+  worktreesBytes: number;
+  bareReposBytes: number;
+  logsBytes: number;
+  updatedAt: number;
+}
+
+const DISK_CACHE_TTL_MS = 60_000;
+let diskCache: DiskCache | null = null;
+let diskCacheRefreshing = false;
+
+async function refreshDiskCache(): Promise<DiskCache> {
+  const paths = getStoragePaths();
+  const [worktreesBytes, bareReposBytes, logsBytes] = await Promise.all([
+    getDirSizeBytes(paths.worktreeBaseDir),
+    getDirSizeBytes(paths.bareRepoDir),
+    getDirSizeBytes(paths.logsDir),
+  ]);
+  diskCache = { worktreesBytes, bareReposBytes, logsBytes, updatedAt: Date.now() };
+  return diskCache;
+}
+
+async function getDiskSizes(): Promise<DiskCache> {
+  // No cache yet — must wait for first fetch
+  if (!diskCache) {
+    return refreshDiskCache();
+  }
+  // Cache is fresh — return it
+  if (Date.now() - diskCache.updatedAt < DISK_CACHE_TTL_MS) {
+    return diskCache;
+  }
+  // Cache is stale — return stale data, refresh in background
+  if (!diskCacheRefreshing) {
+    diskCacheRefreshing = true;
+    refreshDiskCache().finally(() => {
+      diskCacheRefreshing = false;
+    });
+  }
+  return diskCache;
+}
+
+function buildStats(
+  deps: AppDeps,
+  deployConfig: DeployConfig | null,
+  deployer: Deployer | null,
+  disk: DiskCache,
+) {
   const paths = getStoragePaths();
 
   let dbStatus = 'error';
@@ -45,10 +95,7 @@ function buildStats(deps: AppDeps, deployConfig: DeployConfig | null, deployer: 
     dbStatus = 'ok';
   } catch {}
 
-  const worktreesBytes = getDirSizeBytes(paths.worktreeBaseDir);
-  const bareReposBytes = getDirSizeBytes(paths.bareRepoDir);
-  const logsBytes = getDirSizeBytes(paths.logsDir);
-  const totalBytes = worktreesBytes + bareReposBytes + logsBytes;
+  const totalBytes = disk.worktreesBytes + disk.bareReposBytes + disk.logsBytes;
 
   return {
     uptime: formatUptime(process.uptime()),
@@ -57,9 +104,9 @@ function buildStats(deps: AppDeps, deployConfig: DeployConfig | null, deployer: 
     dataDir: paths.dataDir,
     disk: {
       total: { bytes: totalBytes, formatted: formatBytes(totalBytes) },
-      worktrees: { bytes: worktreesBytes, formatted: formatBytes(worktreesBytes), path: paths.worktreeBaseDir },
-      bareRepos: { bytes: bareReposBytes, formatted: formatBytes(bareReposBytes), path: paths.bareRepoDir },
-      logs: { bytes: logsBytes, formatted: formatBytes(logsBytes), path: paths.logsDir },
+      worktrees: { bytes: disk.worktreesBytes, formatted: formatBytes(disk.worktreesBytes), path: paths.worktreeBaseDir },
+      bareRepos: { bytes: disk.bareReposBytes, formatted: formatBytes(disk.bareReposBytes), path: paths.bareRepoDir },
+      logs: { bytes: disk.logsBytes, formatted: formatBytes(disk.logsBytes), path: paths.logsDir },
     },
     ...(deployConfig
       ? {
@@ -85,9 +132,10 @@ export function createSystemRouter(
   const router = Router();
 
   // GET /api/system/stats — render system stats partial
-  router.get('/system/stats', (_req, res, next) => {
+  router.get('/system/stats', async (_req, res, next) => {
     try {
-      const stats = buildStats(deps, deployConfig, deployer);
+      const disk = await getDiskSizes();
+      const stats = buildStats(deps, deployConfig, deployer, disk);
       const html = eta.render('partials/system-stats', stats);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -97,7 +145,7 @@ export function createSystemRouter(
   });
 
   // POST /api/system/clean/logs — delete log files older than 7 days
-  router.post('/system/clean/logs', (_req, res, next) => {
+  router.post('/system/clean/logs', async (_req, res, next) => {
     try {
       const { logsDir } = getStoragePaths();
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -116,7 +164,10 @@ export function createSystemRouter(
         }
       }
 
-      const stats = buildStats(deps, deployConfig, deployer);
+      // Invalidate cache after cleanup, then fetch fresh
+      diskCache = null;
+      const disk = await getDiskSizes();
+      const stats = buildStats(deps, deployConfig, deployer, disk);
       const html = eta.render('partials/system-stats', stats);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -126,7 +177,7 @@ export function createSystemRouter(
   });
 
   // POST /api/system/clean/worktrees — remove worktrees for stopped sessions
-  router.post('/system/clean/worktrees', (_req, res, next) => {
+  router.post('/system/clean/worktrees', async (_req, res, next) => {
     try {
       const { worktreeBaseDir } = getStoragePaths();
       const sessionStore = new SessionStore(deps.db);
@@ -155,7 +206,10 @@ export function createSystemRouter(
         }
       }
 
-      const stats = buildStats(deps, deployConfig, deployer);
+      // Invalidate cache after cleanup, then fetch fresh
+      diskCache = null;
+      const disk = await getDiskSizes();
+      const stats = buildStats(deps, deployConfig, deployer, disk);
       const html = eta.render('partials/system-stats', stats);
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

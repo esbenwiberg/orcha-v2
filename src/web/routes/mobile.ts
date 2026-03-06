@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
@@ -11,6 +11,9 @@ import { PresetStore } from '../../db/preset-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import { McpServerStore } from '../../db/mcp-server-store.js';
+import { GlobalSettingsStore } from '../../db/global-settings-store.js';
+import { readSettingsFromDb } from './claude-settings-db.js';
+import { buildSessionClaudeMd } from './claude-files.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
@@ -18,16 +21,6 @@ import { eventBus } from '../services/event-bus.js';
 
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_.-]+$/;
-
-/** Minimal HTML-escape to prevent XSS in inline error messages. */
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
@@ -37,6 +30,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
   const repoStore = new RepoStore(deps.db);
   const modelConfigStore = new ModelConfigStore(deps.db);
   const mcpServerStore = new McpServerStore(deps.db);
+  const globalSettingsStore = new GlobalSettingsStore(deps.db);
 
   // GET / — mobile shell with bottom-tab navigation
   router.get('/', (_req, res, next) => {
@@ -143,7 +137,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
 
       res.setHeader(
         'Set-Cookie',
-        `mobile-session-id=${sessionId}; HttpOnly; SameSite=Strict; Path=/mobile`,
+        `mobile-session-id=${sessionId}; SameSite=Strict; Path=/mobile`,
       );
 
       const proto = req.protocol === 'https' ? 'wss' : 'ws';
@@ -227,11 +221,23 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
             copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
           }
 
-          const sharedSettings = join(homedir(), '.claude', 'settings.json');
-          let settings: Record<string, unknown> = {};
-          if (existsSync(sharedSettings)) {
-            try { settings = JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>; } catch { /* ignore */ }
+          // Generate .git-credentials from session env so git push/pull can authenticate
+          const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'];
+          if (ghToken) {
+            writeFileSync(join(sessionHome, '.git-credentials'), `https://oauth2:${ghToken}@github.com\n`);
           }
+
+          // Append git user identity from global settings (avoids "Author identity unknown")
+          const gitUserName = globalSettingsStore.get('git.user.name');
+          const gitUserEmail = globalSettingsStore.get('git.user.email');
+          if (gitUserName || gitUserEmail) {
+            let section = '\n[user]\n';
+            if (gitUserName) section += `\tname = ${gitUserName}\n`;
+            if (gitUserEmail) section += `\temail = ${gitUserEmail}\n`;
+            appendFileSync(join(sessionHome, '.gitconfig'), section);
+          }
+
+          const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
           // Inject user-selected MCP servers from the preset
@@ -242,8 +248,22 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
             settings['mcpServers'] = mcpServers;
           }
 
+          // Deny web tools when preset has web access disabled
+          if (!preset.webAccess) {
+            const perms = (settings['permissions'] ?? {}) as Record<string, unknown>;
+            const deny = Array.isArray(perms['deny']) ? [...perms['deny']] : [];
+            if (!deny.includes('WebFetch')) deny.push('WebFetch');
+            if (!deny.includes('WebSearch')) deny.push('WebSearch');
+            perms['deny'] = deny;
+            settings['permissions'] = perms;
+          }
+
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
           writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
+
+          // Inject merged CLAUDE.md (includes soul.md content inline)
+          const mergedClaudeMd = buildSessionClaudeMd(globalSettingsStore);
+          if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
 
           env['HOME'] = sessionHome;
         } catch (err) {
@@ -306,7 +326,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       const dbSessionId = activeSession.dbSessionId ?? sessionId;
       res.setHeader(
         'Set-Cookie',
-        `mobile-session-id=${dbSessionId}; HttpOnly; SameSite=Strict; Path=/mobile`,
+        `mobile-session-id=${dbSessionId}; SameSite=Strict; Path=/mobile`,
       );
 
       const proto = req.protocol === 'https' ? 'wss' : 'ws';
@@ -400,63 +420,6 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       res.status(200).send(html);
     } catch (err) {
       next(err);
-    }
-  });
-
-  // GET /send-modal — return the send modal partial for HTMX injection
-  router.get('/send-modal', (_req, res, next) => {
-    try {
-      const html = eta.render('partials/mobile-send-modal', {});
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(200).send(html);
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  // POST /send — write text to the active session's PTY input
-  router.post('/send', (req, res) => {
-    // Parse the active session cookie manually (no cookie-parser)
-    const cookieHeader = req.headers.cookie ?? '';
-    const match = /mobile-session-id=([^;]+)/.exec(cookieHeader);
-    const activeId = match?.[1];
-
-    if (!activeId) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(401).send('<span class="send-error">No active session</span>');
-      return;
-    }
-
-    const rawText: unknown = req.body?.text;
-    if (typeof rawText !== 'string' || rawText.trim().length === 0) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(400).send('<span class="send-error">Text is required</span>');
-      return;
-    }
-
-    if (rawText.length > 4096) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(400).send('<span class="send-error">Text exceeds 4096 character limit</span>');
-      return;
-    }
-
-    const session = deps.sessionEngine.getSession(activeId);
-    if (session === undefined) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(404).send('<span class="send-error">Session not found</span>');
-      return;
-    }
-
-    try {
-      // Append \n so the command is submitted in the PTY; strip any trailing
-      // newline the user may have already typed to avoid a double submission.
-      session.terminal.write(rawText.replace(/\r?\n$/, '') + '\n');
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(200).send('<span class="send-success">Sent</span>');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(500).send(`<span class="send-error">Failed: ${escapeHtml(message)}</span>`);
     }
   });
 

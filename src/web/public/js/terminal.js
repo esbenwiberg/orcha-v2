@@ -356,9 +356,70 @@ function showCloseMenu(sessionId, anchorBtn) {
   });
   menu.appendChild(closeItem);
 
-  // Stop (SIGTERM) — only if session is running
+  // Debug shell — available for running, completed, failed, cancelled sessions
   const badge = document.getElementById(`badge-${sessionId}`);
   const status = badge ? badge.textContent.trim() : '';
+  if (status === 'running' || status === 'completed' || status === 'failed' || status === 'cancelled') {
+    const shellItem = document.createElement('button');
+    shellItem.className = 'term-close-menu__item';
+    shellItem.textContent = 'Session Shell';
+    shellItem.addEventListener('click', () => {
+      menu.remove();
+      fetch(`/api/sessions/${sessionId}/debug-shell`, { method: 'POST' })
+        .then((r) => {
+          if (r.ok) return r.text();
+          throw new Error('Failed to spawn shell');
+        })
+        .then((html) => {
+          if (html) {
+            let container = document.getElementById(`debug-shells-${sessionId}`);
+            if (!container) {
+              // Create container after terminal-slot if missing
+              const termSlot = document.getElementById(`terminal-slot-${sessionId}`);
+              if (termSlot) {
+                container = document.createElement('div');
+                container.id = `debug-shells-${sessionId}`;
+                termSlot.after(container);
+              }
+            }
+            if (container) container.insertAdjacentHTML('beforeend', html);
+          }
+        })
+        .catch(() => showToast('Failed to spawn debug shell', 'error'));
+    });
+    menu.appendChild(shellItem);
+
+    // Host shell — same worktree, host env, session-scoped az config
+    const hostShellItem = document.createElement('button');
+    hostShellItem.className = 'term-close-menu__item';
+    hostShellItem.textContent = 'Host Shell';
+    hostShellItem.addEventListener('click', () => {
+      menu.remove();
+      fetch(`/api/sessions/${sessionId}/host-shell`, { method: 'POST' })
+        .then((r) => {
+          if (r.ok) return r.text();
+          throw new Error('Failed to spawn host shell');
+        })
+        .then((html) => {
+          if (html) {
+            let container = document.getElementById(`debug-shells-${sessionId}`);
+            if (!container) {
+              const termSlot = document.getElementById(`terminal-slot-${sessionId}`);
+              if (termSlot) {
+                container = document.createElement('div');
+                container.id = `debug-shells-${sessionId}`;
+                termSlot.after(container);
+              }
+            }
+            if (container) container.insertAdjacentHTML('beforeend', html);
+          }
+        })
+        .catch(() => showToast('Failed to spawn host shell', 'error'));
+    });
+    menu.appendChild(hostShellItem);
+  }
+
+  // Stop (SIGTERM) — only if session is running
   if (status === 'running') {
     const stopItem = document.createElement('button');
     stopItem.className = 'term-close-menu__item term-close-menu__item--warn';
@@ -677,8 +738,9 @@ function showAll() {
  *
  * @param {string} sessionId - The session UUID.
  * @param {string} containerId - The id of the DOM element to mount into.
+ * @param {string} [wsPrefix='/ws/terminal/'] - WebSocket path prefix.
  */
-export async function openTerminal(sessionId, containerId) {
+export async function openTerminal(sessionId, containerId, wsPrefix = '/ws/terminal/') {
   if (openTerminals.has(sessionId)) {
     return;
   }
@@ -704,6 +766,12 @@ export async function openTerminal(sessionId, containerId) {
 
   const fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
+
+  // Make URLs in terminal output clickable
+  if (window.WebLinksAddon?.WebLinksAddon) {
+    term.loadAddon(new window.WebLinksAddon.WebLinksAddon());
+  }
+
   term.open(container);
 
   // Intercept keys before xterm processes them (Ctrl+A prefix, Ctrl+V paste)
@@ -767,8 +835,8 @@ export async function openTerminal(sessionId, containerId) {
   // Build the WebSocket URL — use wss:// when the page is served over HTTPS.
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = ticket
-    ? `${proto}//${location.host}/ws/terminal/${sessionId}?ticket=${ticket}`
-    : `${proto}//${location.host}/ws/terminal/${sessionId}`;
+    ? `${proto}//${location.host}${wsPrefix}${sessionId}?ticket=${ticket}`
+    : `${proto}//${location.host}${wsPrefix}${sessionId}`;
   const ws = new WebSocket(wsUrl);
 
   // Send an initial resize so the PTY matches the actual container dimensions

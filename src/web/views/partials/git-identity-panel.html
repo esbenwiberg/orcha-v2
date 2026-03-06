@@ -1,0 +1,38 @@
+<div id="git-identity-panel">
+  <form
+    hx-post="/api/git-identity"
+    hx-target="#git-identity-panel"
+    hx-swap="outerHTML"
+  >
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div>
+        <label class="label" for="git-user-name">Name</label>
+        <input
+          id="git-user-name"
+          name="name"
+          type="text"
+          class="input"
+          placeholder="Your Name"
+          value="<%= it.name %>"
+        />
+      </div>
+      <div>
+        <label class="label" for="git-user-email">Email</label>
+        <input
+          id="git-user-email"
+          name="email"
+          type="email"
+          class="input"
+          placeholder="you@example.com"
+          value="<%= it.email %>"
+        />
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.75rem">
+      <button class="btn btn-primary btn-sm">Save</button>
+      <% if (it.saved) { %>
+        <span class="badge badge--running" style="font-size:0.75rem">Saved</span>
+      <% } %>
+    </div>
+  </form>
+</div>

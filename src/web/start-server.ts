@@ -15,6 +15,8 @@ import { loadAuthConfig } from './auth/index.js';
 import { ValidationManager } from '../validation/validation-manager.js';
 import { emitStartupDiagnostics } from '../diagnostics/startup.js';
 import { getStoragePaths } from '../storage/paths.js';
+import { GlobalSettingsStore } from '../db/global-settings-store.js';
+import { installEnabledSdks } from '../sdk-installer.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -66,6 +68,24 @@ try {
 const db = openDatabase(path.dirname(dbPath));
 runMigrations(db, migrationsDir);
 
+// One-time seed: import existing .claude/settings.json into DB if not already there.
+// This covers the first deploy after switching from file-based to DB-backed settings.
+try {
+  const globalSettings = new GlobalSettingsStore(db);
+  if (!globalSettings.has('claude_settings')) {
+    const settingsFile = path.join(homedir(), '.claude', 'settings.json');
+    if (existsSync(settingsFile)) {
+      const raw = readFileSync(settingsFile, 'utf8');
+      // Validate it's parseable JSON before storing
+      JSON.parse(raw);
+      globalSettings.set('claude_settings', raw);
+      console.log('[settings] seeded claude_settings into DB from .claude/settings.json');
+    }
+  }
+} catch (e) {
+  console.warn('[settings] failed to seed claude_settings from file:', e);
+}
+
 // db.serialize() produces a consistent byte-for-byte snapshot without needing
 // WAL checkpointing or file copying. writeFileSync works on Azure File Share.
 const syncDbToPersistent = () => {
@@ -108,6 +128,10 @@ const authConfig = loadAuthConfig();
 const authTerminalManager = new AuthTerminalManager();
 
 const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig, authTerminalManager, validationManager };
+
+// Install SDKs enabled in settings (typescript, dotnet, etc.)
+// Runs once at boot — installs to persistent /data/sdks/ and updates PATH.
+await installEnabledSdks(db);
 
 startServer(deps, port)
   .then(() => {

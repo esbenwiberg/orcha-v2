@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import type { Session, SessionStatus, SessionConfig, WorktreeInfo } from '@orcha/domain';
 import { assertValidTransition } from '@orcha/domain';
+import { encryptJson, decryptJson } from '../credentials/crypto.js';
 
 export class SessionStore {
   #db: Database.Database;
@@ -36,7 +37,7 @@ export class SessionStore {
       displayId: row['display_id'] as number,
       instanceId: row['instance_id'] as string,
       status: row['status'] as SessionStatus,
-      config: JSON.parse(row['config_json'] as string) as SessionConfig,
+      config: decryptJson<SessionConfig>(row['config_json'] as string),
       worktree,
       createdAt: new Date(row['created_at'] as string),
       updatedAt: new Date(row['updated_at'] as string),
@@ -81,10 +82,10 @@ export class SessionStore {
       this.#db
         .prepare(
           `INSERT INTO sessions
-            (id, display_id, instance_id, status, config_json, worktree_json, created_at, updated_at)
-           VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)`,
+            (id, display_id, instance_id, status, config_json, worktree_json, repo_root, created_at, updated_at)
+           VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
         )
-        .run(id, displayId, config.instanceId, JSON.stringify(config), worktreeJson, now, now);
+        .run(id, displayId, config.instanceId, encryptJson(config), worktreeJson, config.repoRoot, now, now);
     })();
 
     return this.getSession(id)!;
@@ -223,12 +224,39 @@ export class SessionStore {
     return this.getSession(id)!;
   }
 
+  /**
+   * Updates the worktree path in worktree_json, preserving all other fields.
+   * Used when a worktree is restored to a different location (e.g. migration
+   * from /data/worktrees to /tmp/orcha-worktrees after container restart).
+   */
+  updateWorktreePath(id: string, newWorktreePath: string): Session {
+    const session = this.getSession(id);
+    if (session === undefined) {
+      throw new TypeError(`Session not found: ${id}`);
+    }
+
+    const worktreeJson = JSON.stringify({
+      worktreePath: newWorktreePath,
+      branch: session.worktree.branch,
+      headSha: session.worktree.headSha,
+      repoRoot: session.worktree.repoRoot,
+      createdAt: session.worktree.createdAt.toISOString(),
+    });
+
+    const now = new Date().toISOString();
+    this.#db
+      .prepare('UPDATE sessions SET worktree_json = ?, updated_at = ? WHERE id = ?')
+      .run(worktreeJson, now, id);
+
+    return this.getSession(id)!;
+  }
+
   findByBranchAndRepo(branch: string, repoRoot: string): Session | undefined {
     const row = this.#db
       .prepare(
         `SELECT * FROM sessions
          WHERE json_extract(worktree_json, '$.branch') = ?
-           AND json_extract(config_json, '$.repoRoot') = ?
+           AND repo_root = ?
          ORDER BY created_at DESC LIMIT 1`,
       )
       .get(branch, repoRoot) as Record<string, unknown> | undefined;

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
+import { encryptJson, decryptJson } from '../credentials/crypto.js';
 
 export type RepoProvider = 'github' | 'azure-devops' | 'other';
 export type RepoStatus = 'pending' | 'cloning' | 'ready' | 'error';
@@ -23,6 +24,9 @@ export interface Repo extends RepoValidateFields {
   barePath: string | null;
   status: RepoStatus;
   error: string | null;
+  envVars: Record<string, string>;
+  deployCommand: string | null;
+  deployEnvVars: Record<string, string>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -74,6 +78,7 @@ export class RepoStore {
   }
 
   #rowToRepo(row: Record<string, unknown>): Repo {
+    const envJsonRaw = row['env_json'] as string | null;
     return {
       id: row['id'] as string,
       url: row['url'] as string,
@@ -82,12 +87,18 @@ export class RepoStore {
       barePath: (row['bare_path'] as string | null) ?? null,
       status: row['status'] as RepoStatus,
       error: (row['error'] as string | null) ?? null,
+      envVars: envJsonRaw ? decryptJson<Record<string, string>>(envJsonRaw) : {},
       validateMode: (row['validate_mode'] as ValidateMode | null) ?? null,
       validateBuild: (row['validate_build'] as string | null) ?? null,
       validateStart: (row['validate_start'] as string | null) ?? null,
       validateHealth: (row['validate_health'] as string | null) ?? null,
       validateComposeFile: (row['validate_compose_file'] as string | null) ?? null,
       validateTimeout: (row['validate_timeout'] as number | null) ?? 300,
+      deployCommand: (row['deploy_command'] as string | null) ?? null,
+      deployEnvVars: (() => {
+        const raw = row['deploy_env_json'] as string | null;
+        return raw ? decryptJson<Record<string, string>>(raw) : {};
+      })(),
       createdAt: new Date(row['created_at'] as string),
       updatedAt: new Date(row['updated_at'] as string),
     };
@@ -181,17 +192,21 @@ export class RepoStore {
       validateHealth?: string;
       validateComposeFile?: string;
       validateTimeout?: number;
+      deployCommand?: string;
+      deployEnvVars?: Record<string, string>;
     },
   ): Repo | undefined {
     const existing = this.getRepo(id);
     if (existing === undefined) return undefined;
 
     const now = new Date().toISOString();
+    const hasDeployEnv = fields.deployEnvVars && Object.keys(fields.deployEnvVars).length > 0;
     this.#db
       .prepare(
         `UPDATE repos SET
            validate_mode = ?, validate_build = ?, validate_start = ?,
            validate_health = ?, validate_compose_file = ?, validate_timeout = ?,
+           deploy_command = ?, deploy_env_json = ?,
            updated_at = ?
          WHERE id = ?`,
       )
@@ -202,11 +217,21 @@ export class RepoStore {
         fields.validateHealth || null,
         fields.validateComposeFile || null,
         fields.validateTimeout ?? existing.validateTimeout,
+        fields.deployCommand || null,
+        hasDeployEnv ? encryptJson(fields.deployEnvVars!) : null,
         now,
         id,
       );
 
     return this.getRepo(id);
+  }
+
+  setEnvVars(id: string, vars: Record<string, string>): void {
+    const now = new Date().toISOString();
+    const hasVars = Object.keys(vars).length > 0;
+    this.#db
+      .prepare('UPDATE repos SET env_json = ?, updated_at = ? WHERE id = ?')
+      .run(hasVars ? encryptJson(vars) : null, now, id);
   }
 
   deleteRepo(id: string): void {

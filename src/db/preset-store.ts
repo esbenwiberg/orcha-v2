@@ -16,6 +16,7 @@ export interface Preset extends PresetValidateFields {
   repoId: string;
   credentialProfileId: string;
   modelConfigId: string;
+  webAccess: boolean;
   mcpServerIds: string[];
   createdAt: Date;
 }
@@ -25,6 +26,7 @@ export interface CreatePresetInput {
   repoId: string;
   credentialProfileId: string;
   modelConfigId: string;
+  webAccess?: boolean;
   validateMode?: string;
   validateBuild?: string;
   validateStart?: string;
@@ -48,6 +50,7 @@ export class PresetStore {
       repoId: (row['repo_id'] as string) ?? '',
       credentialProfileId: (row['credential_profile_id'] as string) ?? '',
       modelConfigId: (row['model_config_id'] as string) ?? '',
+      webAccess: (row['web_access'] as number) !== 0,
       validateMode: (row['validate_mode'] as string | null) ?? null,
       validateBuild: (row['validate_build'] as string | null) ?? null,
       validateStart: (row['validate_start'] as string | null) ?? null,
@@ -80,13 +83,14 @@ export class PresetStore {
 
     this.#db
       .prepare(
-        `INSERT INTO presets (id, name, repo_id, credential_profile_id, model_config_id,
+        `INSERT INTO presets (id, name, repo_id, credential_profile_id, model_config_id, web_access,
            validate_mode, validate_build, validate_start, validate_health, validate_compose_file, validate_timeout,
            mcp_server_ids, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id, input.name, input.repoId || null, input.credentialProfileId || null, input.modelConfigId || null,
+        input.webAccess === false ? 0 : 1,
         input.validateMode || null, input.validateBuild || null, input.validateStart || null,
         input.validateHealth || null, input.validateComposeFile || null, input.validateTimeout ?? null,
         input.mcpServerIds && input.mcpServerIds.length > 0 ? JSON.stringify(input.mcpServerIds) : null,
@@ -105,11 +109,12 @@ export class PresetStore {
     const credentialProfileId = input.credentialProfileId ?? existing.credentialProfileId;
     const modelConfigId = input.modelConfigId ?? existing.modelConfigId;
 
+    const webAccess = input.webAccess ?? existing.webAccess;
     const mcpServerIds = input.mcpServerIds ?? existing.mcpServerIds;
 
     this.#db
       .prepare(
-        `UPDATE presets SET name = ?, repo_id = ?, credential_profile_id = ?, model_config_id = ?,
+        `UPDATE presets SET name = ?, repo_id = ?, credential_profile_id = ?, model_config_id = ?, web_access = ?,
            validate_mode = ?, validate_build = ?, validate_start = ?,
            validate_health = ?, validate_compose_file = ?, validate_timeout = ?,
            mcp_server_ids = ?
@@ -117,6 +122,7 @@ export class PresetStore {
       )
       .run(
         name, repoId || null, credentialProfileId || null, modelConfigId || null,
+        webAccess ? 1 : 0,
         input.validateMode ?? existing.validateMode,
         input.validateBuild ?? existing.validateBuild,
         input.validateStart ?? existing.validateStart,

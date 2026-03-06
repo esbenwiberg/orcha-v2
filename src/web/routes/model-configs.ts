@@ -9,6 +9,17 @@ import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
 
 const VALID_PROVIDERS = new Set<string>(['max', 'anthropic', 'foundry', 'local', 'custom']);
 
+/** Normalize a base URL: auto-prefix http:// if no scheme, strip trailing slash, validate. */
+function normalizeBaseUrl(raw: string): string {
+  let url = raw;
+  if (url && !/^https?:\/\//i.test(url)) {
+    url = `http://${url}`;
+  }
+  // Validate
+  new URL(url); // throws on invalid
+  return url.replace(/\/+$/, '');
+}
+
 export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new ModelConfigStore(deps.db);
@@ -60,9 +71,20 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const apiKey = getField('apiKey').trim() || undefined;
-      const baseUrl = getField('baseUrl').trim() || undefined;
+      const baseUrlRaw = getField('baseUrl').trim() || undefined;
       const modelId = getField('modelId').trim() || undefined;
       const foundryResource = getField('foundryResource').trim() || undefined;
+      const authToken = provider === 'local' ? (getField('authToken').trim() || undefined) : undefined;
+
+      let baseUrl = baseUrlRaw;
+      if (baseUrl) {
+        try {
+          baseUrl = normalizeBaseUrl(baseUrl);
+        } catch {
+          res.status(422).send('<div class="badge badge--failed">Invalid Base URL — must be a valid URL (e.g. http://host:11434)</div>');
+          return;
+        }
+      }
 
       // Parse custom env vars (key=value per line)
       let extraEnv: Record<string, string> | undefined;
@@ -89,6 +111,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         ...(baseUrl !== undefined ? { baseUrl } : {}),
         ...(modelId !== undefined ? { modelId } : {}),
         ...(foundryResource !== undefined ? { foundryResource } : {}),
+        ...(authToken !== undefined ? { authToken } : {}),
         ...(extraEnv !== undefined ? { extraEnv } : {}),
         ...(credentialsJson !== undefined ? { credentialsJson } : {}),
       });
@@ -122,6 +145,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         baseUrl: config.baseUrl,
         modelId: config.modelId,
         foundryResource: config.foundryResource,
+        authToken: config.authToken,
         extraEnv: config.extraEnv,
         credentialsJson: config.credentialsJson,
       });
@@ -155,9 +179,20 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const apiKey = getField('apiKey').trim() || undefined;
-      const baseUrl = getField('baseUrl').trim() || undefined;
+      const baseUrlRaw = getField('baseUrl').trim() || undefined;
       const modelId = getField('modelId').trim() || undefined;
       const foundryResource = getField('foundryResource').trim() || undefined;
+      const authToken = provider === 'local' ? (getField('authToken').trim() || undefined) : undefined;
+
+      let baseUrl = baseUrlRaw;
+      if (baseUrl) {
+        try {
+          baseUrl = normalizeBaseUrl(baseUrl);
+        } catch {
+          res.status(422).send('<div class="badge badge--failed">Invalid Base URL — must be a valid URL (e.g. http://host:11434)</div>');
+          return;
+        }
+      }
 
       let extraEnv: Record<string, string> | undefined;
       const extraEnvRaw = getField('extraEnv').trim();
@@ -182,6 +217,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         ...(baseUrl !== undefined ? { baseUrl } : {}),
         ...(modelId !== undefined ? { modelId } : {}),
         ...(foundryResource !== undefined ? { foundryResource } : {}),
+        ...(authToken !== undefined ? { authToken } : {}),
         ...(extraEnv !== undefined ? { extraEnv } : {}),
         ...(credentialsJson !== undefined ? { credentialsJson } : {}),
       });

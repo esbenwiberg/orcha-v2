@@ -21,7 +21,7 @@
       <option value="max" <%= it.provider === 'max' ? 'selected' : '' %>>Max / Pro (OAuth)</option>
       <option value="anthropic" <%= it.provider === 'anthropic' ? 'selected' : '' %>>Anthropic API</option>
       <option value="foundry" <%= it.provider === 'foundry' ? 'selected' : '' %>>Azure AI Foundry</option>
-      <option value="local" <%= it.provider === 'local' ? 'selected' : '' %>>Local (Ollama / Qwen)</option>
+      <option value="local" <%= it.provider === 'local' ? 'selected' : '' %>>Local (Ollama / vLLM)</option>
       <option value="custom" <%= it.provider === 'custom' ? 'selected' : '' %>>Custom Env Vars</option>
     </select>
   </div>
@@ -43,6 +43,13 @@
     <div class="form-group">
       <label for="mc-api-key">API Key</label>
       <input id="mc-api-key" type="password" name="apiKey" placeholder="sk-ant-…" autocomplete="off" value="<%= it.apiKey ?? '' %>" />
+    </div>
+    <div class="form-group">
+      <label for="mc-anthropic-url">
+        Base URL
+        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — for API proxies / third-party brokers)</span>
+      </label>
+      <input id="mc-anthropic-url" type="text" name="baseUrl" placeholder="https://api.anthropic.com" value="<%= it.provider === 'anthropic' ? (it.baseUrl ?? '') : '' %>" />
     </div>
   </div>
 
@@ -72,7 +79,22 @@
   <div id="mc-fields-local" class="mc-provider-fields" style="display:<%= it.provider === 'local' ? 'block' : 'none' %>">
     <div class="form-group">
       <label for="mc-local-url">Base URL</label>
-      <input id="mc-local-url" type="text" name="baseUrl" placeholder="http://localhost:11434/v1" value="<%= it.provider === 'local' ? (it.baseUrl ?? '') : '' %>" />
+      <input id="mc-local-url" type="text" name="baseUrl" placeholder="http://localhost:11434 or :8000" value="<%= it.provider === 'local' ? (it.baseUrl ?? '') : '' %>" />
+      <p class="text-xs text-muted" style="margin-top:0.25rem;">Ollama default: <code>:11434</code> &nbsp; vLLM default: <code>:8000</code></p>
+    </div>
+    <div class="form-group">
+      <label for="mc-local-api-key">
+        API Key
+        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — empty if not required)</span>
+      </label>
+      <input id="mc-local-api-key" type="password" name="apiKey" placeholder="e.g. ollama" autocomplete="off" value="<%= it.provider === 'local' ? (it.apiKey ?? '') : '' %>" />
+    </div>
+    <div class="form-group">
+      <label for="mc-local-auth-token">
+        Auth Token
+        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — defaults to "local")</span>
+      </label>
+      <input id="mc-local-auth-token" type="password" name="authToken" placeholder="e.g. ollama" autocomplete="off" value="<%= it.provider === 'local' ? (it.authToken ?? '') : '' %>" />
     </div>
   </div>
 

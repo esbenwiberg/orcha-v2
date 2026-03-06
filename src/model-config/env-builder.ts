@@ -20,9 +20,13 @@ export function buildModelEnv(config: ModelConfig): Record<string, string> {
       env['ANTHROPIC_API_KEY'] = ENV_DELETE;
       break;
 
-    case 'anthropic':
+    case 'anthropic': {
       if (config.apiKey) env['ANTHROPIC_API_KEY'] = config.apiKey;
+      let anthropicUrl = config.baseUrl ?? '';
+      if (anthropicUrl && !/^https?:\/\//i.test(anthropicUrl)) anthropicUrl = `https://${anthropicUrl}`;
+      if (anthropicUrl) env['ANTHROPIC_BASE_URL'] = anthropicUrl.replace(/\/+$/, '');
       break;
+    }
 
     case 'foundry':
       env['CLAUDE_CODE_USE_FOUNDRY'] = '1';
@@ -31,10 +35,14 @@ export function buildModelEnv(config: ModelConfig): Record<string, string> {
       if (config.apiKey) env['ANTHROPIC_FOUNDRY_API_KEY'] = config.apiKey;
       break;
 
-    case 'local':
-      if (config.baseUrl) env['ANTHROPIC_BASE_URL'] = config.baseUrl;
-      env['ANTHROPIC_API_KEY'] = '';
+    case 'local': {
+      let baseUrl = config.baseUrl ?? '';
+      if (baseUrl && !/^https?:\/\//i.test(baseUrl)) baseUrl = `http://${baseUrl}`;
+      if (baseUrl) env['ANTHROPIC_BASE_URL'] = baseUrl.replace(/\/+$/, '');
+      if (config.apiKey) env['ANTHROPIC_API_KEY'] = config.apiKey;
+      env['ANTHROPIC_AUTH_TOKEN'] = config.authToken ?? 'local';
       break;
+    }
 
     case 'custom':
       if (config.extraEnv) Object.assign(env, config.extraEnv);

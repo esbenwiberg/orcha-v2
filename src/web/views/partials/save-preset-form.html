@@ -91,6 +91,27 @@
   </div>
   <% } %>
 
+  <label style="display:flex;align-items:center;gap:0.625rem;cursor:pointer;user-select:none;margin-top:0.5rem;">
+    <span style="position:relative;display:inline-block;width:34px;height:20px;flex-shrink:0;">
+      <input
+        type="checkbox"
+        name="webAccess"
+        value="1"
+        id="sp-web-access"
+        style="opacity:0;width:0;height:0;position:absolute;"
+        <%= (it.webAccess === false) ? '' : 'checked' %>
+        onchange="var t=this.parentElement.querySelector('span');t.style.background=this.checked?'var(--color-accent)':'var(--color-bg-3)';t.querySelector('span').style.transform=this.checked?'translateX(14px)':'';"
+      />
+      <span style="position:absolute;inset:0;border-radius:10px;background:<%= (it.webAccess === false) ? 'var(--color-bg-3)' : 'var(--color-accent)' %>;transition:background 0.15s;">
+        <span style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform 0.15s;<%= (it.webAccess === false) ? '' : 'transform:translateX(14px);' %>"></span>
+      </span>
+    </span>
+    <span style="font-size:12px;color:var(--color-text-secondary);">
+      Web access
+      <span style="color:var(--color-text-muted);margin-left:2px;">(WebFetch + WebSearch)</span>
+    </span>
+  </label>
+
   <details style="margin-top:0.75rem;border-top:1px solid var(--color-border);padding-top:0.5rem;">
     <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--color-text-primary);user-select:none;">
       Validation Overrides <span style="font-weight:400;color:var(--color-text-muted)">(optional)</span>

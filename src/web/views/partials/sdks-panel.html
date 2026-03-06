@@ -1,0 +1,26 @@
+<div id="sdks-panel">
+  <form
+    hx-post="/api/sdks"
+    hx-target="#sdks-panel"
+    hx-swap="outerHTML"
+  >
+    <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem">
+      <% for (const sdk of it.sdks) { %>
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+          <input
+            type="checkbox"
+            name="sdk_<%= sdk.id %>"
+            <%= sdk.enabled ? 'checked' : '' %>
+          />
+          <span><%= sdk.label %></span>
+        </label>
+      <% } %>
+    </div>
+    <div style="display:flex;align-items:center;gap:0.75rem">
+      <button class="btn btn-primary btn-sm">Save</button>
+      <% if (it.saved) { %>
+        <span class="badge badge--running" style="font-size:0.75rem">Saved — installs on next restart</span>
+      <% } %>
+    </div>
+  </form>
+</div>

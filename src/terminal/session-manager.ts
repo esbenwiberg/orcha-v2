@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { WorktreeManager } from './worktree-manager.js';
 import type { WorktreeInfo } from './worktree-manager.js';
@@ -56,6 +56,21 @@ export interface ActiveSession {
   modelProvider?: string;
   /** Timestamp when auth code was sent to PTY (for detecting post-auth state). */
   authCodeSentAt?: number;
+  /** Spawn context preserved for debug shells to inherit. */
+  spawnContext?: {
+    env?: Record<string, string>;
+    sandbox?: boolean;
+    deleteEnv?: string[];
+    extraRwPaths?: string[];
+  };
+}
+
+export interface DebugShell {
+  shellId: string;
+  parentSessionId: string;
+  terminal: SessionTerminal;
+  outputBuffer: OutputBuffer;
+  createdAt: Date;
 }
 
 export class SessionError extends Error {
@@ -76,6 +91,7 @@ export class SessionError extends Error {
 
 export class SessionManager {
   private _active: Map<string, ActiveSession> = new Map();
+  private _debugShells: Map<string, DebugShell> = new Map();
 
   private _validationManager?: ValidationManager;
 
@@ -124,12 +140,23 @@ export class SessionManager {
       extraRwPaths.push(opts.repoRoot);
     }
 
+    // Per-session Azure CLI config dir so `az login` inside a sandboxed
+    // session writes tokens to /tmp (already RW in landlock) instead of
+    // ~/.azure/ (blocked).  Each session gets its own dir — no cross-session
+    // credential leakage.
+    const azureConfigDir = `/tmp/orcha-azure-${sessionId}`;
+    mkdirSync(azureConfigDir, { recursive: true });
+    const sessionEnv: Record<string, string> = {
+      ...opts.env,
+      AZURE_CONFIG_DIR: azureConfigDir,
+    };
+
     const spawnOpts: PtySpawnOptions = {
       sessionId,
       cwd: worktree.path,
       command: opts.command,
       ...(opts.args !== undefined ? { args: opts.args } : {}),
-      ...(opts.env !== undefined ? { env: opts.env } : {}),
+      env: sessionEnv,
       size: {
         cols: opts.cols ?? 220,
         rows: opts.rows ?? 50,
@@ -198,7 +225,7 @@ export class SessionManager {
           branch: worktree.branch,
           worktreePath: worktree.path,
           prompt: '',
-          env: opts.env ?? {},
+          env: sessionEnv,
           maxRuntimeSeconds: 0,
           ...(opts.args !== undefined ? { args: opts.args } : {}),
           ...(opts.deleteEnv !== undefined ? { deleteEnv: opts.deleteEnv } : {}),
@@ -224,6 +251,12 @@ export class SessionManager {
     }
 
     // Step 5: Build ActiveSession record
+    const spawnContext: ActiveSession['spawnContext'] = {
+      ...(opts.env !== undefined ? { env: opts.env } : {}),
+      ...(opts.sandbox !== undefined ? { sandbox: opts.sandbox } : {}),
+      ...(opts.deleteEnv !== undefined ? { deleteEnv: opts.deleteEnv } : {}),
+      ...(extraRwPaths.length > 0 ? { extraRwPaths } : {}),
+    };
     const activeSession: ActiveSession = {
       sessionId,
       dbSessionId,
@@ -235,6 +268,7 @@ export class SessionManager {
       ...(opts.homeDir !== undefined ? { homeDir: opts.homeDir } : {}),
       ...(opts.modelConfigId !== undefined ? { modelConfigId: opts.modelConfigId } : {}),
       ...(opts.modelProvider !== undefined ? { modelProvider: opts.modelProvider } : {}),
+      spawnContext,
     };
 
     this._active.set(sessionId, activeSession);
@@ -298,6 +332,14 @@ export class SessionManager {
       }
     }
 
+    // Kill any debug shells attached to this session
+    for (const shell of this._debugShells.values()) {
+      if (shell.parentSessionId === sessionId) {
+        shell.terminal.kill('SIGTERM');
+        this._debugShells.delete(shell.shellId);
+      }
+    }
+
     // Worktrees and per-session HOME dirs are now preserved until the session
     // is explicitly deleted, so users can reopen failed/cancelled sessions.
   }
@@ -317,15 +359,30 @@ export class SessionManager {
     }
 
     // Step 2: Extract worktree path and original sessionId
-    const worktreePath = dbSession.worktree.worktreePath;
+    let worktreePath = dbSession.worktree.worktreePath;
     const sessionId = basename(worktreePath);
 
-    // Verify worktree directory exists
+    // Restore worktree if missing (e.g. container restarted, /tmp cleared)
     if (!existsSync(worktreePath)) {
-      throw new SessionError(
-        `Worktree directory no longer exists: ${worktreePath}`,
-        'WORKTREE_FAILED',
-      );
+      try {
+        const restored = await this._worktreeManager.restoreWorktree(
+          sessionId,
+          dbSession.worktree.branch,
+          dbSession.worktree.repoRoot,
+        );
+        // If restored to a different path (migration from /data/worktrees to /tmp),
+        // update DB so future reopens use the new location
+        if (restored.path !== worktreePath) {
+          this._sessionStore.updateWorktreePath(dbSessionId, restored.path);
+        }
+        worktreePath = restored.path;
+      } catch (err) {
+        throw new SessionError(
+          `Failed to restore worktree for session '${sessionId}': ${String(err)}`,
+          'WORKTREE_FAILED',
+          err,
+        );
+      }
     }
 
     // Check not already active
@@ -341,6 +398,12 @@ export class SessionManager {
     const reopenArgs = [...originalArgs];
     const originalEnv = dbSession.config.env ?? {};
     const homeDir = originalEnv['HOME'];
+
+    // Re-create per-session Azure CLI config dir (may have been lost on restart)
+    const azCfg = originalEnv['AZURE_CONFIG_DIR'];
+    if (azCfg) {
+      mkdirSync(azCfg, { recursive: true });
+    }
     const modelConfigId = dbSession.config.modelConfigId;
     const modelProvider = dbSession.config.modelProvider;
 
@@ -413,6 +476,12 @@ export class SessionManager {
       createdAt: dbSession.worktree.createdAt,
     };
 
+    const reopenSpawnContext: ActiveSession['spawnContext'] = {
+      ...(originalEnv !== undefined ? { env: originalEnv } : {}),
+      ...(opts?.sandbox !== undefined ? { sandbox: opts.sandbox } : {}),
+      ...(dbSession.config.deleteEnv !== undefined ? { deleteEnv: dbSession.config.deleteEnv } : {}),
+      ...(extraRwPaths.length > 0 ? { extraRwPaths } : {}),
+    };
     const activeSession: ActiveSession = {
       sessionId,
       dbSessionId,
@@ -423,6 +492,7 @@ export class SessionManager {
       ...(homeDir !== undefined ? { homeDir } : {}),
       ...(modelConfigId !== undefined ? { modelConfigId } : {}),
       ...(modelProvider !== undefined ? { modelProvider } : {}),
+      spawnContext: reopenSpawnContext,
     };
 
     this._active.set(sessionId, activeSession);
@@ -487,11 +557,152 @@ export class SessionManager {
   }
 
   async stopAllSessions(): Promise<void> {
+    // Kill all debug shells first
+    for (const shell of this._debugShells.values()) {
+      shell.terminal.kill('SIGTERM');
+    }
+    this._debugShells.clear();
+
     const stopPromises = Array.from(this._active.keys()).map((id) =>
       this.stopSession(id).catch(() => {
         // Suppress individual errors — allSettled semantics
       }),
     );
     await Promise.allSettled(stopPromises);
+  }
+
+  // --- Debug shell management ---
+
+  spawnDebugShell(parentSessionId: string): DebugShell {
+    // Look up parent by memory sessionId or DB id
+    const parent = this._active.get(parentSessionId) ?? this.getSessionByDbId(parentSessionId);
+    if (parent === undefined) {
+      throw new SessionError(`Parent session '${parentSessionId}' not found`, 'NOT_FOUND');
+    }
+
+    const shellId = `shell-${randomUUID()}`;
+    const ctx = parent.spawnContext ?? {};
+
+    const spawnOpts: PtySpawnOptions = {
+      sessionId: shellId,
+      cwd: parent.worktree.path,
+      command: 'bash',
+      ...(ctx.env !== undefined ? { env: ctx.env } : {}),
+      size: { cols: 220, rows: 50 },
+      ...(ctx.sandbox !== undefined ? { sandbox: ctx.sandbox } : {}),
+      ...(ctx.deleteEnv !== undefined ? { deleteEnv: ctx.deleteEnv } : {}),
+      ...(ctx.extraRwPaths !== undefined ? { extraRwPaths: ctx.extraRwPaths } : {}),
+    };
+
+    const terminal = this._ptyManager.spawn(spawnOpts);
+    const outputBuffer = new OutputBuffer();
+    terminal.output.on('data', (chunk: Buffer | string) => {
+      outputBuffer.push(chunk);
+    });
+
+    const shell: DebugShell = {
+      shellId,
+      parentSessionId: parent.sessionId,
+      terminal,
+      outputBuffer,
+      createdAt: new Date(),
+    };
+
+    terminal.on('exit', () => {
+      this._debugShells.delete(shellId);
+    });
+
+    this._debugShells.set(shellId, shell);
+    return shell;
+  }
+
+  /**
+   * Spawn a sandboxed shell in the session's worktree with the host's
+   * environment + session-scoped AZURE_CONFIG_DIR.
+   *
+   * Use case: Claude writes scripts, operator runs them with their own
+   * credentials. `az login` inside the shell writes to /tmp (session-scoped)
+   * so all CLI auth is cleaned up when the session closes.
+   */
+  spawnHostShell(parentSessionId: string, opts?: { extraEnv?: Record<string, string>; command?: string[] }): DebugShell {
+    const parent = this._active.get(parentSessionId) ?? this.getSessionByDbId(parentSessionId);
+    if (parent === undefined) {
+      throw new SessionError(`Parent session '${parentSessionId}' not found`, 'NOT_FOUND');
+    }
+
+    const shellId = `shell-${randomUUID()}`;
+    const ctx = parent.spawnContext ?? {};
+
+    // Inherit session-scoped AZURE_CONFIG_DIR so `az login` is ephemeral.
+    // Everything else comes from host env (process.env via PtyManager merge).
+    const env: Record<string, string> = {
+      ...opts?.extraEnv,
+    };
+    const parentAzDir = ctx.env?.['AZURE_CONFIG_DIR'];
+    if (parentAzDir !== undefined) {
+      env['AZURE_CONFIG_DIR'] = parentAzDir;
+    }
+
+    // If a command is provided (e.g. deploy script), run it via bash -c.
+    // Otherwise open an interactive bash shell.
+    const command = 'bash';
+    const args = opts?.command ? ['-c', opts.command.join(' ')] : undefined;
+
+    const spawnOpts: PtySpawnOptions = {
+      sessionId: shellId,
+      cwd: parent.worktree.path,
+      command,
+      ...(args !== undefined ? { args } : {}),
+      env,
+      size: { cols: 220, rows: 50 },
+      // Keep sandbox + extra paths from parent
+      ...(ctx.sandbox !== undefined ? { sandbox: ctx.sandbox } : {}),
+      ...(ctx.extraRwPaths !== undefined ? { extraRwPaths: ctx.extraRwPaths } : {}),
+      // No deleteEnv — don't strip host vars
+    };
+
+    const terminal = this._ptyManager.spawn(spawnOpts);
+    const outputBuffer = new OutputBuffer();
+    terminal.output.on('data', (chunk: Buffer | string) => {
+      outputBuffer.push(chunk);
+    });
+
+    const shell: DebugShell = {
+      shellId,
+      parentSessionId: parent.sessionId,
+      terminal,
+      outputBuffer,
+      createdAt: new Date(),
+    };
+
+    terminal.on('exit', () => {
+      this._debugShells.delete(shellId);
+    });
+
+    this._debugShells.set(shellId, shell);
+    return shell;
+  }
+
+  getDebugShell(shellId: string): DebugShell | undefined {
+    return this._debugShells.get(shellId);
+  }
+
+  listDebugShells(parentSessionId: string): DebugShell[] {
+    const shells: DebugShell[] = [];
+    for (const shell of this._debugShells.values()) {
+      if (shell.parentSessionId === parentSessionId) {
+        shells.push(shell);
+      }
+    }
+    return shells;
+  }
+
+  stopDebugShell(shellId: string): void {
+    const shell = this._debugShells.get(shellId);
+    if (shell === undefined) {
+      throw new SessionError(`Debug shell '${shellId}' not found`, 'NOT_FOUND');
+    }
+    shell.terminal.kill('SIGTERM');
+    this._debugShells.delete(shellId);
   }
 }

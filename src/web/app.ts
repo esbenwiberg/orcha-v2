@@ -20,17 +20,19 @@ import { createReposRouter } from './routes/repos.js';
 import { createEventsRouter } from './routes/events.js';
 import { createCredentialsRouter } from './routes/credentials.js';
 import { createClaudePermissionsRouter } from './routes/claude-permissions.js';
+import { createClaudeFilesRouter } from './routes/claude-files.js';
 import { createMcpServersRouter } from './routes/mcp-servers.js';
+import { createGitIdentityRouter } from './routes/git-identity.js';
 import { createSystemRouter } from './routes/system.js';
 import { createModelConfigsRouter } from './routes/model-configs.js';
 import { createBootstrapPatsRouter } from './routes/bootstrap-pats.js';
+import { createSdksRouter } from './routes/sdks.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
 import { ValidationManager } from '../validation/validation-manager.js';
 import { loadDeployConfig, Deployer } from '../deploy/index.js';
 import { GlobalSettingsStore } from '../db/global-settings-store.js';
-import { setBootstrapPatResolver as setGitHubBootstrapPatResolver } from '../credentials/providers/github.js';
 import { setBootstrapPatResolver as setDevOpsBootstrapPatResolver } from '../credentials/providers/devops.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -47,9 +49,8 @@ export interface AppDeps {
 export async function createApp(deps: AppDeps): Promise<express.Application> {
   const app = express();
 
-  // Wire bootstrap PAT resolvers so providers read from DB
+  // Wire bootstrap PAT resolver so DevOps provider reads from DB
   const globalSettings = new GlobalSettingsStore(deps.db);
-  setGitHubBootstrapPatResolver(() => globalSettings.get('github_bootstrap_pat'));
   setDevOpsBootstrapPatResolver(() => globalSettings.get('devops_bootstrap_pat'));
 
   // Trust the first proxy (Caddy) so express-session sets secure cookies correctly
@@ -134,13 +135,22 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
   app.use('/api', createModelConfigsRouter(eta, deps));
 
   // Claude permissions editor router
-  app.use('/api', createClaudePermissionsRouter(eta));
+  app.use('/api', createClaudePermissionsRouter(eta, deps.db));
+
+  // CLAUDE.md / soul.md editor router
+  app.use('/api', createClaudeFilesRouter(eta, deps.db));
 
   // MCP servers management router
   app.use('/api', createMcpServersRouter(eta, deps.db));
 
   // Bootstrap PATs management router
   app.use('/api', createBootstrapPatsRouter(eta, deps.db));
+
+  // Git identity settings router
+  app.use('/api', createGitIdentityRouter(eta, deps));
+
+  // Global SDKs settings router
+  app.use('/api', createSdksRouter(eta, deps));
 
   // Self-deploy (optional — only if DEPLOY_* env vars are set)
   const deployConfig = loadDeployConfig();
