@@ -6,14 +6,14 @@
           <code class="text-xs font-mono" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
             <%= srv.name %>
           </code>
-          <span class="badge badge--running" style="flex-shrink:0"><%= it.serverType(srv.entry) %></span>
+          <span class="badge badge--running" style="flex-shrink:0"><%= srv.type %></span>
           <code class="text-xs font-mono text-muted" style="flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-            <%= it.serverEndpoint(srv.entry) %>
+            <%= srv.url ?? (srv.command ? srv.command + (srv.args ? ' ' + srv.args.join(' ') : '') : '') %>
           </code>
           <button
             class="btn btn-xs"
             style="color:var(--color-error);flex-shrink:0"
-            hx-delete="/api/mcp-servers/<%= encodeURIComponent(srv.name) %>"
+            hx-delete="/api/mcp-servers/<%= srv.id %>"
             hx-target="#mcp-servers-panel"
             hx-swap="outerHTML"
           >&times;</button>

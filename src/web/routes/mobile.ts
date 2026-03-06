@@ -10,6 +10,7 @@ import { CredentialStore } from '../../db/credential-store.js';
 import { PresetStore } from '../../db/preset-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
+import { McpServerStore } from '../../db/mcp-server-store.js';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
 import { readSettingsFromDb } from './claude-settings-db.js';
 import { buildSessionClaudeMd } from './claude-files.js';
@@ -28,6 +29,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
   const presetStore = new PresetStore(deps.db);
   const repoStore = new RepoStore(deps.db);
   const modelConfigStore = new ModelConfigStore(deps.db);
+  const mcpServerStore = new McpServerStore(deps.db);
   const globalSettingsStore = new GlobalSettingsStore(deps.db);
 
   // GET / — mobile shell with bottom-tab navigation
@@ -238,6 +240,14 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
+          // Inject user-selected MCP servers from the preset
+          if (preset.mcpServerIds.length > 0) {
+            const mcpServers = (settings['mcpServers'] ?? {}) as Record<string, unknown>;
+            const entries = mcpServerStore.getSettingsEntries(preset.mcpServerIds);
+            Object.assign(mcpServers, entries);
+            settings['mcpServers'] = mcpServers;
+          }
+
           // Deny web tools when preset has web access disabled
           if (!preset.webAccess) {
             const perms = (settings['permissions'] ?? {}) as Record<string, unknown>;
@@ -283,6 +293,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
         ...(sessionHome !== undefined ? { homeDir: sessionHome } : {}),
         ...(preset.modelConfigId ? { modelConfigId: preset.modelConfigId } : {}),
         ...(modelConfig !== undefined ? { modelProvider: modelConfig.provider } : {}),
+        ...(preset.mcpServerIds.length > 0 ? { mcpServerIds: preset.mcpServerIds } : {}),
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;

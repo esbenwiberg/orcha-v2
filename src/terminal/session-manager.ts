@@ -34,6 +34,8 @@ export interface CreateSessionOptions {
   modelProvider?: string;
   /** Remote branch to base the worktree on (e.g. 'origin/main'). */
   sourceBranch?: string;
+  /** MCP server IDs selected for this session (from the registry). */
+  mcpServerIds?: string[];
 }
 
 export interface ActiveSession {
@@ -229,6 +231,7 @@ export class SessionManager {
           ...(opts.deleteEnv !== undefined ? { deleteEnv: opts.deleteEnv } : {}),
           ...(opts.modelConfigId !== undefined ? { modelConfigId: opts.modelConfigId } : {}),
           ...(opts.modelProvider !== undefined ? { modelProvider: opts.modelProvider } : {}),
+          ...(opts.mcpServerIds !== undefined && opts.mcpServerIds.length > 0 ? { mcpServerIds: opts.mcpServerIds } : {}),
         },
         {
           worktreePath: worktree.path,

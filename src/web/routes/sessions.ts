@@ -15,6 +15,7 @@ import { readSettingsFromDb } from './claude-settings-db.js';
 import { buildSessionClaudeMd } from './claude-files.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
+import { McpServerStore } from '../../db/mcp-server-store.js';
 import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
 import { executeGit } from '../utils/git-utils.js';
 import type { Session } from '@orcha/domain';
@@ -95,6 +96,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   const repoStore = new RepoStore(deps.db);
   const credStore = new CredentialStore(deps.db);
   const modelConfigStore = new ModelConfigStore(deps.db);
+  const mcpServerStore = new McpServerStore(deps.db);
   const globalSettingsStore = new GlobalSettingsStore(deps.db);
 
   // GET /api/sessions/new-form — render the new-session form partial
@@ -103,7 +105,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const repos = repoStore.listRepos();
       const credentialProfiles = credStore.listProfiles();
       const modelConfigs = modelConfigStore.listConfigs();
-      const html = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs });
+      const mcpServers = mcpServerStore.listServers();
+      const html = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -161,6 +164,14 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const skipPermissions = req.body['skipPermissions'] === '1';
       const webAccess = req.body['webAccess'] === '1';
 
+      // mcpServerIds comes as repeated checkbox values — ensure array
+      const rawMcpIds = req.body['mcpServerIds'];
+      const mcpServerIds: string[] = Array.isArray(rawMcpIds)
+        ? rawMcpIds.filter((v): v is string => typeof v === 'string')
+        : typeof rawMcpIds === 'string' && rawMcpIds
+          ? [rawMcpIds]
+          : [];
+
       // Validate
       const errors: string[] = [];
       const repos = repoStore.listRepos();
@@ -207,7 +218,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       if (errors.length > 0) {
         const modelConfigs = modelConfigStore.listConfigs();
-        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, sandbox, skipPermissions, webAccess });
+        const mcpServers = mcpServerStore.listServers();
+        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
@@ -294,9 +306,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
+          // Inject user-selected MCP servers from the registry
+          const mcpServers = (settings['mcpServers'] ?? {}) as Record<string, unknown>;
+          if (mcpServerIds.length > 0) {
+            const entries = mcpServerStore.getSettingsEntries(mcpServerIds);
+            Object.assign(mcpServers, entries);
+          }
+
           // Inject MCP validation server config
           const orchaPort = process.env['PORT'] ?? '3001';
-          const mcpServers = (settings['mcpServers'] ?? {}) as Record<string, unknown>;
           mcpServers['validate'] = {
             type: 'sse',
             url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
@@ -393,6 +411,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         ...(modelConfigId ? { modelConfigId } : {}),
         ...(modelConfig !== undefined ? { modelProvider: modelConfig.provider } : {}),
         ...(sourceBranch ? { sourceBranch } : {}),
+        ...(mcpServerIds.length > 0 ? { mcpServerIds } : {}),
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;
@@ -684,8 +703,16 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           // Rebuild settings.json with theme + MCP validation server
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
-          const orchaPort = process.env['PORT'] ?? '3001';
+
+          // Re-inject user-selected MCP servers from the registry
           const mcpServers = (settings['mcpServers'] ?? {}) as Record<string, unknown>;
+          const savedMcpIds = existing.config.mcpServerIds ?? [];
+          if (savedMcpIds.length > 0) {
+            const entries = mcpServerStore.getSettingsEntries(savedMcpIds);
+            Object.assign(mcpServers, entries);
+          }
+
+          const orchaPort = process.env['PORT'] ?? '3001';
           mcpServers['validate'] = {
             type: 'sse',
             url: `http://localhost:${orchaPort}/mcp/validate/${id}`,
