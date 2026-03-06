@@ -10,6 +10,7 @@
 #
 # Optional env vars:
 #   ORCHA_RESOURCE_GROUP    — Resource group (default: "orcha")
+#   ORCHA_SUBSCRIPTION      — Azure subscription ID (uses current default if unset)
 #   ORCHA_DOMAIN            — Domain for health check (skipped if unset)
 #   ORCHA_TAG               — Image tag (default: short git SHA)
 
@@ -34,6 +35,7 @@ echo ""
 ACR_NAME="${ORCHA_ACR_NAME}"
 CONTAINER_APP_NAME="${ORCHA_CONTAINER_APP}"
 RESOURCE_GROUP="${ORCHA_RESOURCE_GROUP:-orcha}"
+SUB_FLAG=( ${ORCHA_SUBSCRIPTION:+--subscription "${ORCHA_SUBSCRIPTION}"} )
 ORCHA_DOMAIN="${ORCHA_DOMAIN:-}"
 
 # ── Image tag ────────────────────────────────────────────────────────────────
@@ -44,15 +46,20 @@ info "Image tag: ${TAG}"
 command -v az >/dev/null 2>&1 || die "az CLI not found"
 info "Checking Azure login..."
 az account show --output none 2>/dev/null || die "Not logged in to Azure. Run: az login"
-ok "Azure login confirmed"
+if [[ -n "${ORCHA_SUBSCRIPTION:-}" ]]; then
+  ok "Azure login confirmed — subscription: ${ORCHA_SUBSCRIPTION}"
+else
+  ok "Azure login confirmed — using default subscription"
+fi
 
-ACR_SERVER=$(az acr show --name "${ACR_NAME}" --query loginServer -o tsv)
+ACR_SERVER=$(az acr show --name "${ACR_NAME}" "${SUB_FLAG[@]}" --query loginServer -o tsv)
 
 # ── Build via ACR Tasks (remote — no Docker needed) ─────────────────────────
 echo ""
 info "Building orcha image via ACR Tasks..."
 az acr build \
   --registry "${ACR_NAME}" \
+  "${SUB_FLAG[@]}" \
   --image "orcha:${TAG}" \
   --image "orcha:latest" \
   "${REPO_ROOT}"
@@ -62,6 +69,7 @@ echo ""
 info "Building orcha-caddy image via ACR Tasks..."
 az acr build \
   --registry "${ACR_NAME}" \
+  "${SUB_FLAG[@]}" \
   --image "orcha-caddy:${TAG}" \
   --image "orcha-caddy:latest" \
   "${REPO_ROOT}/caddy"
@@ -73,6 +81,7 @@ info "Updating Container App '${CONTAINER_APP_NAME}' to tag '${TAG}'..."
 az containerapp update \
   --name "${CONTAINER_APP_NAME}" \
   --resource-group "${RESOURCE_GROUP}" \
+  "${SUB_FLAG[@]}" \
   --container-name orcha \
   --image "${ACR_SERVER}/orcha:${TAG}" \
   --output none
@@ -86,6 +95,7 @@ while [[ ${ATTEMPTS} -lt ${MAX_ATTEMPTS} ]]; do
   STATE=$(az containerapp revision list \
     --name "${CONTAINER_APP_NAME}" \
     --resource-group "${RESOURCE_GROUP}" \
+    "${SUB_FLAG[@]}" \
     --query "[0].properties.provisioningState" \
     -o tsv 2>/dev/null || echo "unknown")
 
