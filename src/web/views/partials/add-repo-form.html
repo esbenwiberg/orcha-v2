@@ -55,6 +55,30 @@
   <% } %>
 
   <% if (it.editId) { %>
+    <details style="margin-top:0.75rem;border-top:1px solid var(--color-border);padding-top:0.5rem;"<%= (it.sdks && it.sdks.length > 0) ? ' open' : '' %>>
+      <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--color-text-primary);user-select:none;">
+        Build Tools
+      </summary>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;margin-top:0.5rem;">
+        <% const sdkDefs = it.sdkDefs ?? []; %>
+        <% const repoSdks = it.sdks ?? []; %>
+        <% for (const sdk of sdkDefs) { %>
+          <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer">
+            <input
+              type="checkbox"
+              name="sdks[]"
+              value="<%= sdk.id %>"
+              <%= repoSdks.includes(sdk.id) ? 'checked' : '' %>
+            />
+            <span style="font-size:13px;"><%= sdk.label %></span>
+          </label>
+        <% } %>
+        <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">
+          Installed on-demand when a session starts for this repo. Persists across reboots.
+        </div>
+      </div>
+    </details>
+
     <details style="margin-top:0.75rem;border-top:1px solid var(--color-border);padding-top:0.5rem;">
       <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--color-text-primary);user-select:none;">
         Deploy

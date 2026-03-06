@@ -27,6 +27,7 @@ export interface Repo extends RepoValidateFields {
   envVars: Record<string, string>;
   deployCommand: string | null;
   deployEnvVars: Record<string, string>;
+  sdks: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -98,6 +99,11 @@ export class RepoStore {
       deployEnvVars: (() => {
         const raw = row['deploy_env_json'] as string | null;
         return raw ? decryptJson<Record<string, string>>(raw) : {};
+      })(),
+      sdks: (() => {
+        const raw = row['sdks_json'] as string | null;
+        if (!raw) return [];
+        try { return JSON.parse(raw) as string[]; } catch { return []; }
       })(),
       createdAt: new Date(row['created_at'] as string),
       updatedAt: new Date(row['updated_at'] as string),
@@ -224,6 +230,14 @@ export class RepoStore {
       );
 
     return this.getRepo(id);
+  }
+
+  updateSdks(id: string, sdks: string[]): void {
+    const now = new Date().toISOString();
+    const json = sdks.length > 0 ? JSON.stringify(sdks) : null;
+    this.#db
+      .prepare('UPDATE repos SET sdks_json = ?, updated_at = ? WHERE id = ?')
+      .run(json, now, id);
   }
 
   setEnvVars(id: string, vars: Record<string, string>): void {

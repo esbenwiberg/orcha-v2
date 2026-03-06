@@ -103,6 +103,7 @@ if [[ "${USE_ACR_BUILD}" == "true" ]]; then
     --registry "${ACR_NAME}" \
     --image "orcha:${TAG}" \
     --image "orcha:latest" \
+    --build-arg "COMMIT_SHA=${TAG}" \
     "${REPO_ROOT}"
   ok "orcha image built and pushed (${TAG})"
 
@@ -118,6 +119,7 @@ else
   # Local Docker build + push
   info "Building orcha image..."
   DOCKER_BUILDKIT=1 docker build \
+    --build-arg "COMMIT_SHA=${TAG}" \
     -t "${ACR_SERVER}/orcha:${TAG}" \
     -t "${ACR_SERVER}/orcha:latest" \
     "${REPO_ROOT}"

@@ -64,11 +64,15 @@ function newModelConfigBtn(): string {
 export function createDashboardRouter(eta: Eta): Router {
   const router = Router();
 
+  const commitSha = process.env['COMMIT_SHA'] ?? '';
+  const shared = { commitSha };
+
   // GET / — sessions dashboard
   router.get('/', (_req, res, next) => {
     try {
       const body = eta.render('dashboard', {});
       const html = eta.render('layout', {
+        ...shared,
         title: 'Orcha – Sessions',
         pageTitle: 'Sessions',
         activeNav: 'sessions',
@@ -87,6 +91,7 @@ export function createDashboardRouter(eta: Eta): Router {
     try {
       const body = eta.render('presets-page', {});
       const html = eta.render('layout', {
+        ...shared,
         title: 'Orcha – Presets',
         pageTitle: 'Presets',
         activeNav: 'presets',
@@ -105,6 +110,7 @@ export function createDashboardRouter(eta: Eta): Router {
     try {
       const body = eta.render('repos-page', {});
       const html = eta.render('layout', {
+        ...shared,
         title: 'Orcha – Repos',
         pageTitle: 'Repositories',
         activeNav: 'repos',
@@ -123,6 +129,7 @@ export function createDashboardRouter(eta: Eta): Router {
     try {
       const body = eta.render('credentials-page', {});
       const html = eta.render('layout', {
+        ...shared,
         title: 'Orcha – Credentials',
         pageTitle: 'Credentials',
         activeNav: 'credentials',
@@ -141,6 +148,7 @@ export function createDashboardRouter(eta: Eta): Router {
     try {
       const body = eta.render('model-configs-page', {});
       const html = eta.render('layout', {
+        ...shared,
         title: 'Orcha – Models',
         pageTitle: 'Models',
         activeNav: 'models',
@@ -159,6 +167,7 @@ export function createDashboardRouter(eta: Eta): Router {
     try {
       const body = eta.render('settings-page', {});
       const html = eta.render('layout', {
+        ...shared,
         title: 'Orcha – Settings',
         pageTitle: 'Settings',
         activeNav: 'settings',
@@ -176,6 +185,7 @@ export function createDashboardRouter(eta: Eta): Router {
     try {
       const body = eta.render('health-page', {});
       const html = eta.render('layout', {
+        ...shared,
         title: 'Orcha – System',
         pageTitle: 'System',
         activeNav: 'system',
@@ -193,6 +203,7 @@ export function createDashboardRouter(eta: Eta): Router {
     try {
       const body = eta.render('guide-page', {});
       const html = eta.render('layout', {
+        ...shared,
         title: 'Orcha – Guide',
         pageTitle: 'Guide',
         activeNav: 'guide',
@@ -210,6 +221,7 @@ export function createDashboardRouter(eta: Eta): Router {
     try {
       const body = eta.render('about-page', {});
       const html = eta.render('layout', {
+        ...shared,
         title: 'Orcha – About',
         pageTitle: 'About',
         activeNav: 'about',

@@ -21,6 +21,7 @@ import { executeGit } from '../utils/git-utils.js';
 import type { Session } from '@orcha/domain';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
+import { ensureSdksInstalled } from '../../sdk-installer.js';
 
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_-]+$/;
@@ -392,6 +393,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           await deps.worktreeManager.fetchBareRepo(repo.barePath);
         } catch (err) {
           console.warn(`[sessions] fetchBareRepo failed for ${repoId}:`, err);
+        }
+      }
+
+      // Ensure repo-level SDKs are installed before spawning
+      if (repo.sdks.length > 0) {
+        try {
+          ensureSdksInstalled(repo.sdks);
+        } catch (err) {
+          console.warn(`[sessions] SDK install failed for repo ${repoId}:`, err);
         }
       }
 
