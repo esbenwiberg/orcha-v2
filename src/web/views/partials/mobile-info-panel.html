@@ -59,6 +59,19 @@
   </div>
   <% } %>
 
+  <% if (it.hasDeployCommand) { %>
+  <div class="info-panel__section">
+    <button
+      class="action-sheet-btn action-sheet-btn--deploy"
+      hx-post="/api/sessions/<%= it.session.id %>/deploy"
+      hx-target="#mobile-deploy-slot"
+      hx-swap="innerHTML"
+      hx-on::after-request="window._onMobileDeploy(event)"
+    >Deploy</button>
+    <div id="mobile-deploy-slot"></div>
+  </div>
+  <% } %>
+
   <div class="info-panel__section info-panel__actions">
     <button
       class="action-sheet-btn action-sheet-btn--docs"
