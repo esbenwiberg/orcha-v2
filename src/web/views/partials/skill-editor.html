@@ -1,0 +1,36 @@
+<div id="skills-panel">
+  <div style="max-width:640px">
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
+      <h3 class="text-sm" style="margin:0"><%= it.isNew ? 'New' : 'Edit' %> Skill: <code>/<%= it.skill.name %></code></h3>
+      <button
+        class="btn btn-xs"
+        hx-get="/api/skills"
+        hx-target="#skills-panel"
+        hx-swap="outerHTML"
+      >Cancel</button>
+    </div>
+    <form
+      hx-post="/api/skills"
+      hx-target="#skills-panel"
+      hx-swap="outerHTML"
+      style="display:flex;flex-direction:column;gap:0.5rem"
+    >
+      <input type="hidden" name="name" value="<%= it.skill.name %>" />
+      <textarea
+        name="content"
+        class="input"
+        style="width:100%;min-height:18rem;font-family:var(--font-mono);font-size:0.8125rem;line-height:1.5;resize:vertical;white-space:pre;tab-size:2"
+        placeholder="---
+name: <%= it.skill.name %>
+description: What this skill does
+---
+
+Instructions..."
+        required
+      ><%= it.skill.content %></textarea>
+      <div>
+        <button class="btn btn-xs btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
