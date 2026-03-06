@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
@@ -223,6 +223,16 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
           const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'];
           if (ghToken) {
             writeFileSync(join(sessionHome, '.git-credentials'), `https://oauth2:${ghToken}@github.com\n`);
+          }
+
+          // Append git user identity from global settings (avoids "Author identity unknown")
+          const gitUserName = globalSettingsStore.get('git.user.name');
+          const gitUserEmail = globalSettingsStore.get('git.user.email');
+          if (gitUserName || gitUserEmail) {
+            let section = '\n[user]\n';
+            if (gitUserName) section += `\tname = ${gitUserName}\n`;
+            if (gitUserEmail) section += `\temail = ${gitUserEmail}\n`;
+            appendFileSync(join(sessionHome, '.gitconfig'), section);
           }
 
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
