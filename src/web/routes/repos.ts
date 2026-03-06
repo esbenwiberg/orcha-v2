@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { RepoStore, validateRepoUrl } from '../../db/repo-store.js';
+import { getSdkDefs } from '../../sdk-installer.js';
 
 export function createReposRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
@@ -55,6 +56,8 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         deployCommand: repo.deployCommand ?? '',
         deployEnvVars: repo.deployEnvVars,
         envVars: repo.envVars,
+        sdkDefs: getSdkDefs(),
+        sdks: repo.sdks,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -89,6 +92,8 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
           deployCommand: repo?.deployCommand ?? '',
           deployEnvVars: repo?.deployEnvVars ?? {},
           envVars: repo?.envVars ?? {},
+          sdkDefs: getSdkDefs(),
+          sdks: repo?.sdks ?? [],
         });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -114,6 +119,15 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
       store.setEnvVars(id, envVars);
+
+      // Update SDKs
+      const rawSdks = req.body['sdks[]'];
+      const sdks: string[] = Array.isArray(rawSdks)
+        ? rawSdks.filter((v): v is string => typeof v === 'string')
+        : typeof rawSdks === 'string' && rawSdks
+          ? [rawSdks]
+          : [];
+      store.updateSdks(id, sdks);
 
       // Update validation config fields
       const validateMode = (typeof req.body['validateMode'] === 'string' ? req.body['validateMode'] : '').trim();

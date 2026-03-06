@@ -18,6 +18,7 @@ import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
+import { ensureSdksInstalled } from '../../sdk-installer.js';
 
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_.-]+$/;
@@ -279,6 +280,15 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       } else {
         const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         branch = `${preset.name.replace(/\s+/g, '-').toLowerCase()}/${ts}`;
+      }
+
+      // Ensure repo-level SDKs are installed before spawning
+      if (repo.sdks.length > 0) {
+        try {
+          ensureSdksInstalled(repo.sdks);
+        } catch (err) {
+          console.warn(`[mobile] SDK install failed for repo ${repo.id}:`, err);
+        }
       }
 
       const sessionHome = env['HOME'];

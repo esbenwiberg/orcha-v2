@@ -93,21 +93,17 @@ export function setEnabledSdks(store: GlobalSettingsStore, ids: Set<string>): vo
 }
 
 /**
- * Install enabled SDKs that aren't already present.
- * Called once at server startup. Updates process.env.PATH so sessions inherit it.
+ * Ensure a set of SDKs are installed. Installs missing ones, updates PATH.
+ * Safe to call multiple times — already-installed SDKs are skipped.
  */
-export async function installEnabledSdks(db: Database.Database): Promise<void> {
-  const store = new GlobalSettingsStore(db);
-  const enabled = getEnabledSdks(store);
-  if (enabled.size === 0) {
-    console.log('[sdks] no SDKs enabled');
-    return;
-  }
+export function ensureSdksInstalled(ids: Set<string> | string[]): void {
+  const wanted = ids instanceof Set ? ids : new Set(ids);
+  if (wanted.size === 0) return;
 
   // First pass: prepend any PATH dirs for already-installed SDKs
   // (e.g. dotnet from a previous boot that persisted to /data/sdks)
   for (const def of SDK_DEFS) {
-    if (!enabled.has(def.id)) continue;
+    if (!wanted.has(def.id)) continue;
     if (def.pathDirs) {
       const dirs = def.pathDirs();
       for (const dir of dirs) {
@@ -119,14 +115,14 @@ export async function installEnabledSdks(db: Database.Database): Promise<void> {
   }
 
   // Set dotnet env vars so sessions inherit them
-  if (enabled.has('dotnet')) {
+  if (wanted.has('dotnet')) {
     process.env['DOTNET_ROOT'] = DOTNET_DIR;
     process.env['DOTNET_CLI_TELEMETRY_OPTOUT'] = '1';
     process.env['DOTNET_NOLOGO'] = '1';
   }
 
   for (const def of SDK_DEFS) {
-    if (!enabled.has(def.id)) continue;
+    if (!wanted.has(def.id)) continue;
 
     if (def.check()) {
       console.log(`[sdks] ${def.id} already installed`);
@@ -151,4 +147,18 @@ export async function installEnabledSdks(db: Database.Database): Promise<void> {
       console.error(`[sdks] failed to install ${def.id}:`, err);
     }
   }
+}
+
+/**
+ * Install enabled SDKs that aren't already present.
+ * Called once at server startup. Updates process.env.PATH so sessions inherit it.
+ */
+export async function installEnabledSdks(db: Database.Database): Promise<void> {
+  const store = new GlobalSettingsStore(db);
+  const enabled = getEnabledSdks(store);
+  if (enabled.size === 0) {
+    console.log('[sdks] no SDKs enabled (global)');
+    return;
+  }
+  ensureSdksInstalled(enabled);
 }

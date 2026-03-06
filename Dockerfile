@@ -68,9 +68,12 @@ VOLUME ["/data"]
 
 EXPOSE 3000
 
+ARG COMMIT_SHA=""
+
 ENV NODE_ENV=production \
     ORCHA_DATA_DIR=/data \
-    SANDBOX_MODE=landlock
+    SANDBOX_MODE=landlock \
+    COMMIT_SHA=${COMMIT_SHA}
 
 USER orcha
 
