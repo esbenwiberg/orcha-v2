@@ -1043,6 +1043,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const authUrl = extractAuthUrl(snapshot);
 
       if (authUrl) {
+        // Tier 2b: If Claude Code already started (refresh token worked), the URL
+        // is stale — auth succeeded without user interaction.
+        const text = snapshot.toString('utf8');
+        if (/Welcome to/i.test(text)) {
+          const html = eta.render('partials/session-auth-banner', { authenticated: true });
+          res.status(286).send(html);
+          return;
+        }
+
         const html = eta.render('partials/session-auth-banner', { authenticated: false, authUrl, sessionId: id });
         res.status(200).send(html);
         return;
