@@ -13,6 +13,21 @@ export function getClaudeFileContent(store: GlobalSettingsStore, key: string): s
   return store.get(key) ?? '';
 }
 
+/**
+ * Build the merged CLAUDE.md content for a session's ~/.claude/CLAUDE.md.
+ * Inlines soul.md content directly so it's auto-loaded by Claude Code
+ * (soul.md is NOT a natively recognised file — it would only be read if
+ * Claude decides to open it, which is unreliable).
+ */
+export function buildSessionClaudeMd(store: GlobalSettingsStore): string {
+  const claudeMd = (store.get('claude_md') ?? '').trim();
+  const soulMd = (store.get('soul_md') ?? '').trim();
+  if (!claudeMd && !soulMd) return '';
+  if (!soulMd) return claudeMd;
+  if (!claudeMd) return `# Soul\n\n${soulMd}`;
+  return `${claudeMd}\n\n# Soul\n\n${soulMd}`;
+}
+
 export function createClaudeFilesRouter(eta: Eta, db: Database.Database): Router {
   const router = Router();
   const settingsStore = new GlobalSettingsStore(db);
