@@ -531,12 +531,67 @@ function activateScripts(container) {
     fresh.textContent = old.textContent;
     old.replaceWith(fresh);
   }
+  // Process HTMX attributes on dynamically inserted content
+  if (typeof htmx !== 'undefined') {
+    htmx.process(container);
+  }
+}
+
+/**
+ * Toggle fullscreen for a debug/host shell panel.
+ * @param {string} shellId
+ */
+function fullscreenShell(shellId) {
+  const panel = document.getElementById(`debug-shell-${shellId}`);
+  if (!panel) return;
+
+  const isFs = panel.classList.contains('is-fullscreen');
+
+  // Exit any other fullscreen first (session or shell)
+  if (fullscreenId && fullscreenId !== shellId) {
+    const prev = document.getElementById(`terminal-panel-${fullscreenId}`)
+      || document.getElementById(`debug-shell-${fullscreenId}`);
+    if (prev) prev.classList.remove('is-fullscreen');
+    document.body.classList.remove('has-fullscreen-terminal');
+    fullscreenId = null;
+  }
+
+  if (isFs) {
+    panel.classList.remove('is-fullscreen');
+    document.body.classList.remove('has-fullscreen-terminal');
+    fullscreenId = null;
+
+    const btn = panel.querySelector('.terminal-header__btn[title="Exit fullscreen"]');
+    if (btn) {
+      btn.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="4 1 1 1 1 4" /><polyline points="12 1 15 1 15 4" />
+        <polyline points="4 15 1 15 1 12" /><polyline points="12 15 15 15 15 12" />
+      </svg>`;
+      btn.title = 'Fullscreen';
+    }
+  } else {
+    panel.classList.add('is-fullscreen');
+    document.body.classList.add('has-fullscreen-terminal');
+    fullscreenId = shellId;
+
+    const btn = panel.querySelector('.terminal-header__btn[title="Fullscreen"]');
+    if (btn) {
+      btn.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 4 4 4 1" /><polyline points="15 4 12 4 12 1" />
+        <polyline points="1 12 4 12 4 15" /><polyline points="15 12 12 12 12 15" />
+      </svg>`;
+      btn.title = 'Exit fullscreen';
+    }
+  }
+
+  refitTerminal(shellId);
 }
 
 // Global bindings for template onclick handlers
 window.__termFullscreen = fullscreenTerminal;
 window.__termClose = removeTerminal;
 window.__termCloseMenu = showCloseMenu;
+window.__shellFullscreen = fullscreenShell;
 
 /**
  * Refit a terminal after layout changes (double-rAF to let flex settle).
@@ -599,7 +654,8 @@ function fullscreenTerminal(sessionId) {
  * @param {string} sessionId
  */
 function exitFullscreen(sessionId) {
-  const panel = document.getElementById(`terminal-panel-${sessionId}`);
+  const panel = document.getElementById(`terminal-panel-${sessionId}`)
+    || document.getElementById(`debug-shell-${sessionId}`);
   if (!panel) return;
 
   panel.classList.remove('is-fullscreen');

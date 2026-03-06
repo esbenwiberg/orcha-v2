@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { WorktreeManager } from './worktree-manager.js';
 import type { WorktreeInfo } from './worktree-manager.js';
@@ -633,20 +634,21 @@ export class SessionManager {
     const shellId = `shell-${randomUUID()}`;
     const ctx = parent.spawnContext ?? {};
 
-    // Inherit session-scoped AZURE_CONFIG_DIR so `az login` is ephemeral.
-    // Everything else comes from host env (process.env via PtyManager merge).
+    // Host shells use the host's Azure CLI config (~/.azure), not the
+    // per-session /tmp dir. No AZURE_CONFIG_DIR override needed — az falls
+    // back to ~/.azure which the Dockerfile pre-creates as writable.
     const env: Record<string, string> = {
       ...opts?.extraEnv,
     };
-    const parentAzDir = ctx.env?.['AZURE_CONFIG_DIR'];
-    if (parentAzDir !== undefined) {
-      env['AZURE_CONFIG_DIR'] = parentAzDir;
-    }
 
     // If a command is provided (e.g. deploy script), run it via bash -c.
     // Otherwise open an interactive bash shell.
     const command = 'bash';
     const args = opts?.command ? ['-c', opts.command.join(' ')] : undefined;
+
+    // Grant landlock RW access to ~/.azure so `az login` can write tokens
+    const hostAzureDir = join(homedir(), '.azure');
+    const extraRwPaths = [...(ctx.extraRwPaths ?? []), hostAzureDir];
 
     const spawnOpts: PtySpawnOptions = {
       sessionId: shellId,
@@ -655,9 +657,8 @@ export class SessionManager {
       ...(args !== undefined ? { args } : {}),
       env,
       size: { cols: 220, rows: 50 },
-      // Keep sandbox + extra paths from parent
       ...(ctx.sandbox !== undefined ? { sandbox: ctx.sandbox } : {}),
-      ...(ctx.extraRwPaths !== undefined ? { extraRwPaths: ctx.extraRwPaths } : {}),
+      extraRwPaths,
       // No deleteEnv — don't strip host vars
     };
 

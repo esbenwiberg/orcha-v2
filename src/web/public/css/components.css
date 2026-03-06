@@ -768,9 +768,21 @@ body.has-fullscreen-terminal {
 .terminal-header__btn--deploy {
   color: var(--color-warning, #e5a800);
 }
+.debug-shell-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
 .debug-shell-panel .xterm-container {
   flex: 1 1 0%;
   min-height: 0;
+}
+.debug-shell-panel.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  max-height: none;
+  min-height: 100vh;
 }
 
 /* Auth slot — always visible (even in compact mode) when it has content */
