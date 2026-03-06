@@ -51,6 +51,22 @@
 <div class="page-section">
   <div class="page-section__header">
     <div>
+      <h2 class="page-section__title">Global SDKs</h2>
+      <p class="page-section__subtitle">SDKs installed at container boot and available to all agent sessions</p>
+    </div>
+  </div>
+  <div
+    hx-get="/api/sdks"
+    hx-trigger="load"
+    hx-swap="innerHTML"
+  >
+    <div class="skeleton skeleton-row"></div>
+  </div>
+</div>
+
+<div class="page-section">
+  <div class="page-section__header">
+    <div>
       <h2 class="page-section__title">Claude Permissions</h2>
       <p class="page-section__subtitle">Tool allow/deny rules written to <code class="font-mono text-xs">.claude/settings.json</code></p>
     </div>

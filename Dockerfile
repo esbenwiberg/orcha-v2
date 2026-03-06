@@ -21,7 +21,7 @@ RUN gcc -O2 -static -o /build/landlock-exec sandbox/landlock-exec.c
 FROM node:22-bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git fuse3 ca-certificates curl gnupg \
+    git fuse3 ca-certificates curl gnupg libicu72 \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
        -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -54,7 +54,7 @@ COPY --from=builder /build/src/web/views ./dist/web/views
 # DB migrations — resolved via path.resolve(__dirname, '../db/migrations') from dist/web/
 COPY --from=builder /build/src/db/migrations ./dist/db/migrations
 
-RUN mkdir -p /data && chown orcha:orcha /data
+RUN mkdir -p /data /data/sdks && chown -R orcha:orcha /data
 # Pre-create the orcha user's ~/.claude so the landlock RW rule for it is applied on session start
 RUN mkdir -p /app/.claude && chown -R orcha:orcha /app/.claude
 

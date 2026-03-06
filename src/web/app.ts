@@ -26,6 +26,7 @@ import { createGitIdentityRouter } from './routes/git-identity.js';
 import { createSystemRouter } from './routes/system.js';
 import { createModelConfigsRouter } from './routes/model-configs.js';
 import { createBootstrapPatsRouter } from './routes/bootstrap-pats.js';
+import { createSdksRouter } from './routes/sdks.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
@@ -147,6 +148,9 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // Git identity settings router
   app.use('/api', createGitIdentityRouter(eta, deps));
+
+  // Global SDKs settings router
+  app.use('/api', createSdksRouter(eta, deps));
 
   // Self-deploy (optional — only if DEPLOY_* env vars are set)
   const deployConfig = loadDeployConfig();

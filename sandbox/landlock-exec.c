@@ -138,6 +138,7 @@ int main(int argc, char *argv[]) {
         "/usr", "/lib", "/lib64", "/bin", "/sbin",
         "/etc", "/proc", "/run",
         "/opt",            /* azure-cli lives in /opt/az */
+        "/data/sdks",      /* user-installed SDKs (dotnet, etc.) */
         "/var/lib/dpkg",   /* dpkg db — some tools query it */
         "/sys",            /* sysfs — some Node.js internals read it */
         NULL,
