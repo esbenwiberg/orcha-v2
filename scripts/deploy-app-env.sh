@@ -75,9 +75,17 @@ az acr build \
   "${REPO_ROOT}/caddy"
 ok "orcha-caddy image built and pushed (${TAG})"
 
-# ── Update Container App ────────────────────────────────────────────────────
+# ── Snapshot current revision ─────────────────────────────────────────────────
+OLD_REVISION=$(az containerapp revision list \
+  --name "${CONTAINER_APP_NAME}" \
+  --resource-group "${RESOURCE_GROUP}" \
+  "${SUB_FLAG[@]}" \
+  --query "[0].name" \
+  -o tsv 2>/dev/null || echo "")
+
+# ── Update Container App (both containers) ───────────────────────────────────
 echo ""
-info "Updating Container App '${CONTAINER_APP_NAME}' to tag '${TAG}'..."
+info "Updating orcha container to tag '${TAG}'..."
 az containerapp update \
   --name "${CONTAINER_APP_NAME}" \
   --resource-group "${RESOURCE_GROUP}" \
@@ -85,29 +93,44 @@ az containerapp update \
   --container-name orcha \
   --image "${ACR_SERVER}/orcha:${TAG}" \
   --output none
-ok "Container App update triggered"
+
+info "Updating caddy container to tag '${TAG}'..."
+az containerapp update \
+  --name "${CONTAINER_APP_NAME}" \
+  --resource-group "${RESOURCE_GROUP}" \
+  "${SUB_FLAG[@]}" \
+  --container-name caddy \
+  --image "${ACR_SERVER}/orcha-caddy:${TAG}" \
+  --output none
+ok "Container App update triggered (orcha + caddy)"
 
 # ── Poll revision ────────────────────────────────────────────────────────────
 info "Waiting for new revision..."
 ATTEMPTS=0
 MAX_ATTEMPTS=20
 while [[ ${ATTEMPTS} -lt ${MAX_ATTEMPTS} ]]; do
-  STATE=$(az containerapp revision list \
+  LATEST=$(az containerapp revision list \
     --name "${CONTAINER_APP_NAME}" \
     --resource-group "${RESOURCE_GROUP}" \
     "${SUB_FLAG[@]}" \
-    --query "[0].properties.provisioningState" \
-    -o tsv 2>/dev/null || echo "unknown")
+    --query "[0].{name:name, state:properties.provisioningState}" \
+    -o json 2>/dev/null || echo "{}")
 
-  if [[ "${STATE}" == "Provisioned" ]]; then
-    ok "Revision provisioned"
-    break
-  elif [[ "${STATE}" == "Failed" ]]; then
-    die "Revision provisioning failed"
+  REV_NAME=$(echo "${LATEST}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))" 2>/dev/null || echo "")
+  STATE=$(echo "${LATEST}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('state',''))" 2>/dev/null || echo "unknown")
+
+  # Only consider it done when a NEW revision (not the old one) reaches a terminal state
+  if [[ "${REV_NAME}" != "${OLD_REVISION}" ]]; then
+    if [[ "${STATE}" == "Provisioned" ]]; then
+      ok "Revision '${REV_NAME}' provisioned"
+      break
+    elif [[ "${STATE}" == "Failed" ]]; then
+      die "Revision '${REV_NAME}' provisioning failed"
+    fi
   fi
 
   ATTEMPTS=$((ATTEMPTS + 1))
-  info "State: ${STATE} — waiting 15s... (${ATTEMPTS}/${MAX_ATTEMPTS})"
+  info "State: ${STATE} (rev: ${REV_NAME:-pending}) — waiting 15s... (${ATTEMPTS}/${MAX_ATTEMPTS})"
   sleep 15
 done
 
