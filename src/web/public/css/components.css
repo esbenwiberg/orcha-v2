@@ -157,6 +157,20 @@
   align-items: center;
   justify-content: center;
 }
+
+.session-grid__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-grid__empty-logo {
+  width: 280px;
+  height: auto;
+  opacity: 0.12;
+  pointer-events: none;
+  user-select: none;
+}
 .session-grid[data-count="1"] {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;

@@ -1,3 +1,9 @@
-<% for (const session of it.sessions) { %>
-  <%~ include('session-card', session) %>
+<% if (it.sessions.length === 0) { %>
+  <div class="session-grid__empty">
+    <img src="/img/logo.png" alt="Orcha" class="session-grid__empty-logo" />
+  </div>
+<% } else { %>
+  <% for (const session of it.sessions) { %>
+    <%~ include('session-card', session) %>
+  <% } %>
 <% } %>
