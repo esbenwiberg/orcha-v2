@@ -27,6 +27,7 @@ export interface SessionConfig {
   deleteEnv?: string[];
   modelConfigId?: string;
   modelProvider?: string;
+  mcpServerIds?: string[];
 }
 
 export interface Session {

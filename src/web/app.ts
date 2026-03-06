@@ -137,7 +137,7 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
   app.use('/api', createClaudePermissionsRouter(eta));
 
   // MCP servers management router
-  app.use('/api', createMcpServersRouter(eta));
+  app.use('/api', createMcpServersRouter(eta, deps.db));
 
   // Bootstrap PATs management router
   app.use('/api', createBootstrapPatsRouter(eta, deps.db));

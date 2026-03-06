@@ -5,6 +5,7 @@ import { PresetStore } from '../../db/preset-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
+import { McpServerStore } from '../../db/mcp-server-store.js';
 
 export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
@@ -12,6 +13,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   const repoStore = new RepoStore(deps.db);
   const credStore = new CredentialStore(deps.db);
   const modelConfigStore = new ModelConfigStore(deps.db);
+  const mcpServerStore = new McpServerStore(deps.db);
 
   // GET /api/presets — render the full preset list partial
   router.get('/presets', (_req, res, next) => {
@@ -68,7 +70,8 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const repos = repoStore.listRepos();
       const credentialProfiles = credStore.listProfiles();
       const modelConfigs = modelConfigStore.listConfigs();
-      const html = eta.render('partials/save-preset-form', { repos, credentialProfiles, modelConfigs });
+      const mcpServers = mcpServerStore.listServers();
+      const html = eta.render('partials/save-preset-form', { repos, credentialProfiles, modelConfigs, mcpServers });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -95,6 +98,14 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
       const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
 
+      // mcpServerIds comes as repeated checkbox values — ensure array
+      const rawMcpIds = req.body['mcpServerIds'];
+      const mcpServerIds: string[] = Array.isArray(rawMcpIds)
+        ? rawMcpIds.filter((v): v is string => typeof v === 'string')
+        : typeof rawMcpIds === 'string' && rawMcpIds
+          ? [rawMcpIds]
+          : [];
+
       const errors: string[] = [];
 
       if (name.length === 0) {
@@ -107,11 +118,13 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         const repos = repoStore.listRepos();
         const credentialProfiles = credStore.listProfiles();
         const modelConfigs = modelConfigStore.listConfigs();
+        const mcpServers = mcpServerStore.listServers();
         const formHtml = eta.render('partials/save-preset-form', {
           name,
           repoId,
           credentialProfileId,
           modelConfigId,
+          mcpServerIds,
           validateMode,
           validateBuild,
           validateStart,
@@ -121,6 +134,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           repos,
           credentialProfiles,
           modelConfigs,
+          mcpServers,
         });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -130,6 +144,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
 
       store.createPreset({
         name, repoId, credentialProfileId, modelConfigId,
+        ...(mcpServerIds.length > 0 ? { mcpServerIds } : {}),
         ...(validateMode ? { validateMode } : {}),
         ...(validateBuild ? { validateBuild } : {}),
         ...(validateStart ? { validateStart } : {}),
@@ -162,12 +177,14 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const repos = repoStore.listRepos();
       const credentialProfiles = credStore.listProfiles();
       const modelConfigs = modelConfigStore.listConfigs();
+      const mcpServers = mcpServerStore.listServers();
       const html = eta.render('partials/save-preset-form', {
         editId: preset.id,
         name: preset.name,
         repoId: preset.repoId,
         credentialProfileId: preset.credentialProfileId,
         modelConfigId: preset.modelConfigId,
+        mcpServerIds: preset.mcpServerIds,
         validateMode: preset.validateMode ?? '',
         validateBuild: preset.validateBuild ?? '',
         validateStart: preset.validateStart ?? '',
@@ -177,6 +194,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         repos,
         credentialProfiles,
         modelConfigs,
+        mcpServers,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -205,6 +223,13 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
       const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
 
+      const rawMcpIds = req.body['mcpServerIds'];
+      const mcpServerIds: string[] = Array.isArray(rawMcpIds)
+        ? rawMcpIds.filter((v): v is string => typeof v === 'string')
+        : typeof rawMcpIds === 'string' && rawMcpIds
+          ? [rawMcpIds]
+          : [];
+
       const errors: string[] = [];
 
       if (name.length === 0) {
@@ -217,12 +242,14 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         const repos = repoStore.listRepos();
         const credentialProfiles = credStore.listProfiles();
         const modelConfigs = modelConfigStore.listConfigs();
+        const mcpServers = mcpServerStore.listServers();
         const formHtml = eta.render('partials/save-preset-form', {
           editId: id,
           name,
           repoId,
           credentialProfileId,
           modelConfigId,
+          mcpServerIds,
           validateMode,
           validateBuild,
           validateStart,
@@ -232,6 +259,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           repos,
           credentialProfiles,
           modelConfigs,
+          mcpServers,
         });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -241,6 +269,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
 
       store.updatePreset(id, {
         name, repoId, credentialProfileId, modelConfigId,
+        mcpServerIds,
         ...(validateMode ? { validateMode } : {}),
         ...(validateBuild ? { validateBuild } : {}),
         ...(validateStart ? { validateStart } : {}),
@@ -297,13 +326,16 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
+      const mcpServers = mcpServerStore.listServers();
       const html = eta.render('partials/new-session-form', {
         repoId: preset.repoId,
         credentialProfileId: preset.credentialProfileId,
         modelConfigId: preset.modelConfigId,
+        mcpServerIds: preset.mcpServerIds,
         repos,
         credentialProfiles,
         modelConfigs,
+        mcpServers,
         branches,
         defaultBranch,
       });

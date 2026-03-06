@@ -16,6 +16,7 @@ export interface Preset extends PresetValidateFields {
   repoId: string;
   credentialProfileId: string;
   modelConfigId: string;
+  mcpServerIds: string[];
   createdAt: Date;
 }
 
@@ -30,6 +31,7 @@ export interface CreatePresetInput {
   validateHealth?: string;
   validateComposeFile?: string;
   validateTimeout?: number;
+  mcpServerIds?: string[];
 }
 
 export class PresetStore {
@@ -52,6 +54,7 @@ export class PresetStore {
       validateHealth: (row['validate_health'] as string | null) ?? null,
       validateComposeFile: (row['validate_compose_file'] as string | null) ?? null,
       validateTimeout: (row['validate_timeout'] as number | null) ?? null,
+      mcpServerIds: row['mcp_server_ids'] ? (JSON.parse(row['mcp_server_ids'] as string) as string[]) : [],
       createdAt: new Date(row['created_at'] as string),
     };
   }
@@ -79,13 +82,14 @@ export class PresetStore {
       .prepare(
         `INSERT INTO presets (id, name, repo_id, credential_profile_id, model_config_id,
            validate_mode, validate_build, validate_start, validate_health, validate_compose_file, validate_timeout,
-           created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           mcp_server_ids, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id, input.name, input.repoId || null, input.credentialProfileId || null, input.modelConfigId || null,
         input.validateMode || null, input.validateBuild || null, input.validateStart || null,
         input.validateHealth || null, input.validateComposeFile || null, input.validateTimeout ?? null,
+        input.mcpServerIds && input.mcpServerIds.length > 0 ? JSON.stringify(input.mcpServerIds) : null,
         now,
       );
 
@@ -101,11 +105,14 @@ export class PresetStore {
     const credentialProfileId = input.credentialProfileId ?? existing.credentialProfileId;
     const modelConfigId = input.modelConfigId ?? existing.modelConfigId;
 
+    const mcpServerIds = input.mcpServerIds ?? existing.mcpServerIds;
+
     this.#db
       .prepare(
         `UPDATE presets SET name = ?, repo_id = ?, credential_profile_id = ?, model_config_id = ?,
            validate_mode = ?, validate_build = ?, validate_start = ?,
-           validate_health = ?, validate_compose_file = ?, validate_timeout = ?
+           validate_health = ?, validate_compose_file = ?, validate_timeout = ?,
+           mcp_server_ids = ?
          WHERE id = ?`,
       )
       .run(
@@ -116,6 +123,7 @@ export class PresetStore {
         input.validateHealth ?? existing.validateHealth,
         input.validateComposeFile ?? existing.validateComposeFile,
         input.validateTimeout ?? existing.validateTimeout,
+        mcpServerIds.length > 0 ? JSON.stringify(mcpServerIds) : null,
         id,
       );
 
