@@ -254,7 +254,16 @@ export class WorktreeManager {
    * Tries directly on the bare path first; if chmod fails (Azure File Share),
    * falls back to staging in /tmp, fetching there, and copying back.
    */
+  private fetchCache = new Map<string, number>();
+  private static readonly FETCH_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
   async fetchBareRepo(barePath: string): Promise<void> {
+    const now = Date.now();
+    const lastFetch = this.fetchCache.get(barePath);
+    if (lastFetch && now - lastFetch < WorktreeManager.FETCH_CACHE_TTL_MS) {
+      return;
+    }
+
     // Bare clones don't set a fetch refspec by default, so pass one explicitly
     // to populate refs/remotes/origin/* for listRemoteBranches.
     const fetchArgs = ['fetch', 'origin', '+refs/heads/*:refs/remotes/origin/*'];
@@ -277,6 +286,7 @@ export class WorktreeManager {
         fs.rmSync(stagingPath, { recursive: true, force: true });
       }
     }
+    this.fetchCache.set(barePath, Date.now());
   }
 
   /**
