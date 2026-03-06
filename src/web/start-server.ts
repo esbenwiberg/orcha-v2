@@ -16,6 +16,7 @@ import { ValidationManager } from '../validation/validation-manager.js';
 import { emitStartupDiagnostics } from '../diagnostics/startup.js';
 import { getStoragePaths } from '../storage/paths.js';
 import { GlobalSettingsStore } from '../db/global-settings-store.js';
+import { installEnabledSdks } from '../sdk-installer.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -127,6 +128,10 @@ const authConfig = loadAuthConfig();
 const authTerminalManager = new AuthTerminalManager();
 
 const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig, authTerminalManager, validationManager };
+
+// Install SDKs enabled in settings (typescript, dotnet, etc.)
+// Runs once at boot — installs to persistent /data/sdks/ and updates PATH.
+await installEnabledSdks(db);
 
 startServer(deps, port)
   .then(() => {
