@@ -941,6 +941,10 @@ body {
     background-color: color-mix(in srgb, var(--color-accent) 25%, var(--color-surface-raised));
   }
 
+  .action-sheet-btn--deploy:hover {
+    background-color: color-mix(in srgb, #22c55e 25%, var(--color-surface-raised));
+  }
+
   .preset-chip:hover:not(:disabled) {
     background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
   }
@@ -956,6 +960,48 @@ body {
 
 .action-sheet-btn--docs:active {
   background-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-surface-raised));
+}
+
+/* -----------------------------------------------------------------------
+   Deploy button — green accent for deploy action in info panel
+   ----------------------------------------------------------------------- */
+.action-sheet-btn--deploy {
+  background-color: color-mix(in srgb, #22c55e 15%, var(--color-surface-raised));
+  color: #22c55e;
+  font-weight: 600;
+}
+
+.action-sheet-btn--deploy:active {
+  background-color: color-mix(in srgb, #22c55e 30%, var(--color-surface-raised));
+}
+
+/* Deploy shell slot — inline terminal for deploy output in the info panel */
+#mobile-deploy-slot:empty {
+  display: none;
+}
+
+#mobile-deploy-slot {
+  margin-top: 8px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+#mobile-deploy-slot .debug-shell-panel {
+  background: #0d0d0d;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+#mobile-deploy-slot .debug-shell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--color-surface-raised);
+}
+
+#mobile-deploy-slot .xterm-container {
+  height: 240px;
 }
 
 /* -----------------------------------------------------------------------

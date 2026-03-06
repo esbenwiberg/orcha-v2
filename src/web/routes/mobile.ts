@@ -401,6 +401,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
         },
         ...(credentials !== undefined ? { credentials } : {}),
         ...(modelProvider !== undefined ? { modelProvider } : {}),
+        ...(repo?.deployCommand ? { hasDeployCommand: true } : {}),
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

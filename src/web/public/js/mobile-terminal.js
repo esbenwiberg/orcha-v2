@@ -769,6 +769,29 @@ window._switchToDiff = function () {
 };
 
 /**
+ * Handle the result of a deploy action from the info panel.
+ * The response is a debug-shell-panel with an inline script that boots xterm.
+ */
+window._onMobileDeploy = function (event) {
+  const detail = event.detail;
+  if (!detail) return;
+
+  const btn = detail.elt;
+  if (detail.successful) {
+    // Disable button to prevent double-deploy
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Deploying\u2026';
+    }
+    // Process the swapped-in HTML so htmx binds any hx-* attributes inside it
+    const slot = document.getElementById('mobile-deploy-slot');
+    if (slot) htmx.process(slot);
+  } else {
+    _showToast('Deploy failed');
+  }
+};
+
+/**
  * Handle the result of stop/reopen/revoke actions from the info panel.
  */
 window._onInfoPanelAction = function (event) {

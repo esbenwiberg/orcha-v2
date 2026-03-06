@@ -20,6 +20,32 @@ const DOTNET_DIR = '/data/sdks/dotnet';
 
 const SDK_DEFS: SdkDef[] = [
   {
+    id: 'build-tools',
+    label: 'Native Build Tools (python3, make, g++)',
+    check: () => {
+      try {
+        execSync('python3 --version', { stdio: 'ignore' });
+        execSync('make --version', { stdio: 'ignore' });
+        execSync('g++ --version', { stdio: 'ignore' });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    install: () => {
+      // Build tools require root to install via apt-get. In the Docker image
+      // they're pre-baked into the runtime stage. This install step handles
+      // environments where they're missing and the process has root access.
+      try {
+        execSync('apt-get update && apt-get install -y --no-install-recommends python3 make g++', {
+          stdio: 'inherit',
+        });
+      } catch {
+        console.error('[sdks] build-tools install failed — apt-get requires root. Install python3, make, and g++ manually.');
+      }
+    },
+  },
+  {
     id: 'typescript',
     label: 'TypeScript (tsc)',
     check: () => {
