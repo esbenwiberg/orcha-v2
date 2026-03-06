@@ -382,7 +382,10 @@ function showCloseMenu(sessionId, anchorBtn) {
                 termSlot.after(container);
               }
             }
-            if (container) container.insertAdjacentHTML('beforeend', html);
+            if (container) {
+              container.insertAdjacentHTML('beforeend', html);
+              activateScripts(container);
+            }
           }
         })
         .catch(() => showToast('Failed to spawn debug shell', 'error'));
@@ -411,7 +414,10 @@ function showCloseMenu(sessionId, anchorBtn) {
                 termSlot.after(container);
               }
             }
-            if (container) container.insertAdjacentHTML('beforeend', html);
+            if (container) {
+              container.insertAdjacentHTML('beforeend', html);
+              activateScripts(container);
+            }
           }
         })
         .catch(() => showToast('Failed to spawn host shell', 'error'));
@@ -507,6 +513,24 @@ function showCloseMenu(sessionId, anchorBtn) {
   requestAnimationFrame(() => {
     document.addEventListener('pointerdown', dismiss, true);
   });
+}
+
+/**
+ * Activate <script> tags inside a container element.
+ * Scripts injected via insertAdjacentHTML/innerHTML are inert — the browser
+ * won't execute them. This function clones each script into a new element
+ * so the browser treats it as freshly inserted and runs it.
+ * @param {HTMLElement} container
+ */
+function activateScripts(container) {
+  for (const old of container.querySelectorAll('script')) {
+    const fresh = document.createElement('script');
+    for (const attr of old.attributes) {
+      fresh.setAttribute(attr.name, attr.value);
+    }
+    fresh.textContent = old.textContent;
+    old.replaceWith(fresh);
+  }
 }
 
 // Global bindings for template onclick handlers
