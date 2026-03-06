@@ -129,13 +129,14 @@ const authTerminalManager = new AuthTerminalManager();
 
 const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig, authTerminalManager, validationManager };
 
-// Install SDKs enabled in settings (typescript, dotnet, etc.)
-// Runs once at boot — installs to persistent /data/sdks/ and updates PATH.
-await installEnabledSdks(db);
-
 startServer(deps, port)
   .then(() => {
     process.stdout.write(`Orcha listening on http://127.0.0.1:${port}\n`);
+    // Install SDKs in the background after the server is listening,
+    // so health probes pass while large SDKs (dotnet ~240 MB) download.
+    installEnabledSdks(db).catch((err: unknown) => {
+      console.error('[sdks] background install failed:', err);
+    });
   })
   .catch((err: unknown) => {
     process.stderr.write(`Failed to start server: ${String(err)}\n`);

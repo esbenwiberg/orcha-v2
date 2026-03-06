@@ -57,7 +57,7 @@ COPY --from=builder /build/src/db/migrations ./dist/db/migrations
 RUN mkdir -p /data /data/sdks && chown -R orcha:orcha /data
 # Pre-create the orcha user's ~/.claude so the landlock RW rule for it is applied on session start
 # Also create ~/.azure so `az login` works (HOME=/app which is otherwise read-only)
-RUN mkdir -p /app/.claude /app/.azure && chown -R orcha:orcha /app/.claude /app/.azure
+RUN mkdir -p /app/.claude /app/.azure /app/.npm && chown -R orcha:orcha /app/.claude /app/.azure /app/.npm
 
 # Global git config for the orcha user — Azure File Share (SMB) reports all
 # files as 755 and presents them with a different UID, which confuses git.
