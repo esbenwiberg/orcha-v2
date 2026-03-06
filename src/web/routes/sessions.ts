@@ -13,6 +13,7 @@ import { ModelConfigStore } from '../../db/model-config-store.js';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
 import { readSettingsFromDb } from './claude-settings-db.js';
 import { buildSessionClaudeMd } from './claude-files.js';
+import { loadSkills } from './skills.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { McpServerStore } from '../../db/mcp-server-store.js';
@@ -359,6 +360,14 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           // auto-loaded by Claude Code — soul.md is not a natively recognised file)
           const mergedClaudeMd = buildSessionClaudeMd(globalSettingsStore);
           if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
+
+          // Inject skills into ~/.claude/skills/<name>/SKILL.md
+          const skills = loadSkills(globalSettingsStore);
+          for (const skill of skills) {
+            const skillDir = join(claudeDir, 'skills', skill.name);
+            mkdirSync(skillDir, { recursive: true });
+            writeFileSync(join(skillDir, 'SKILL.md'), skill.content, 'utf8');
+          }
 
           // Inject model credentials if available
           if (modelConfigId) {

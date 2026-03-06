@@ -27,6 +27,7 @@ import { createSystemRouter } from './routes/system.js';
 import { createModelConfigsRouter } from './routes/model-configs.js';
 import { createBootstrapPatsRouter } from './routes/bootstrap-pats.js';
 import { createSdksRouter } from './routes/sdks.js';
+import { createSkillsRouter } from './routes/skills.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
@@ -142,6 +143,9 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // MCP servers management router
   app.use('/api', createMcpServersRouter(eta, deps.db));
+
+  // Skills management router
+  app.use('/api', createSkillsRouter(eta, deps.db));
 
   // Bootstrap PATs management router
   app.use('/api', createBootstrapPatsRouter(eta, deps.db));
