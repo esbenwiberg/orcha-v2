@@ -63,7 +63,9 @@ export function createValidateMcpRouter(
 
     // Connect an MCP server to this transport
     const mcpServer = buildMcpServer(orchaSessionId, db, validationManager, repoStore, presetStore, sessionStore);
-    mcpServer.connect(transport).catch((err) => {
+    // Cast needed: StreamableHTTPServerTransport's onclose is optional but Transport requires it.
+    // The MCP SDK types are slightly misaligned under exactOptionalPropertyTypes.
+    mcpServer.connect(transport as Parameters<typeof mcpServer.connect>[0]).catch((err) => {
       console.error(`[mcp] failed to connect transport for session ${orchaSessionId}:`, err);
     });
 

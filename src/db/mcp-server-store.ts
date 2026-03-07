@@ -119,7 +119,9 @@ export class McpServerStore {
     const entries: Record<string, McpSettingsEntry> = {};
 
     for (const server of servers) {
-      const entry: McpSettingsEntry = { type: server.type };
+      // Remap legacy "command" type to "stdio" (Claude Code's expected value)
+      const type = server.type === 'command' ? 'stdio' : server.type;
+      const entry: McpSettingsEntry = { type };
       if (server.url !== null) entry.url = server.url;
       if (server.command !== null) entry.command = server.command;
       if (server.args !== null) entry.args = server.args;

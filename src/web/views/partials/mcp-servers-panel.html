@@ -44,14 +44,15 @@
           onchange="
             var t = this.value;
             var f = this.closest('form');
-            f.querySelector('[data-fields=url]').style.display = (t === 'url' || t === 'sse') ? '' : 'none';
-            f.querySelector('[data-fields=command]').style.display = (t === 'command') ? '' : 'none';
+            f.querySelector('[data-fields=url]').style.display = (t === 'url' || t === 'sse' || t === 'http') ? '' : 'none';
+            f.querySelector('[data-fields=command]').style.display = (t === 'stdio') ? '' : 'none';
           "
         >
           <option value="" disabled selected>Type...</option>
-          <option value="url">url</option>
+          <option value="url">url (streamable HTTP)</option>
           <option value="sse">sse</option>
-          <option value="command">command</option>
+          <option value="http">http</option>
+          <option value="stdio">stdio (command)</option>
         </select>
       </div>
 

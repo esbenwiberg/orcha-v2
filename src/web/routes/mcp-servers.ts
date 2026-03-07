@@ -3,7 +3,7 @@ import type { Eta } from 'eta';
 import type Database from 'better-sqlite3';
 import { McpServerStore } from '../../db/mcp-server-store.js';
 
-const VALID_TYPES = new Set(['url', 'sse', 'command']);
+const VALID_TYPES = new Set(['url', 'sse', 'http', 'stdio']);
 
 /** Aggressively strip wrapping quotes — handles double-wrapped, mixed, trailing commas. */
 function stripQuotes(s: string): string {
@@ -54,7 +54,7 @@ export function createMcpServersRouter(eta: Eta, db: Database.Database): Router 
         return;
       }
 
-      if (type === 'url' || type === 'sse') {
+      if (type === 'url' || type === 'sse' || type === 'http') {
         const url = (typeof req.body['url'] === 'string' ? req.body['url'] : '').trim();
         if (!url) {
           res.status(422).send('<div class="badge badge--failed">URL is required</div>');
@@ -81,7 +81,7 @@ export function createMcpServersRouter(eta: Eta, db: Database.Database): Router 
 
         store.createServer({ name, type, url, ...(headers ? { headers } : {}) });
       } else {
-        // command type
+        // stdio type
         const command = (
           typeof req.body['command'] === 'string' ? req.body['command'] : ''
         ).trim();
