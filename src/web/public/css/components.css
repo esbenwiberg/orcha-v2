@@ -490,6 +490,7 @@
    Terminal panel (inline, expands inside session card)
    ----------------------------------------------------------------------- */
 .terminal-panel {
+  position: relative;
   background: #000;
   border-radius: 0 0 var(--radius-card) var(--radius-card);
   overflow: hidden;
@@ -589,6 +590,42 @@
 .terminal-header__btn svg {
   width: 14px;
   height: 14px;
+}
+
+/* Hide mic button when Speech API is not available (JS adds this class to <html>) */
+html.no-speech-api .terminal-header__btn--mic,
+html.no-speech-api .mobile-key--mic {
+  display: none;
+}
+
+.terminal-header__btn--mic.is-recording {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  animation: voice-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.voice-transcript {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.9);
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: italic;
+  font-family: var(--font-mono);
+  border-top: 1px solid var(--color-border);
+  z-index: 10;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* -----------------------------------------------------------------------

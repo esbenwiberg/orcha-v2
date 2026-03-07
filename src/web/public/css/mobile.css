@@ -570,6 +570,25 @@ body {
   padding: 6px 12px;
 }
 
+.mobile-key--mic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+}
+
+.mobile-key--mic.is-recording {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border-color: #ef4444;
+  animation: voice-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 .mobile-key--copy {
   margin-left: auto;
   background: color-mix(in srgb, var(--color-accent) 20%, var(--color-surface-raised));
@@ -580,6 +599,21 @@ body {
 .mobile-key--copy:active {
   background: var(--color-accent);
   color: #fff;
+}
+
+/* Voice transcript bar — sits between terminal and keys bar */
+.terminal-frame .voice-transcript {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.9);
+  color: #94a3b8;
+  font-size: 12px;
+  font-style: italic;
+  font-family: var(--font-mono);
+  border-top: 1px solid var(--color-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* -----------------------------------------------------------------------

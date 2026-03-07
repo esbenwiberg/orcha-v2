@@ -28,6 +28,101 @@ let _bootedFrame = null;
    the "Copy" button on the mobile key bar.
    ----------------------------------------------------------------------- */
 let _lastOutputChunk = '';
+
+/* -----------------------------------------------------------------------
+   Voice-to-text (Web Speech API)
+   ----------------------------------------------------------------------- */
+
+const _SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+/** Active voice recognition state. */
+let _voiceRecognition = null;
+
+/**
+ * Toggle voice input for the active mobile terminal.
+ */
+function _toggleMobileVoice() {
+  if (!_SpeechRecognition) return;
+
+  if (_voiceRecognition) {
+    _voiceRecognition.stop();
+    return;
+  }
+
+  if (!_activeWs || _activeWs.readyState !== WebSocket.OPEN) return;
+
+  const recognition = new _SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = navigator.language || 'en-US';
+
+  _voiceRecognition = recognition;
+  _setMobileVoiceUI(true);
+
+  recognition.onresult = (event) => {
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        if (_activeWs && _activeWs.readyState === WebSocket.OPEN) {
+          _activeWs.send(JSON.stringify({ type: 'input', data: transcript }));
+        }
+        _setMobileTranscript('');
+      } else {
+        interim += transcript;
+      }
+    }
+    if (interim) {
+      _setMobileTranscript(interim);
+    }
+  };
+
+  recognition.onerror = (event) => {
+    if (event.error !== 'aborted' && event.error !== 'no-speech') {
+      console.warn('[voice] error:', event.error);
+    }
+  };
+
+  recognition.onend = () => {
+    _setMobileVoiceUI(false);
+    _setMobileTranscript('');
+    _voiceRecognition = null;
+  };
+
+  recognition.start();
+}
+
+function _setMobileVoiceUI(recording) {
+  const btn = document.querySelector('.mobile-key--mic');
+  if (btn) {
+    btn.classList.toggle('is-recording', recording);
+    btn.setAttribute('aria-label', recording ? 'Stop voice input' : 'Voice input');
+  }
+}
+
+function _setMobileTranscript(text) {
+  const frame = document.getElementById('terminal-frame');
+  if (!frame) return;
+
+  let overlay = frame.querySelector('.voice-transcript');
+  if (!text) {
+    if (overlay) overlay.remove();
+    return;
+  }
+
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'voice-transcript';
+    // Insert before the keys bar so it appears above it
+    const keysBar = document.getElementById('mobile-keys');
+    if (keysBar) {
+      keysBar.before(overlay);
+    } else {
+      frame.appendChild(overlay);
+    }
+  }
+  overlay.textContent = text;
+}
 const MAX_OUTPUT_BUFFER = 8000;
 
 /* -----------------------------------------------------------------------
@@ -638,6 +733,9 @@ function _stopAuthPolling() {
  * Dispose the active mobile terminal and WebSocket connection.
  */
 function _disposeMobileTerminal() {
+  if (_voiceRecognition) {
+    _voiceRecognition.stop();
+  }
   _stopAuthPolling();
   if (_activeObserver) {
     _activeObserver.disconnect();
@@ -969,6 +1067,10 @@ document.addEventListener('htmx:afterSwap', (event) => {
             const keyName = btn.dataset.key;
             if (keyName === 'copy') {
               _copyLastOutput();
+              return;
+            }
+            if (keyName === 'mic') {
+              _toggleMobileVoice();
               return;
             }
             const data = KEY_MAP[keyName];

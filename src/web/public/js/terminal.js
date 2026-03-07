@@ -22,6 +22,117 @@
 /** @type {Map<string, {term: object, ws: WebSocket, fitAddon: object, observer: ResizeObserver}>} */
 const openTerminals = new Map();
 
+/* -----------------------------------------------------------------------
+   Voice-to-text (Web Speech API)
+   ----------------------------------------------------------------------- */
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+/** Active voice recognition state (only one can run at a time). */
+let voiceState = null; // { recognition, sessionId }
+
+/**
+ * Toggle voice input for a session terminal.
+ * @param {string} sessionId
+ */
+function toggleVoice(sessionId) {
+  if (!SpeechRecognition) return;
+
+  // If already recording for this session, stop
+  if (voiceState && voiceState.sessionId === sessionId) {
+    voiceState.recognition.stop();
+    return;
+  }
+
+  // If recording for a different session, stop that first
+  if (voiceState) {
+    voiceState.recognition.stop();
+  }
+
+  const entry = openTerminals.get(sessionId);
+  if (!entry || entry.ws.readyState !== WebSocket.OPEN) return;
+
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = navigator.language || 'en-US';
+
+  voiceState = { recognition, sessionId };
+  _setVoiceUI(sessionId, true);
+
+  recognition.onresult = (event) => {
+    let interim = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        // Send final text to terminal
+        const e = openTerminals.get(sessionId);
+        if (e && e.ws.readyState === WebSocket.OPEN) {
+          e.ws.send(JSON.stringify({ type: 'input', data: transcript }));
+        }
+        _setTranscript(sessionId, '');
+      } else {
+        interim += transcript;
+      }
+    }
+    if (interim) {
+      _setTranscript(sessionId, interim);
+    }
+  };
+
+  recognition.onerror = (event) => {
+    if (event.error !== 'aborted' && event.error !== 'no-speech') {
+      showToast(`Voice error: ${event.error}`, 'error');
+    }
+  };
+
+  recognition.onend = () => {
+    _setVoiceUI(sessionId, false);
+    _setTranscript(sessionId, '');
+    if (voiceState && voiceState.sessionId === sessionId) {
+      voiceState = null;
+    }
+  };
+
+  recognition.start();
+}
+
+/**
+ * Update the mic button appearance for recording state.
+ * @param {string} sessionId
+ * @param {boolean} recording
+ */
+function _setVoiceUI(sessionId, recording) {
+  const btn = document.querySelector(`#terminal-panel-${sessionId} .terminal-header__btn--mic`);
+  if (btn) {
+    btn.classList.toggle('is-recording', recording);
+    btn.title = recording ? 'Stop voice input' : 'Voice input';
+  }
+}
+
+/**
+ * Show or clear interim transcript overlay.
+ * @param {string} sessionId
+ * @param {string} text
+ */
+function _setTranscript(sessionId, text) {
+  const panel = document.getElementById(`terminal-panel-${sessionId}`);
+  if (!panel) return;
+
+  let overlay = panel.querySelector('.voice-transcript');
+  if (!text) {
+    if (overlay) overlay.remove();
+    return;
+  }
+
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'voice-transcript';
+    panel.appendChild(overlay);
+  }
+  overlay.textContent = text;
+}
+
 /** Currently fullscreened session id (only one at a time). */
 let fullscreenId = null;
 
@@ -592,6 +703,7 @@ window.__termFullscreen = fullscreenTerminal;
 window.__termClose = removeTerminal;
 window.__termCloseMenu = showCloseMenu;
 window.__shellFullscreen = fullscreenShell;
+window.__termVoice = toggleVoice;
 
 /**
  * Refit a terminal after layout changes (double-rAF to let flex settle).
@@ -990,6 +1102,11 @@ export function closeTerminal(sessionId) {
   const entry = openTerminals.get(sessionId);
   if (!entry) {
     return;
+  }
+
+  // Stop voice recognition if active for this terminal
+  if (voiceState && voiceState.sessionId === sessionId) {
+    voiceState.recognition.stop();
   }
 
   const { term, ws, observer } = entry;
