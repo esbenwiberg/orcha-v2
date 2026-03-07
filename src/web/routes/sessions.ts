@@ -309,7 +309,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
-          // Build MCP servers map (will be injected into .config.json, NOT settings.json)
+          // Build MCP servers map — injected into both settings.json and .config.json
           const mcpServers: Record<string, unknown> = {};
           if (mcpServerIds.length > 0) {
             const entries = mcpServerStore.getSettingsEntries(mcpServerIds);
@@ -322,6 +322,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             type: 'url',
             url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
           };
+          settings['mcpServers'] = mcpServers;
 
           // Deny web tools when web access is disabled
           if (!webAccess) {
@@ -726,12 +727,11 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             appendFileSync(join(sessionHome, '.gitconfig'), section);
           }
 
-          // Rebuild settings.json with theme (MCP servers now go in .config.json)
+          // Rebuild settings.json with theme + MCP servers
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
-          writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
-          // Build MCP servers map for .config.json
+          // Build MCP servers map — injected into both settings.json and .config.json
           const reopenMcpServers: Record<string, unknown> = {};
           const savedMcpIds = existing.config.mcpServerIds ?? [];
           if (savedMcpIds.length > 0) {
@@ -744,6 +744,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             type: 'url',
             url: `http://localhost:${orchaPort}/mcp/validate/${id}`,
           };
+          settings['mcpServers'] = reopenMcpServers;
+          writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
           // Rebuild .config.json (onboarding + API key approval + MCP servers)
           const reopenWorktreePath = join(getStoragePaths().worktreeBaseDir, id);

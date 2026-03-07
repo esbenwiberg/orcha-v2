@@ -242,7 +242,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
-          // Build MCP servers map (injected into .config.json, NOT settings.json)
+          // Build MCP servers map — injected into both settings.json and .config.json
           const mcpServers: Record<string, unknown> = {};
           if (preset.mcpServerIds.length > 0) {
             const entries = mcpServerStore.getSettingsEntries(preset.mcpServerIds);
@@ -255,6 +255,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
             type: 'url',
             url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
           };
+          settings['mcpServers'] = mcpServers;
 
           // Deny web tools when preset has web access disabled
           if (!preset.webAccess) {
