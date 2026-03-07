@@ -318,7 +318,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           // Inject MCP validation server config
           const orchaPort = process.env['PORT'] ?? '3000';
           mcpServers['validate'] = {
-            type: 'sse',
+            type: 'url',
             url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
           };
           settings['mcpServers'] = mcpServers;
@@ -733,7 +733,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
           const orchaPort = process.env['PORT'] ?? '3000';
           mcpServers['validate'] = {
-            type: 'sse',
+            type: 'url',
             url: `http://localhost:${orchaPort}/mcp/validate/${id}`,
           };
           settings['mcpServers'] = mcpServers;

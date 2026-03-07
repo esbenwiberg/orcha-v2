@@ -100,6 +100,17 @@ export class McpServerStore {
     this.#db.prepare('DELETE FROM mcp_servers WHERE id = ?').run(id);
   }
 
+  /** Strip wrapping quotes from header keys/values — defends against corrupted DB data. */
+  static #cleanHeaders(headers: Record<string, string>): Record<string, string> {
+    const clean: Record<string, string> = {};
+    for (const [k, v] of Object.entries(headers)) {
+      const key = k.replace(/^["'\s]+|["'\s,]+$/g, '');
+      const val = typeof v === 'string' ? v.replace(/^["'\s]+|["'\s,]+$/g, '') : v;
+      if (key) clean[key] = val;
+    }
+    return clean;
+  }
+
   /** Get servers by a list of IDs, returning them as Claude settings.json mcpServers entries. */
   getSettingsEntries(ids: string[]): Record<string, McpSettingsEntry> {
     if (ids.length === 0) return {};
@@ -112,7 +123,7 @@ export class McpServerStore {
       if (server.url !== null) entry.url = server.url;
       if (server.command !== null) entry.command = server.command;
       if (server.args !== null) entry.args = server.args;
-      if (server.headers !== null) entry.headers = server.headers;
+      if (server.headers !== null) entry.headers = McpServerStore.#cleanHeaders(server.headers);
       entries[server.name] = entry;
     }
 

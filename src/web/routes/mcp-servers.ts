@@ -5,6 +5,16 @@ import { McpServerStore } from '../../db/mcp-server-store.js';
 
 const VALID_TYPES = new Set(['url', 'sse', 'command']);
 
+/** Aggressively strip wrapping quotes — handles double-wrapped, mixed, trailing commas. */
+function stripQuotes(s: string): string {
+  let prev = s;
+  for (;;) {
+    const next = prev.replace(/^["'\s]+|["'\s,]+$/g, '');
+    if (next === prev) return next;
+    prev = next;
+  }
+}
+
 export function createMcpServersRouter(eta: Eta, db: Database.Database): Router {
   const router = Router();
   const store = new McpServerStore(db);
@@ -61,8 +71,8 @@ export function createMcpServersRouter(eta: Eta, db: Database.Database): Router 
           for (const line of headersRaw.split('\n')) {
             const idx = line.indexOf(':');
             if (idx > 0) {
-              const key = line.slice(0, idx).trim().replace(/^["']|["']$/g, '');
-              const val = line.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
+              const key = stripQuotes(line.slice(0, idx).trim());
+              const val = stripQuotes(line.slice(idx + 1).trim());
               if (key) headers[key] = val;
             }
           }
