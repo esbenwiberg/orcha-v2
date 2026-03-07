@@ -52,7 +52,7 @@
       <tbody>
         <tr>
           <td>Runtime</td>
-          <td><code>Node.js ≥ 20</code></td>
+          <td><code>Node.js 22</code></td>
           <td>Server runtime</td>
         </tr>
         <tr>
@@ -103,12 +103,27 @@
         <tr>
           <td>MCP</td>
           <td><code>@modelcontextprotocol/sdk</code></td>
-          <td>SSE-based MCP server exposing validation tools to sessions</td>
+          <td>Streamable HTTP MCP server exposing validation + browser tools to sessions</td>
+        </tr>
+        <tr>
+          <td>Browser</td>
+          <td><code>Playwright</code></td>
+          <td>Headless Chromium for validation screenshots and DOM extraction</td>
+        </tr>
+        <tr>
+          <td>Proxy</td>
+          <td><code>http-proxy</code></td>
+          <td>Reverse proxy for live preview of validation apps (HTTP + WebSocket)</td>
         </tr>
         <tr>
           <td>Security</td>
           <td><code>Helmet</code></td>
           <td>HTTP security headers</td>
+        </tr>
+        <tr>
+          <td>Encryption</td>
+          <td><code>AES-256-GCM</code></td>
+          <td>At-rest encryption for sensitive DB fields (credentials, tokens)</td>
         </tr>
         <tr>
           <td>Testing</td>
@@ -138,6 +153,9 @@
 
     <h3>Why scoped credentials?</h3>
     <p>AI agents shouldn't have permanent access to cloud resources. Orcha provisions credentials when a session starts and revokes them when it ends. If a session fails or is cancelled, cleanup runs automatically.</p>
+
+    <h3>Why MCP for session extensions?</h3>
+    <p>Instead of adding custom logic inside the sandbox, Orcha uses the Model Context Protocol to expose tools back to the agent. The validation MCP server lets Claude build, start, screenshot, and browse the app under development — all through a standard protocol that Claude Code already understands. Custom MCP servers can be registered globally and injected per-session or per-preset.</p>
   </div>
 </div>
 
@@ -156,15 +174,17 @@
         </tr>
       </thead>
       <tbody>
-        <tr><td><code>src/db/</code></td><td>SQLite migrations, stores (session, preset, repo, credential)</td></tr>
-        <tr><td><code>src/terminal/</code></td><td>PTY management, session lifecycle engine</td></tr>
-        <tr><td><code>src/web/</code></td><td>Express app, routes, ETA views, static assets</td></tr>
-        <tr><td><code>src/web/routes/</code></td><td>Page routes (dashboard) and API routes (HTMX partials + JSON)</td></tr>
+        <tr><td><code>src/db/</code></td><td>SQLite migrations, stores (session, preset, repo, credential, model config, MCP servers, skills, global settings)</td></tr>
+        <tr><td><code>src/terminal/</code></td><td>PTY management, session lifecycle engine, worktree manager</td></tr>
+        <tr><td><code>src/web/</code></td><td>Express app, routes, ETA views, static assets, auth middleware</td></tr>
+        <tr><td><code>src/web/routes/</code></td><td>Page routes (dashboard) and API routes (HTMX partials + JSON + validate proxy)</td></tr>
         <tr><td><code>src/web/views/</code></td><td>ETA templates — layouts, pages, partials</td></tr>
         <tr><td><code>src/credentials/</code></td><td>Credential providers (Azure, GitHub, DevOps) and manager</td></tr>
         <tr><td><code>src/sandbox/</code></td><td>Landlock filesystem isolation</td></tr>
-        <tr><td><code>src/validation/</code></td><td>Validation engine — port allocator, config resolver, serve/docker runners</td></tr>
-        <tr><td><code>src/mcp/</code></td><td>MCP SSE server exposing validation tools to sandboxed sessions</td></tr>
+        <tr><td><code>src/validation/</code></td><td>Validation engine — port allocator, config resolver, serve/docker runners, Playwright browser manager</td></tr>
+        <tr><td><code>src/mcp/</code></td><td>Streamable HTTP MCP server exposing validation and browser tools to sessions</td></tr>
+        <tr><td><code>src/deploy/</code></td><td>Self-deploy via ACR Tasks and Azure REST APIs</td></tr>
+        <tr><td><code>src/storage/</code></td><td>Storage paths and Azure File Share compatibility layer</td></tr>
         <tr><td><code>src/devguard/</code></td><td>Standalone CLI for credential management and secret redaction</td></tr>
       </tbody>
     </table>

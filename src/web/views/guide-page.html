@@ -22,10 +22,13 @@
     <p>A session is a terminal process running Claude Code against a specific repository. Each session gets its own PTY, worktree, and lifecycle.</p>
     <h3>Creating a session</h3>
     <ol>
-      <li>Click <strong>+ New Session</strong> in the header</li>
+      <li>Click <strong>+ New Session</strong> in the header (or <strong>From Preset</strong> to start from a saved template)</li>
       <li>Select a <strong>repository</strong> from the dropdown</li>
-      <li>Optionally pick a <strong>preset</strong> to pre-fill the prompt and branch</li>
+      <li>Pick a <strong>source branch</strong> (dropdown loads on click)</li>
+      <li>Optionally select a <strong>model config</strong> to use a custom provider (Anthropic API, Azure, local)</li>
       <li>Optionally attach a <strong>credential profile</strong> for cloud access</li>
+      <li>Optionally select <strong>MCP servers</strong> to inject into the session</li>
+      <li>Write a <strong>prompt</strong> — the initial instruction for Claude</li>
       <li>Hit <strong>Create</strong></li>
     </ol>
     <h3>Session lifecycle</h3>
@@ -48,6 +51,26 @@
     </table>
     <h3>Terminal</h3>
     <p>Click a running session card to expand the inline terminal. The terminal is a full xterm.js instance — you can type, scroll, and resize. Click the card header again to collapse it.</p>
+    <h3>Session card tools</h3>
+    <p>Each session card has a toolbar with quick-access buttons:</p>
+    <table class="data-table">
+      <thead>
+        <tr><th>Button</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Files</td><td>Browse and view files in the session worktree</td></tr>
+        <tr><td>Docs</td><td>Browse and render markdown files (.md)</td></tr>
+        <tr><td>Diff</td><td>View git diffs for changes made in the session</td></tr>
+        <tr><td>Preview</td><td>Open the validation app in a new browser tab (see Validation section)</td></tr>
+        <tr><td>Fullscreen</td><td>Expand terminal to fill the screen</td></tr>
+        <tr><td>Deploy</td><td>Trigger the repo's deploy command (if configured)</td></tr>
+        <tr><td>More (&#8942;)</td><td>Additional actions — stop, re-open, fork session</td></tr>
+      </tbody>
+    </table>
+    <h3>Debug shell</h3>
+    <p>From the More menu, you can open a <strong>debug shell</strong> — an interactive bash terminal inside the session's worktree. Useful for inspecting files, running tests, or checking environment state while the agent is working.</p>
+    <h3>Voice input</h3>
+    <p>On supported browsers, the terminal includes a microphone button for voice-to-text input. Press it, speak your instruction, and it will be transcribed and typed into the terminal.</p>
   </div>
 </div>
 
@@ -110,7 +133,9 @@
     <ul>
       <li><strong>Name</strong> — a label for the preset</li>
       <li><strong>Repository</strong> — which repo to check out</li>
+      <li><strong>Model config</strong> — optional model provider override</li>
       <li><strong>Credential profile</strong> — optional cloud credential template</li>
+      <li><strong>MCP servers</strong> — which MCP servers to inject into the session</li>
       <li><strong>Allowed tools</strong> — Claude Code tool permissions</li>
     </ul>
     <p>To use a preset, select it from the dropdown when creating a new session. All fields are pre-filled but can be overridden.</p>
@@ -192,8 +217,14 @@
         <tr><td><code>validate_stop</code></td><td>Gracefully tear down the validation environment</td></tr>
         <tr><td><code>validate_status</code></td><td>Check current status, URL, port, and uptime</td></tr>
         <tr><td><code>validate_logs</code></td><td>Get recent stdout/stderr output from the running app</td></tr>
+        <tr><td><code>validate_browse</code></td><td>Navigate to a page and return a screenshot + console errors (Playwright)</td></tr>
+        <tr><td><code>validate_screenshot</code></td><td>Capture the current page or a specific CSS selector</td></tr>
+        <tr><td><code>validate_extract</code></td><td>Extract text, HTML, or attributes from elements matching a CSS selector</td></tr>
+        <tr><td><code>validate_console</code></td><td>Return buffered browser console logs</td></tr>
       </tbody>
     </table>
+    <h3>Live preview</h3>
+    <p>Once the agent calls <code>validate_start</code>, you can open the running app directly in your browser. Click the <strong>Preview</strong> (globe) button on the session card, or navigate to <code>/validate/&lt;sessionId&gt;/</code>. Orcha reverse-proxies all HTTP and WebSocket traffic to the validation app — Vite HMR, SignalR, SSE streaming, and static assets all work transparently.</p>
     <h3>Configuration sources (layered, later wins)</h3>
     <ol>
       <li><code>.orcha/validate.yml</code> in the repo (version-controlled)</li>
@@ -209,13 +240,88 @@
 <div class="page-section" style="margin-bottom: 1rem">
   <div class="page-section__header">
     <div>
-      <h2 class="page-section__title">Settings</h2>
-      <p class="page-section__subtitle">Claude Code permissions</p>
+      <h2 class="page-section__title">Models</h2>
+      <p class="page-section__subtitle">Custom model providers</p>
     </div>
   </div>
   <div class="prose">
-    <p>The Settings page lets you edit the shared <code>.claude/settings.json</code> file that controls which tools Claude Code is allowed to use. Rules are split into <strong>allow</strong> and <strong>deny</strong> lists.</p>
-    <p>Changes here apply to all sessions that read from this config.</p>
+    <p>The Models page lets you configure alternative model providers for sessions. Each config defines how Claude Code connects to the model API.</p>
+    <h3>Supported providers</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Provider</th><th>Use case</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Anthropic API</td><td>Direct API access with your own key, optional custom base URL</td></tr>
+        <tr><td>Amazon Bedrock</td><td>Claude via AWS Bedrock</td></tr>
+        <tr><td>Google Vertex AI</td><td>Claude via Google Cloud</td></tr>
+        <tr><td>Azure AI</td><td>Claude via Azure AI services</td></tr>
+        <tr><td>Local (Ollama, vLLM)</td><td>Local inference with custom base URL and optional auth token</td></tr>
+      </tbody>
+    </table>
+    <p>Attach a model config when creating a session or save it in a preset. Sessions without a model config use the default Claude Max subscription.</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">MCP Servers</h2>
+      <p class="page-section__subtitle">Extend sessions with custom tools</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>MCP (Model Context Protocol) servers expose additional tools to Claude Code inside sessions. Orcha has a built-in validation MCP server, and you can register your own.</p>
+    <h3>Adding an MCP server</h3>
+    <ol>
+      <li>Go to <strong>Settings</strong> &rarr; <strong>MCP Servers</strong> tab</li>
+      <li>Click <strong>+ Add Server</strong></li>
+      <li>Choose a type: <em>HTTP</em> (Streamable HTTP) or <em>Command</em> (stdio-based)</li>
+      <li>Enter the URL or command</li>
+    </ol>
+    <p>Registered servers appear as checkboxes when creating sessions or presets. Selected servers are injected into the session's Claude Code config on startup.</p>
+    <p>The built-in <code>validate</code> MCP server is always available — it doesn't need to be registered.</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Skills</h2>
+      <p class="page-section__subtitle">Global slash commands for all sessions</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Skills are reusable prompt templates exposed as <code>/slash-commands</code> inside Claude Code sessions. Define them once, and every session gets access.</p>
+    <h3>Managing skills</h3>
+    <ol>
+      <li>Go to <strong>Settings</strong> &rarr; <strong>Skills</strong> tab</li>
+      <li>Click <strong>+ Add Skill</strong></li>
+      <li>Give it a name (becomes the <code>/command</code>) and write the prompt template</li>
+    </ol>
+    <p>Inside a session, the agent (or you) can invoke <code>/skill-name</code> and Claude Code will expand it to the full prompt.</p>
+  </div>
+</div>
+
+<div class="page-section" style="margin-bottom: 1rem">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Settings</h2>
+      <p class="page-section__subtitle">Global configuration for all sessions</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>The Settings page is organized into tabs, each controlling a different aspect of session behavior.</p>
+    <h3>Permissions</h3>
+    <p>Edit the shared <code>.claude/settings.json</code> that controls which tools Claude Code is allowed to use. Rules are split into <strong>allow</strong> and <strong>deny</strong> lists. Changes apply to all new sessions.</p>
+    <h3>CLAUDE.md / soul.md</h3>
+    <p>Edit the global <code>CLAUDE.md</code> and <code>soul.md</code> files that are injected into every session. Use these to set project-wide instructions, coding standards, or agent personality.</p>
+    <h3>Git Identity</h3>
+    <p>Configure the <code>user.name</code> and <code>user.email</code> that sessions use for git commits. Injected into each session's <code>.gitconfig</code> on startup.</p>
+    <h3>SDKs</h3>
+    <p>Enable global SDKs (TypeScript, .NET) that are installed at container boot. Sessions can then use these tools without needing to install them themselves.</p>
+    <h3>Bootstrap PATs</h3>
+    <p>Configure bootstrap Personal Access Tokens used by credential providers (e.g., Azure DevOps PATs for provisioning session-scoped tokens).</p>
   </div>
 </div>
 
@@ -227,10 +333,13 @@
     </div>
   </div>
   <div class="prose">
-    <p>The System page shows uptime, disk usage, and resource stats. You can also trigger cleanup actions:</p>
+    <p>The System page shows uptime, disk usage, and resource stats.</p>
+    <h3>Cleanup</h3>
     <ul>
       <li><strong>Clean logs</strong> — remove old session log files</li>
       <li><strong>Clean worktrees</strong> — prune orphaned git worktrees from finished sessions</li>
     </ul>
+    <h3>Self-deploy</h3>
+    <p>If configured with Azure Container App credentials (<code>DEPLOY_*</code> env vars), the System page shows a <strong>Deploy</strong> button that builds and pushes a new container image via ACR Tasks, then updates the Container App revision. The deploy log streams in real-time.</p>
   </div>
 </div>
