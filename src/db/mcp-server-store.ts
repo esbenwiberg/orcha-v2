@@ -119,8 +119,10 @@ export class McpServerStore {
     const entries: Record<string, McpSettingsEntry> = {};
 
     for (const server of servers) {
-      // Remap legacy "command" type to "stdio" (Claude Code's expected value)
-      const type = server.type === 'command' ? 'stdio' : server.type;
+      // Remap legacy types to Claude Code's expected values:
+      // "command" → "stdio", "url" → "http" (StreamableHTTP)
+      let type = server.type === 'command' ? 'stdio' : server.type;
+      if (type === 'url') type = 'http';
       const entry: McpSettingsEntry = { type };
       if (server.url !== null) entry.url = server.url;
       if (server.command !== null) entry.command = server.command;

@@ -275,6 +275,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // so concurrent sessions with different credentials don't overwrite each other,
       // and each session gets its own MCP server config for validation tools.
       const sessionId = randomUUID();
+      // Hoisted so it's accessible after createSession() for project-level injection
+      let mcpServers: Record<string, unknown> = {};
       {
         try {
           const sessionHome = join('/tmp', `orcha-home-${sessionId}`);
@@ -310,16 +312,16 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
           // Build MCP servers map — injected into both settings.json and .config.json
-          const mcpServers: Record<string, unknown> = {};
+          mcpServers = {};
           if (mcpServerIds.length > 0) {
             const entries = mcpServerStore.getSettingsEntries(mcpServerIds);
             Object.assign(mcpServers, entries);
           }
 
-          // Inject MCP validation server config
+          // Inject MCP validation server config (type 'http' = StreamableHTTP)
           const orchaPort = process.env['PORT'] ?? '3000';
           mcpServers['validate'] = {
-            type: 'url',
+            type: 'http',
             url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
           };
           settings['mcpServers'] = mcpServers;
@@ -338,17 +340,16 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           console.log(`[sessions] writing settings.json sessionId=${sessionId} mcpKeys=${Object.keys(mcpServers).join(',')} size=${settingsJson.length}`);
           writeFileSync(join(claudeDir, 'settings.json'), settingsJson, 'utf8');
 
-          // Write .config.json — trust the project dir, pre-approve API keys,
-          // and inject MCP servers at the project level.
-          // Claude Code stores project-level MCP config and trust state in
-          // ~/.claude/.config.json under projects.<cwd>.
+          // Write .config.json — Claude Code reads MCP servers from the
+          // TOP-LEVEL mcpServers key (user scope). Project trust lives under
+          // projects.<cwd>.hasTrustDialogAccepted.
           const worktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
           const claudeConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
+            mcpServers,
             projects: {
               [worktreePath]: {
-                mcpServers,
                 hasTrustDialogAccepted: true,
                 allowedTools: [],
               },
@@ -447,6 +448,28 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         createOpts.repoRoot = repo.barePath;
       }
       const activeSession = await deps.sessionEngine.createSession(createOpts);
+
+      // Write .mcp.json in the worktree root (project-scope MCP discovery).
+      // The PTY is already running but Claude takes seconds to initialise.
+      if (Object.keys(mcpServers).length > 0) {
+        try {
+          const mcpJsonPath = join(activeSession.worktree.path, '.mcp.json');
+          const existingMcp: Record<string, unknown> = {};
+          if (existsSync(mcpJsonPath)) {
+            try {
+              Object.assign(existingMcp, JSON.parse(readFileSync(mcpJsonPath, 'utf8')));
+            } catch { /* ignore malformed */ }
+          }
+          existingMcp['mcpServers'] = {
+            ...((existingMcp['mcpServers'] ?? {}) as Record<string, unknown>),
+            ...mcpServers,
+          };
+          writeFileSync(mcpJsonPath, JSON.stringify(existingMcp, null, 2), 'utf8');
+          console.log(`[sessions] wrote .mcp.json worktree=${activeSession.worktree.path} mcpKeys=${Object.keys(mcpServers).join(',')}`);
+        } catch (err) {
+          console.warn('[sessions] failed to write .mcp.json:', err);
+        }
+      }
 
       // Persist provisioned credentials with the session ID now that we have it
       if (provisionedCreds && activeSession.dbSessionId) {
@@ -744,20 +767,20 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
           const orchaPort = process.env['PORT'] ?? '3000';
           reopenMcpServers['validate'] = {
-            type: 'url',
+            type: 'http',
             url: `http://localhost:${orchaPort}/mcp/validate/${id}`,
           };
           settings['mcpServers'] = reopenMcpServers;
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
-          // Rebuild .config.json (onboarding + API key + trust + project MCP servers)
+          // Rebuild .config.json — MCP servers at top level, trust under projects key
           const reopenWorktreePath = join(getStoragePaths().worktreeBaseDir, id);
           const reopenConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
+            mcpServers: reopenMcpServers,
             projects: {
               [reopenWorktreePath]: {
-                mcpServers: reopenMcpServers,
                 hasTrustDialogAccepted: true,
                 allowedTools: [],
               },
@@ -798,6 +821,39 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const activeSession = await deps.sessionEngine.reopenSession(id);
+
+      // Write .mcp.json in the worktree root (project-scope MCP discovery)
+      const reopenMcpForProject: Record<string, unknown> = {};
+      const savedMcpIdsForProject = existing.config.mcpServerIds ?? [];
+      if (savedMcpIdsForProject.length > 0) {
+        const entries = mcpServerStore.getSettingsEntries(savedMcpIdsForProject);
+        Object.assign(reopenMcpForProject, entries);
+      }
+      const orchaPortReopen = process.env['PORT'] ?? '3000';
+      reopenMcpForProject['validate'] = {
+        type: 'http',
+        url: `http://localhost:${orchaPortReopen}/mcp/validate/${id}`,
+      };
+      if (Object.keys(reopenMcpForProject).length > 0) {
+        try {
+          const mcpJsonPath = join(activeSession.worktree.path, '.mcp.json');
+          const existingMcp: Record<string, unknown> = {};
+          if (existsSync(mcpJsonPath)) {
+            try {
+              Object.assign(existingMcp, JSON.parse(readFileSync(mcpJsonPath, 'utf8')));
+            } catch { /* ignore malformed */ }
+          }
+          existingMcp['mcpServers'] = {
+            ...((existingMcp['mcpServers'] ?? {}) as Record<string, unknown>),
+            ...reopenMcpForProject,
+          };
+          writeFileSync(mcpJsonPath, JSON.stringify(existingMcp, null, 2), 'utf8');
+          console.log(`[sessions] wrote .mcp.json on reopen worktree=${activeSession.worktree.path}`);
+        } catch (err) {
+          console.warn('[sessions] failed to write .mcp.json on reopen:', err);
+        }
+      }
+
       eventBus.publish({ sessionId: activeSession.sessionId, type: 'status', status: 'running' });
 
       res.setHeader('HX-Redirect', '/');
@@ -1084,7 +1140,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         // Tier 2b: If Claude Code already started (refresh token worked), the URL
         // is stale — auth succeeded without user interaction.
         const text = snapshot.toString('utf8');
-        if (/Welcome to/i.test(text)) {
+        if (/Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/i.test(text)) {
           const html = eta.render('partials/session-auth-banner', { authenticated: true });
           res.status(286).send(html);
           return;

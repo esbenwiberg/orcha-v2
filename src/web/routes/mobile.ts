@@ -211,6 +211,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
 
       // Per-session isolated HOME for credential injection
       const sessionId = randomUUID();
+      let mcpServers: Record<string, unknown> = {};
       if (modelConfig.credentialsJson) {
         try {
           const sessionHome = join('/tmp', `orcha-home-${sessionId}`);
@@ -243,16 +244,16 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
           // Build MCP servers map — injected into both settings.json and .config.json
-          const mcpServers: Record<string, unknown> = {};
+          mcpServers = {};
           if (preset.mcpServerIds.length > 0) {
             const entries = mcpServerStore.getSettingsEntries(preset.mcpServerIds);
             Object.assign(mcpServers, entries);
           }
 
-          // Inject MCP validation server config
+          // Inject MCP validation server config (type 'http' = StreamableHTTP)
           const orchaPort = process.env['PORT'] ?? '3000';
           mcpServers['validate'] = {
-            type: 'url',
+            type: 'http',
             url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
           };
           settings['mcpServers'] = mcpServers;
@@ -270,14 +271,14 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
           writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
 
-          // Write .config.json with trust + project MCP servers + API key approval
+          // Write .config.json — MCP servers at top level, trust under projects key
           const mobileWorktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
           const mobileConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
+            mcpServers,
             projects: {
               [mobileWorktreePath]: {
-                mcpServers,
                 hasTrustDialogAccepted: true,
                 allowedTools: [],
               },
@@ -340,6 +341,27 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const activeSession = await deps.sessionEngine.createSession(createOpts);
+
+      // Write .mcp.json in the worktree root (project-scope MCP discovery)
+      if (Object.keys(mcpServers).length > 0) {
+        try {
+          const mcpJsonPath = join(activeSession.worktree.path, '.mcp.json');
+          const existingMcp: Record<string, unknown> = {};
+          if (existsSync(mcpJsonPath)) {
+            try {
+              Object.assign(existingMcp, JSON.parse(readFileSync(mcpJsonPath, 'utf8')));
+            } catch { /* ignore malformed */ }
+          }
+          existingMcp['mcpServers'] = {
+            ...((existingMcp['mcpServers'] ?? {}) as Record<string, unknown>),
+            ...mcpServers,
+          };
+          writeFileSync(mcpJsonPath, JSON.stringify(existingMcp, null, 2), 'utf8');
+          console.log(`[mobile] wrote .mcp.json worktree=${activeSession.worktree.path}`);
+        } catch (err) {
+          console.warn('[mobile] failed to write .mcp.json:', err);
+        }
+      }
 
       // Persist credential records
       if (provisionedCreds && activeSession.dbSessionId) {
