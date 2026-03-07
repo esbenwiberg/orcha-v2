@@ -165,9 +165,9 @@
 }
 
 .session-grid__empty-logo {
-  width: 420px;
+  width: 360px;
   height: auto;
-  opacity: 0.25;
+  opacity: 0.35;
   pointer-events: none;
   user-select: none;
 }
