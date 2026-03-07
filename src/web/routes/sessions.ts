@@ -23,6 +23,7 @@ import type { Session } from '@orcha/domain';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
 import { ensureSdksInstalled } from '../../sdk-installer.js';
+import { getStoragePaths } from '../../storage/paths.js';
 
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_-]+$/;
@@ -308,8 +309,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
-          // Inject user-selected MCP servers from the registry
-          const mcpServers = (settings['mcpServers'] ?? {}) as Record<string, unknown>;
+          // Build MCP servers map (will be injected into .config.json, NOT settings.json)
+          const mcpServers: Record<string, unknown> = {};
           if (mcpServerIds.length > 0) {
             const entries = mcpServerStore.getSettingsEntries(mcpServerIds);
             Object.assign(mcpServers, entries);
@@ -321,7 +322,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             type: 'url',
             url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
           };
-          settings['mcpServers'] = mcpServers;
 
           // Deny web tools when web access is disabled
           if (!webAccess) {
@@ -335,13 +335,20 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
-          // Write .config.json to skip onboarding prompts and pre-approve API keys.
-          // Claude Code stores onboarding state and API key approvals in ~/.claude/.config.json.
-          // Without this, interactive sessions prompt for theme selection, disclaimer,
-          // folder trust, and API key approval on every launch.
+          // Write .config.json to skip onboarding prompts, pre-approve API keys,
+          // and inject MCP servers. Claude Code reads MCP config from
+          // ~/.claude/.config.json under projects.<projectPath>.mcpServers.
+          const worktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
           const claudeConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
+            projects: {
+              [worktreePath]: {
+                mcpServers,
+                allowedTools: [],
+                hasTrustDialogAccepted: true,
+              },
+            },
           };
           if (modelConfigId) {
             const mc = modelConfigStore.getConfig(modelConfigId);
@@ -719,30 +726,37 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             appendFileSync(join(sessionHome, '.gitconfig'), section);
           }
 
-          // Rebuild settings.json with theme + MCP validation server
+          // Rebuild settings.json with theme (MCP servers now go in .config.json)
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
+          writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
-          // Re-inject user-selected MCP servers from the registry
-          const mcpServers = (settings['mcpServers'] ?? {}) as Record<string, unknown>;
+          // Build MCP servers map for .config.json
+          const reopenMcpServers: Record<string, unknown> = {};
           const savedMcpIds = existing.config.mcpServerIds ?? [];
           if (savedMcpIds.length > 0) {
             const entries = mcpServerStore.getSettingsEntries(savedMcpIds);
-            Object.assign(mcpServers, entries);
+            Object.assign(reopenMcpServers, entries);
           }
 
           const orchaPort = process.env['PORT'] ?? '3000';
-          mcpServers['validate'] = {
+          reopenMcpServers['validate'] = {
             type: 'url',
             url: `http://localhost:${orchaPort}/mcp/validate/${id}`,
           };
-          settings['mcpServers'] = mcpServers;
-          writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
-          // Rebuild .config.json (onboarding + API key approval)
+          // Rebuild .config.json (onboarding + API key approval + MCP servers)
+          const reopenWorktreePath = join(getStoragePaths().worktreeBaseDir, id);
           const reopenConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
+            projects: {
+              [reopenWorktreePath]: {
+                mcpServers: reopenMcpServers,
+                allowedTools: [],
+                hasTrustDialogAccepted: true,
+              },
+            },
           };
           const reopenModelConfigId = existing.config.modelConfigId;
           if (reopenModelConfigId) {

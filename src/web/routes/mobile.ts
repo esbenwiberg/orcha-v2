@@ -19,6 +19,7 @@ import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
 import { ensureSdksInstalled } from '../../sdk-installer.js';
+import { getStoragePaths } from '../../storage/paths.js';
 
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_.-]+$/;
@@ -241,13 +242,19 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
           const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
           if (!('theme' in settings)) settings['theme'] = 'dark';
 
-          // Inject user-selected MCP servers from the preset
+          // Build MCP servers map (injected into .config.json, NOT settings.json)
+          const mcpServers: Record<string, unknown> = {};
           if (preset.mcpServerIds.length > 0) {
-            const mcpServers = (settings['mcpServers'] ?? {}) as Record<string, unknown>;
             const entries = mcpServerStore.getSettingsEntries(preset.mcpServerIds);
             Object.assign(mcpServers, entries);
-            settings['mcpServers'] = mcpServers;
           }
+
+          // Inject MCP validation server config
+          const orchaPort = process.env['PORT'] ?? '3000';
+          mcpServers['validate'] = {
+            type: 'url',
+            url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
+          };
 
           // Deny web tools when preset has web access disabled
           if (!preset.webAccess) {
@@ -261,6 +268,28 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
 
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
           writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
+
+          // Write .config.json with onboarding + MCP servers + API key approval
+          const mobileWorktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
+          const mobileConfig: Record<string, unknown> = {
+            hasCompletedOnboarding: true,
+            theme: 'dark',
+            projects: {
+              [mobileWorktreePath]: {
+                mcpServers,
+                allowedTools: [],
+                hasTrustDialogAccepted: true,
+              },
+            },
+          };
+          if (modelConfig.apiKey) {
+            const keyFingerprint = modelConfig.apiKey.slice(-20);
+            mobileConfig['customApiKeyResponses'] = {
+              approved: [keyFingerprint],
+              rejected: [],
+            };
+          }
+          writeFileSync(join(claudeDir, '.config.json'), JSON.stringify(mobileConfig), 'utf8');
 
           // Inject merged CLAUDE.md (includes soul.md content inline)
           const mergedClaudeMd = buildSessionClaudeMd(globalSettingsStore);
