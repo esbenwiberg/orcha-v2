@@ -5,6 +5,8 @@ import type { ValidationConfig } from './config-resolver.js';
 import { spawnServe, killServe } from './serve-runner.js';
 import { dockerUp, dockerDown, listOrchaProjects, killOrchaProject } from './docker-runner.js';
 import { execFile } from 'node:child_process';
+import { BrowserManager } from './browser-manager.js';
+import type { BrowseResult, ExtractResult, ConsoleEntry } from './browser-manager.js';
 
 export type ValidationStatus = 'building' | 'starting' | 'healthy' | 'failed' | 'stopped';
 
@@ -57,6 +59,7 @@ export interface StartParams {
 
 export class ValidationManager {
   private _envs: Map<string, ValidationEnv> = new Map();
+  private _browserManager = new BrowserManager();
 
   async start(
     sessionId: string,
@@ -139,6 +142,9 @@ export class ValidationManager {
     const env = this._envs.get(sessionId);
     if (!env) return { status: 'stopped' };
 
+    // Close browser context for this session
+    await this._browserManager.close(sessionId);
+
     // Clear timers
     if (env.timeoutTimer) clearTimeout(env.timeoutTimer);
     if (env.healthTimer) clearTimeout(env.healthTimer);
@@ -158,6 +164,8 @@ export class ValidationManager {
   async forceStop(sessionId: string): Promise<void> {
     const env = this._envs.get(sessionId);
     if (!env) return;
+
+    await this._browserManager.close(sessionId).catch(() => {});
 
     if (env.timeoutTimer) clearTimeout(env.timeoutTimer);
     if (env.healthTimer) clearTimeout(env.healthTimer);
@@ -193,6 +201,44 @@ export class ValidationManager {
     const env = this._envs.get(sessionId);
     if (!env) return [];
     return env.output.slice(-lines);
+  }
+
+  // --- Browser tools (delegated to BrowserManager) ---
+
+  async browse(
+    sessionId: string,
+    opts: { url?: string; path?: string; waitFor?: string },
+  ): Promise<BrowseResult> {
+    const env = this._envs.get(sessionId);
+    if (!env) {
+      throw new Error('No validation environment running. Call validate_start first.');
+    }
+    return this._browserManager.browse(sessionId, env.port, opts);
+  }
+
+  async screenshot(
+    sessionId: string,
+    opts: { fullPage?: boolean; selector?: string },
+  ): Promise<Buffer> {
+    if (!this._envs.has(sessionId)) {
+      throw new Error('No validation environment running. Call validate_start first.');
+    }
+    return this._browserManager.screenshot(sessionId, opts);
+  }
+
+  async extract(
+    sessionId: string,
+    selector: string,
+    attribute?: string,
+  ): Promise<ExtractResult[]> {
+    if (!this._envs.has(sessionId)) {
+      throw new Error('No validation environment running. Call validate_start first.');
+    }
+    return this._browserManager.extract(sessionId, selector, attribute);
+  }
+
+  consoleLogs(sessionId: string, limit?: number): ConsoleEntry[] {
+    return this._browserManager.getConsoleLogs(sessionId, limit);
   }
 
   /** Sweep orphaned docker projects with no active session. */

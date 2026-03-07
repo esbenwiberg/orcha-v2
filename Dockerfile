@@ -14,6 +14,9 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# Download Chromium for Playwright (baked into image for deterministic builds)
+RUN npx playwright install chromium
+
 # Compile landlock-exec as a static binary so it has no runtime deps
 RUN gcc -O2 -static -o /build/landlock-exec sandbox/landlock-exec.c
 
@@ -23,6 +26,10 @@ FROM node:22-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git fuse3 ca-certificates curl gnupg libicu72 \
     python3 make g++ \
+    # Chromium runtime deps for Playwright
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
+    libpango-1.0-0 libasound2 libxshmfence1 \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
        -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -48,6 +55,8 @@ COPY scripts/entrypoint.sh /app/entrypoint.sh
 COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json ./package.json
+# Playwright Chromium binary from builder
+COPY --from=builder /root/.cache/ms-playwright /app/.cache/ms-playwright
 # Static assets — express.static('src/web/public') is CWD-relative
 COPY --from=builder /build/src/web/public ./src/web/public
 # ETA views — resolved via path.join(__dirname, 'views') from dist/web/
@@ -58,7 +67,7 @@ COPY --from=builder /build/src/db/migrations ./dist/db/migrations
 RUN mkdir -p /data /data/sdks && chown -R orcha:orcha /data
 # Pre-create the orcha user's ~/.claude so the landlock RW rule for it is applied on session start
 # Also create ~/.azure so `az login` works (HOME=/app which is otherwise read-only)
-RUN mkdir -p /app/.claude /app/.azure /app/.npm && chown -R orcha:orcha /app/.claude /app/.azure /app/.npm
+RUN mkdir -p /app/.claude /app/.azure /app/.npm /app/.cache && chown -R orcha:orcha /app/.claude /app/.azure /app/.npm /app/.cache
 
 # Global git config for the orcha user — Azure File Share (SMB) reports all
 # files as 755 and presents them with a different UID, which confuses git.
@@ -74,6 +83,7 @@ ARG COMMIT_SHA=""
 ENV NODE_ENV=production \
     ORCHA_DATA_DIR=/data \
     SANDBOX_MODE=landlock \
+    PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright \
     COMMIT_SHA=${COMMIT_SHA}
 
 USER orcha

@@ -273,5 +273,135 @@ function buildMcpServer(
     },
   );
 
+  // --- validate_browse ---
+  mcp.tool(
+    'validate_browse',
+    'Navigate to a page in the validation app and return a screenshot, page title, and any console errors. Use this to visually inspect the running app.',
+    {
+      path: z.string().optional().describe('Path to navigate to, e.g. "/dashboard". Defaults to "/"'),
+      url: z.string().optional().describe('Full URL to navigate to. Must be on localhost:{validationPort}. Overrides path.'),
+      wait_for: z.string().optional().describe('CSS selector to wait for before taking the screenshot (10s timeout)'),
+    },
+    async (args) => {
+      try {
+        const result = await validationManager.browse(sessionId, {
+          ...(args.path !== undefined ? { path: args.path } : {}),
+          ...(args.url !== undefined ? { url: args.url } : {}),
+          ...(args.wait_for !== undefined ? { waitFor: args.wait_for } : {}),
+        });
+
+        const metadata = {
+          title: result.title,
+          url: result.url,
+          consoleErrors: result.consoleErrors,
+        };
+
+        return {
+          content: [
+            { type: 'text' as const, text: JSON.stringify(metadata, null, 2) },
+            {
+              type: 'image' as const,
+              data: result.screenshot.toString('base64'),
+              mimeType: 'image/png' as const,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: 'text' as const, text: `Browse failed: ${String(err)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- validate_screenshot ---
+  mcp.tool(
+    'validate_screenshot',
+    'Take a screenshot of the current page or a specific element. Requires a prior validate_browse call.',
+    {
+      full_page: z.boolean().optional().describe('Capture the full scrollable page (default: viewport only)'),
+      selector: z.string().optional().describe('CSS selector of a specific element to screenshot'),
+    },
+    async (args) => {
+      try {
+        const buf = await validationManager.screenshot(sessionId, {
+          ...(args.full_page !== undefined ? { fullPage: args.full_page } : {}),
+          ...(args.selector !== undefined ? { selector: args.selector } : {}),
+        });
+
+        return {
+          content: [
+            {
+              type: 'image' as const,
+              data: buf.toString('base64'),
+              mimeType: 'image/png' as const,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: 'text' as const, text: `Screenshot failed: ${String(err)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- validate_extract ---
+  mcp.tool(
+    'validate_extract',
+    'Extract text, HTML, or an attribute from elements matching a CSS selector on the current page. Requires a prior validate_browse call.',
+    {
+      selector: z.string().describe('CSS selector to match elements'),
+      attribute: z.string().optional().describe('HTML attribute to extract from each element (e.g. "href", "src")'),
+    },
+    async (args) => {
+      try {
+        const results = await validationManager.extract(
+          sessionId,
+          args.selector,
+          args.attribute,
+        );
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              selector: args.selector,
+              count: results.length,
+              results,
+            }, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: 'text' as const, text: `Extract failed: ${String(err)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- validate_console ---
+  mcp.tool(
+    'validate_console',
+    'Return buffered browser console logs from the validation app. Requires a prior validate_browse call.',
+    {
+      limit: z.number().optional().describe('Max number of entries to return (default: all, max 200)'),
+    },
+    async (args) => {
+      const logs = validationManager.consoleLogs(sessionId, args.limit);
+      return {
+        content: [{
+          type: 'text' as const,
+          text: logs.length > 0
+            ? JSON.stringify(logs, null, 2)
+            : '(no console logs captured — navigate to a page with validate_browse first)',
+        }],
+      };
+    },
+  );
+
   return mcp;
 }
