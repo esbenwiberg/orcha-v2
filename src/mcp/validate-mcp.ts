@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import type Database from 'better-sqlite3';
 import { RepoStore } from '../db/repo-store.js';
@@ -9,8 +9,8 @@ import { SessionStore } from '../db/session-store.js';
 import { ValidationManager } from '../validation/validation-manager.js';
 
 /**
- * Create an Express router that serves MCP over SSE for validation tools.
- * Each session gets its own SSE connection at /mcp/validate/:sessionId.
+ * Create an Express router that serves MCP over Streamable HTTP for validation tools.
+ * Each Orcha session gets its own endpoint at /mcp/validate/:sessionId.
  */
 export function createValidateMcpRouter(
   db: Database.Database,
@@ -21,50 +21,115 @@ export function createValidateMcpRouter(
   const presetStore = new PresetStore(db);
   const sessionStore = new SessionStore(db);
 
-  // Track active transports by MCP session ID
-  const transports = new Map<string, SSEServerTransport>();
+  // Track active transports per Orcha session → MCP session
+  const transports = new Map<string, Map<string, StreamableHTTPServerTransport>>();
 
-  // GET /mcp/validate/:sessionId — establish SSE connection
-  router.get('/mcp/validate/:sessionId', (req, res) => {
-    const sessionId = req.params['sessionId'] ?? '';
-    console.log(`[mcp] SSE connection for session ${sessionId}`);
+  function getOrCreateTransport(
+    orchaSessionId: string,
+    mcpSessionId: string | undefined,
+  ): StreamableHTTPServerTransport | undefined {
+    const sessionTransports = transports.get(orchaSessionId);
 
-    // Create a new MCP server instance per connection
-    const mcpServer = buildMcpServer(sessionId, db, validationManager, repoStore, presetStore, sessionStore);
+    // If we have a specific MCP session ID, look it up
+    if (mcpSessionId && sessionTransports?.has(mcpSessionId)) {
+      return sessionTransports.get(mcpSessionId);
+    }
 
-    // The SSE transport's message endpoint — relative to the SSE URL
-    const transport = new SSEServerTransport(`/mcp/validate/${sessionId}/message`, res);
+    // Only create new transports when no MCP session ID is provided (initialization)
+    if (mcpSessionId) return undefined;
 
-    transports.set(transport.sessionId, transport);
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+      onsessioninitialized: (newSessionId) => {
+        let map = transports.get(orchaSessionId);
+        if (!map) {
+          map = new Map();
+          transports.set(orchaSessionId, map);
+        }
+        map.set(newSessionId, transport);
+        console.log(`[mcp] streamable session initialized orchaSession=${orchaSessionId} mcpSession=${newSessionId}`);
+      },
+    });
 
     transport.onclose = () => {
-      transports.delete(transport.sessionId);
+      const map = transports.get(orchaSessionId);
+      if (map) {
+        for (const [k, v] of map) {
+          if (v === transport) map.delete(k);
+        }
+        if (map.size === 0) transports.delete(orchaSessionId);
+      }
     };
 
+    // Connect an MCP server to this transport
+    const mcpServer = buildMcpServer(orchaSessionId, db, validationManager, repoStore, presetStore, sessionStore);
     mcpServer.connect(transport).catch((err) => {
-      console.error(`[mcp] failed to connect transport for session ${sessionId}:`, err);
+      console.error(`[mcp] failed to connect transport for session ${orchaSessionId}:`, err);
+    });
+
+    return transport;
+  }
+
+  // POST /mcp/validate/:sessionId — main Streamable HTTP endpoint (initialize + messages)
+  router.post('/mcp/validate/:sessionId', (req, res) => {
+    const orchaSessionId = req.params['sessionId'] ?? '';
+    const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
+
+    const transport = getOrCreateTransport(orchaSessionId, mcpSessionId);
+    if (!transport) {
+      res.status(400).json({ error: 'Bad Request: no active MCP session' });
+      return;
+    }
+
+    transport.handleRequest(req, res).catch((err) => {
+      console.error(`[mcp] error handling POST for session ${orchaSessionId}:`, err);
+      if (!res.headersSent) res.status(500).send('Internal error');
     });
   });
 
-  // POST /mcp/validate/:sessionId/message — receive MCP messages
-  router.post('/mcp/validate/:sessionId/message', (req, res) => {
-    const mcpSessionId = req.query['sessionId'] as string | undefined;
+  // GET /mcp/validate/:sessionId — SSE stream for server-initiated messages
+  router.get('/mcp/validate/:sessionId', (req, res) => {
+    const orchaSessionId = req.params['sessionId'] ?? '';
+    const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
+
     if (!mcpSessionId) {
-      res.status(400).send('Missing sessionId query param');
+      res.status(400).json({ error: 'Bad Request: Mcp-Session-Id header required for GET' });
       return;
     }
 
-    const transport = transports.get(mcpSessionId);
+    const sessionTransports = transports.get(orchaSessionId);
+    const transport = sessionTransports?.get(mcpSessionId);
     if (!transport) {
-      res.status(404).send('No active SSE session');
+      res.status(404).json({ error: 'No active MCP session' });
       return;
     }
 
-    transport.handlePostMessage(req, res).catch((err) => {
-      console.error('[mcp] error handling POST message:', err);
-      if (!res.headersSent) {
-        res.status(500).send('Internal error');
-      }
+    transport.handleRequest(req, res).catch((err) => {
+      console.error(`[mcp] error handling GET SSE for session ${orchaSessionId}:`, err);
+      if (!res.headersSent) res.status(500).send('Internal error');
+    });
+  });
+
+  // DELETE /mcp/validate/:sessionId — close MCP session
+  router.delete('/mcp/validate/:sessionId', (req, res) => {
+    const orchaSessionId = req.params['sessionId'] ?? '';
+    const mcpSessionId = req.headers['mcp-session-id'] as string | undefined;
+
+    if (!mcpSessionId) {
+      res.status(400).json({ error: 'Bad Request: Mcp-Session-Id header required for DELETE' });
+      return;
+    }
+
+    const sessionTransports = transports.get(orchaSessionId);
+    const transport = sessionTransports?.get(mcpSessionId);
+    if (!transport) {
+      res.status(404).json({ error: 'No active MCP session' });
+      return;
+    }
+
+    transport.handleRequest(req, res).catch((err) => {
+      console.error(`[mcp] error handling DELETE for session ${orchaSessionId}:`, err);
+      if (!res.headersSent) res.status(500).send('Internal error');
     });
   });
 
