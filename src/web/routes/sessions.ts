@@ -23,7 +23,6 @@ import type { Session } from '@orcha/domain';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
 import { ensureSdksInstalled } from '../../sdk-installer.js';
-import { getStoragePaths } from '../../storage/paths.js';
 
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_-]+$/;
@@ -336,20 +335,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
-          // Write .config.json to skip onboarding prompts, pre-approve API keys,
-          // and inject MCP servers. Claude Code reads MCP config from
-          // ~/.claude/.config.json under projects.<projectPath>.mcpServers.
-          const worktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
+          // Write .config.json to skip onboarding prompts and pre-approve API keys.
           const claudeConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
-            projects: {
-              [worktreePath]: {
-                mcpServers,
-                allowedTools: [],
-                hasTrustDialogAccepted: true,
-              },
-            },
           };
           if (modelConfigId) {
             const mc = modelConfigStore.getConfig(modelConfigId);
@@ -747,18 +736,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           settings['mcpServers'] = reopenMcpServers;
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
-          // Rebuild .config.json (onboarding + API key approval + MCP servers)
-          const reopenWorktreePath = join(getStoragePaths().worktreeBaseDir, id);
+          // Rebuild .config.json (onboarding + API key approval)
           const reopenConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
-            projects: {
-              [reopenWorktreePath]: {
-                mcpServers: reopenMcpServers,
-                allowedTools: [],
-                hasTrustDialogAccepted: true,
-              },
-            },
           };
           const reopenModelConfigId = existing.config.modelConfigId;
           if (reopenModelConfigId) {

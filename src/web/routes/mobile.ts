@@ -19,7 +19,6 @@ import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
 import { ensureSdksInstalled } from '../../sdk-installer.js';
-import { getStoragePaths } from '../../storage/paths.js';
 
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_.-]+$/;
@@ -270,18 +269,10 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
           writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
 
-          // Write .config.json with onboarding + MCP servers + API key approval
-          const mobileWorktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
+          // Write .config.json with onboarding + API key approval
           const mobileConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
-            projects: {
-              [mobileWorktreePath]: {
-                mcpServers,
-                allowedTools: [],
-                hasTrustDialogAccepted: true,
-              },
-            },
           };
           if (modelConfig.apiKey) {
             const keyFingerprint = modelConfig.apiKey.slice(-20);
