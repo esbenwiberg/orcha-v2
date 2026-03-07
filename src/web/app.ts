@@ -28,6 +28,7 @@ import { createModelConfigsRouter } from './routes/model-configs.js';
 import { createBootstrapPatsRouter } from './routes/bootstrap-pats.js';
 import { createSdksRouter } from './routes/sdks.js';
 import { createSkillsRouter } from './routes/skills.js';
+import { createAzLoginRouter } from './routes/az-login.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
@@ -64,6 +65,13 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
     cache: process.env['NODE_ENV'] === 'production',
   });
 
+  // MCP validation endpoint — mounted BEFORE body parsers because the MCP SDK's
+  // StreamableHTTPServerTransport reads the raw request stream. express.json()
+  // would consume the stream first, causing the transport to see an empty body.
+  if (deps.validationManager) {
+    app.use(createValidateMcpRouter(deps.db, deps.validationManager));
+  }
+
   // Parse JSON request bodies
   app.use(express.json());
 
@@ -88,11 +96,6 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // Health endpoint — mounted before auth so it is always reachable without credentials
   app.use('/health', createHealthRouter(deps.db));
-
-  // MCP validation endpoint — mounted before auth so sandboxed sessions can reach it
-  if (deps.validationManager) {
-    app.use(createValidateMcpRouter(deps.db, deps.validationManager));
-  }
 
   // Build and mount auth middleware
   const { middleware: authMiddleware, router: authRouter } = await buildAuthMiddleware(
@@ -155,6 +158,9 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
 
   // Global SDKs settings router
   app.use('/api', createSdksRouter(eta, deps));
+
+  // Az login (session-scoped + host-scoped device code flow)
+  app.use('/api', createAzLoginRouter(eta, deps));
 
   // Self-deploy (optional — only if DEPLOY_* env vars are set)
   const deployConfig = loadDeployConfig();

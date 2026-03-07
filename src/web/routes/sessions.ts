@@ -344,6 +344,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           // TOP-LEVEL mcpServers key (user scope). Project trust lives under
           // projects.<cwd>.hasTrustDialogAccepted.
           const worktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
+          const mcpServerNames = Object.keys(mcpServers);
           const claudeConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
@@ -352,6 +353,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
               [worktreePath]: {
                 hasTrustDialogAccepted: true,
                 allowedTools: [],
+                // Pre-approve .mcp.json servers so agents aren't prompted
+                ...(mcpServerNames.length > 0 ? { enabledMcpjsonServers: mcpServerNames } : {}),
               },
             },
           };
@@ -775,6 +778,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
           // Rebuild .config.json — MCP servers at top level, trust under projects key
           const reopenWorktreePath = join(getStoragePaths().worktreeBaseDir, id);
+          const reopenMcpNames = Object.keys(reopenMcpServers);
           const reopenConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
@@ -783,6 +787,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
               [reopenWorktreePath]: {
                 hasTrustDialogAccepted: true,
                 allowedTools: [],
+                ...(reopenMcpNames.length > 0 ? { enabledMcpjsonServers: reopenMcpNames } : {}),
               },
             },
           };

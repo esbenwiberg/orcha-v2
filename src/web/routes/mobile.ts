@@ -273,6 +273,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
 
           // Write .config.json — MCP servers at top level, trust under projects key
           const mobileWorktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
+          const mobileMcpNames = Object.keys(mcpServers);
           const mobileConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
@@ -281,6 +282,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
               [mobileWorktreePath]: {
                 hasTrustDialogAccepted: true,
                 allowedTools: [],
+                ...(mobileMcpNames.length > 0 ? { enabledMcpjsonServers: mobileMcpNames } : {}),
               },
             },
           };
