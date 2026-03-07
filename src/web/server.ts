@@ -4,10 +4,10 @@ import type { AppDeps } from './app.js';
 import { attachWebSocketServer } from './ws/ws-server.js';
 
 export async function startServer(deps: AppDeps, port: number): Promise<http.Server> {
-  const app = await createApp(deps);
+  const { app, validateProxyUpgrade } = await createApp(deps);
   const server = http.createServer(app);
 
-  attachWebSocketServer(server, deps);
+  attachWebSocketServer(server, deps, validateProxyUpgrade);
 
   const registerShutdown = (signal: NodeJS.Signals): void => {
     process.on(signal, () => {

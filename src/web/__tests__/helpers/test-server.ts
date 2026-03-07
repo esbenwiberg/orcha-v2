@@ -90,7 +90,7 @@ export async function createTestServer(
   } as unknown as AppDeps['authTerminalManager'];
   const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig: mergedAuthConfig, authTerminalManager };
 
-  const app = await createApp(deps);
+  const { app } = await createApp(deps);
   const server = http.createServer(app);
   attachWebSocketServer(server, deps);
 

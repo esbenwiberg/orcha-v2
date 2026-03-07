@@ -33,6 +33,7 @@ import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
 import { ValidationManager } from '../validation/validation-manager.js';
+import { createValidateProxy } from './routes/validate-proxy.js';
 import { loadDeployConfig, Deployer } from '../deploy/index.js';
 import { GlobalSettingsStore } from '../db/global-settings-store.js';
 import { setBootstrapPatResolver as setDevOpsBootstrapPatResolver } from '../credentials/providers/devops.js';
@@ -48,7 +49,13 @@ export interface AppDeps {
   validationManager?: ValidationManager;
 }
 
-export async function createApp(deps: AppDeps): Promise<express.Application> {
+export interface CreateAppResult {
+  app: express.Application;
+  /** WebSocket upgrade handler for /validate/:sessionId — wire to server 'upgrade' event. undefined when no ValidationManager. */
+  validateProxyUpgrade: ((req: import('node:http').IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) => boolean) | undefined;
+}
+
+export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
   const app = express();
 
   // Wire bootstrap PAT resolver so DevOps provider reads from DB
@@ -72,11 +79,18 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
     app.use(createValidateMcpRouter(deps.db, deps.validationManager));
   }
 
-  // Parse JSON request bodies
-  app.use(express.json());
-
-  // Parse URL-encoded form bodies (for HTMX form submissions)
-  app.use(express.urlencoded({ extended: false }));
+  // Parse JSON request bodies — skip /validate/ proxy routes so the raw body
+  // is forwarded intact to the proxied app.
+  const jsonParser = express.json();
+  const urlencodedParser = express.urlencoded({ extended: false });
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/validate/')) return next();
+    jsonParser(req, res, next);
+  });
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/validate/')) return next();
+    urlencodedParser(req, res, next);
+  });
 
   // Compress responses, but exclude SSE streams
   app.use(
@@ -113,6 +127,16 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
     app.use(...guardMiddleware);
   } else {
     app.use(...authMiddleware);
+  }
+
+  // Validate proxy — reverse proxy to validation environments.
+  // Mounted after auth (OIDC-protected) and before static/routes so it
+  // doesn't collide with Orcha's own routes.
+  let validateProxyUpgrade: CreateAppResult['validateProxyUpgrade'];
+  if (deps.validationManager) {
+    const vp = createValidateProxy(deps.validationManager);
+    app.use(vp.router);
+    validateProxyUpgrade = vp.handleUpgrade;
   }
 
   // Serve static assets from src/web/public
@@ -181,5 +205,5 @@ export async function createApp(deps: AppDeps): Promise<express.Application> {
   // Error handler must be last (Express identifies 4-argument functions as error handlers)
   app.use(errorHandler());
 
-  return app;
+  return { app, validateProxyUpgrade };
 }

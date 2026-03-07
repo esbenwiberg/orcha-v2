@@ -9,6 +9,8 @@ const WS_TERMINAL_PREFIX = '/ws/terminal/';
 const WS_AUTH_PREFIX = '/ws/auth/';
 const WS_SHELL_PREFIX = '/ws/shell/';
 
+type ValidateProxyUpgrade = (req: http.IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) => boolean;
+
 /**
  * Attach a WebSocket server to an existing HTTP server.
  * WebSocket and HTTP share the same port via the HTTP upgrade mechanism.
@@ -18,12 +20,20 @@ const WS_SHELL_PREFIX = '/ws/shell/';
 export function attachWebSocketServer(
   server: http.Server,
   deps: AppDeps,
+  validateProxyUpgrade?: ValidateProxyUpgrade,
 ): WebSocketServer {
   const wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const pathname = url.pathname;
+
+    // Delegate /validate/ WebSocket upgrades to the validation proxy.
+    // These are HMR/live-reload connections from the proxied app.
+    if (pathname.startsWith('/validate/') && validateProxyUpgrade) {
+      validateProxyUpgrade(req, socket, head);
+      return;
+    }
 
     // Only handle known WS paths — destroy anything else.
     const isTerminal = pathname.startsWith(WS_TERMINAL_PREFIX);
