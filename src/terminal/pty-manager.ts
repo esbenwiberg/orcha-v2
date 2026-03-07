@@ -95,11 +95,13 @@ export class PtyManager {
     const effectiveConfig = sandboxActive
       ? this._sandboxConfig
       : { ...this._sandboxConfig, enabled: false };
+    // Pass session HOME so landlock-exec grants RW access to ~/.claude/
+    const sessionHome = opts.env?.['HOME'];
     const sandboxed = buildSandboxedCommand(
       opts.cwd,
       [opts.command, ...baseArgs],
       effectiveConfig,
-      undefined,
+      sessionHome,
       opts.extraRwPaths,
     );
     const [command = opts.command, ...args] = sandboxed;
