@@ -308,29 +308,6 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const credentialProfiles = credStore.listProfiles();
       const modelConfigs = modelConfigStore.listConfigs();
 
-      // Pre-fetch branches if the preset has a repo
-      let branches: { name: string; isDefault: boolean }[] = [];
-      let defaultBranch: string | undefined;
-      if (preset.repoId) {
-        const repo = repoStore.getRepo(preset.repoId);
-        if (repo?.barePath) {
-          try {
-            await deps.worktreeManager.fetchBareRepo(repo.barePath);
-          } catch (err) {
-            console.warn(`[presets] fetchBareRepo failed for ${preset.repoId}:`, err);
-          }
-          try {
-            const branchNames = await deps.worktreeManager.listRemoteBranches(repo.barePath);
-            defaultBranch = await deps.worktreeManager.getDefaultBranch(repo.barePath);
-            branches = branchNames
-              .filter((b) => b !== 'HEAD')
-              .map((b) => ({ name: b, isDefault: b === defaultBranch }));
-          } catch (err) {
-            console.warn(`[presets] branch list failed for repo ${preset.repoId}:`, err);
-          }
-        }
-      }
-
       const mcpServers = mcpServerStore.listServers();
 
       // Generate a random branch name: feature/<8 random lowercase letters>
@@ -348,8 +325,6 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         credentialProfiles,
         modelConfigs,
         mcpServers,
-        branches,
-        defaultBranch,
         branch,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

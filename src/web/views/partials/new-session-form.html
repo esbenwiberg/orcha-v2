@@ -39,13 +39,22 @@
       Source Branch
       <span id="ns-source-branch-loading" class="htmx-indicator" style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(loading…)</span>
     </label>
-    <select id="ns-source-branch" name="sourceBranch">
+    <select id="ns-source-branch" name="sourceBranch"
+      <% if (it.repoId && !(it.branches && it.branches.length > 0) && !(it.sourceBranch && !it.sourceBranch.startsWith('origin/'))) { %>
+        hx-get="/api/repos/<%= it.repoId %>/branches"
+        hx-trigger="focus once"
+        hx-swap="innerHTML"
+        hx-indicator="#ns-source-branch-loading"
+      <% } %>
+    >
       <% if (it.branches && it.branches.length > 0) { %>
         <% for (const b of it.branches) { %>
           <option value="origin/<%= b.name %>" <%= b.name === (it.defaultBranch ?? '') || ('origin/' + b.name) === (it.sourceBranch ?? '') ? 'selected' : '' %>><%= b.name %><%= b.isDefault ? ' (default)' : '' %></option>
         <% } %>
       <% } else if (it.sourceBranch && !it.sourceBranch.startsWith('origin/')) { %>
         <option value="<%= it.sourceBranch %>" selected>Fork point: <%= it.sourceBranch.slice(0, 12) %>…</option>
+      <% } else if (it.repoId) { %>
+        <option value="origin/main" selected>main (default)</option>
       <% } else { %>
         <option value="">Select a repo first</option>
       <% } %>
@@ -184,11 +193,6 @@
       // Ensure hx-get is set for subsequent repo changes
       repoSelect.setAttribute('hx-get', '/api/repos/' + repoSelect.value + '/branches');
       htmx.process(repoSelect);
-      // If branches weren't pre-loaded server-side, fetch them now
-      var branchSelect = document.getElementById('ns-source-branch');
-      if (branchSelect && branchSelect.options.length <= 1 && branchSelect.options[0].value === '') {
-        htmx.ajax('GET', '/api/repos/' + repoSelect.value + '/branches', {target: branchSelect, swap: 'innerHTML'});
-      }
     })();
   </script>
   <% } %>
