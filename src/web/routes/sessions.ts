@@ -344,7 +344,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           // TOP-LEVEL mcpServers key (user scope). Project trust lives under
           // projects.<cwd>.hasTrustDialogAccepted.
           const worktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
-          const mcpServerNames = Object.keys(mcpServers);
           const claudeConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
@@ -353,8 +352,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
               [worktreePath]: {
                 hasTrustDialogAccepted: true,
                 allowedTools: [],
-                // Pre-approve .mcp.json servers so agents aren't prompted
-                ...(mcpServerNames.length > 0 ? { enabledMcpjsonServers: mcpServerNames } : {}),
               },
             },
           };
@@ -451,28 +448,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         createOpts.repoRoot = repo.barePath;
       }
       const activeSession = await deps.sessionEngine.createSession(createOpts);
-
-      // Write .mcp.json in the worktree root (project-scope MCP discovery).
-      // The PTY is already running but Claude takes seconds to initialise.
-      if (Object.keys(mcpServers).length > 0) {
-        try {
-          const mcpJsonPath = join(activeSession.worktree.path, '.mcp.json');
-          const existingMcp: Record<string, unknown> = {};
-          if (existsSync(mcpJsonPath)) {
-            try {
-              Object.assign(existingMcp, JSON.parse(readFileSync(mcpJsonPath, 'utf8')));
-            } catch { /* ignore malformed */ }
-          }
-          existingMcp['mcpServers'] = {
-            ...((existingMcp['mcpServers'] ?? {}) as Record<string, unknown>),
-            ...mcpServers,
-          };
-          writeFileSync(mcpJsonPath, JSON.stringify(existingMcp, null, 2), 'utf8');
-          console.log(`[sessions] wrote .mcp.json worktree=${activeSession.worktree.path} mcpKeys=${Object.keys(mcpServers).join(',')}`);
-        } catch (err) {
-          console.warn('[sessions] failed to write .mcp.json:', err);
-        }
-      }
 
       // Persist provisioned credentials with the session ID now that we have it
       if (provisionedCreds && activeSession.dbSessionId) {
@@ -778,7 +753,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
           // Rebuild .config.json — MCP servers at top level, trust under projects key
           const reopenWorktreePath = join(getStoragePaths().worktreeBaseDir, id);
-          const reopenMcpNames = Object.keys(reopenMcpServers);
           const reopenConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
@@ -787,7 +761,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
               [reopenWorktreePath]: {
                 hasTrustDialogAccepted: true,
                 allowedTools: [],
-                ...(reopenMcpNames.length > 0 ? { enabledMcpjsonServers: reopenMcpNames } : {}),
               },
             },
           };
@@ -826,38 +799,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const activeSession = await deps.sessionEngine.reopenSession(id);
-
-      // Write .mcp.json in the worktree root (project-scope MCP discovery)
-      const reopenMcpForProject: Record<string, unknown> = {};
-      const savedMcpIdsForProject = existing.config.mcpServerIds ?? [];
-      if (savedMcpIdsForProject.length > 0) {
-        const entries = mcpServerStore.getSettingsEntries(savedMcpIdsForProject);
-        Object.assign(reopenMcpForProject, entries);
-      }
-      const orchaPortReopen = process.env['PORT'] ?? '3000';
-      reopenMcpForProject['validate'] = {
-        type: 'http',
-        url: `http://localhost:${orchaPortReopen}/mcp/validate/${id}`,
-      };
-      if (Object.keys(reopenMcpForProject).length > 0) {
-        try {
-          const mcpJsonPath = join(activeSession.worktree.path, '.mcp.json');
-          const existingMcp: Record<string, unknown> = {};
-          if (existsSync(mcpJsonPath)) {
-            try {
-              Object.assign(existingMcp, JSON.parse(readFileSync(mcpJsonPath, 'utf8')));
-            } catch { /* ignore malformed */ }
-          }
-          existingMcp['mcpServers'] = {
-            ...((existingMcp['mcpServers'] ?? {}) as Record<string, unknown>),
-            ...reopenMcpForProject,
-          };
-          writeFileSync(mcpJsonPath, JSON.stringify(existingMcp, null, 2), 'utf8');
-          console.log(`[sessions] wrote .mcp.json on reopen worktree=${activeSession.worktree.path}`);
-        } catch (err) {
-          console.warn('[sessions] failed to write .mcp.json on reopen:', err);
-        }
-      }
 
       eventBus.publish({ sessionId: activeSession.sessionId, type: 'status', status: 'running' });
 

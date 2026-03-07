@@ -273,7 +273,6 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
 
           // Write .config.json — MCP servers at top level, trust under projects key
           const mobileWorktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
-          const mobileMcpNames = Object.keys(mcpServers);
           const mobileConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
@@ -282,7 +281,6 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
               [mobileWorktreePath]: {
                 hasTrustDialogAccepted: true,
                 allowedTools: [],
-                ...(mobileMcpNames.length > 0 ? { enabledMcpjsonServers: mobileMcpNames } : {}),
               },
             },
           };
@@ -343,27 +341,6 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const activeSession = await deps.sessionEngine.createSession(createOpts);
-
-      // Write .mcp.json in the worktree root (project-scope MCP discovery)
-      if (Object.keys(mcpServers).length > 0) {
-        try {
-          const mcpJsonPath = join(activeSession.worktree.path, '.mcp.json');
-          const existingMcp: Record<string, unknown> = {};
-          if (existsSync(mcpJsonPath)) {
-            try {
-              Object.assign(existingMcp, JSON.parse(readFileSync(mcpJsonPath, 'utf8')));
-            } catch { /* ignore malformed */ }
-          }
-          existingMcp['mcpServers'] = {
-            ...((existingMcp['mcpServers'] ?? {}) as Record<string, unknown>),
-            ...mcpServers,
-          };
-          writeFileSync(mcpJsonPath, JSON.stringify(existingMcp, null, 2), 'utf8');
-          console.log(`[mobile] wrote .mcp.json worktree=${activeSession.worktree.path}`);
-        } catch (err) {
-          console.warn('[mobile] failed to write .mcp.json:', err);
-        }
-      }
 
       // Persist credential records
       if (provisionedCreds && activeSession.dbSessionId) {
