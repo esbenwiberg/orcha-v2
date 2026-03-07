@@ -23,6 +23,7 @@ import type { Session } from '@orcha/domain';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
 import { ensureSdksInstalled } from '../../sdk-installer.js';
+import { getStoragePaths } from '../../storage/paths.js';
 
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_-]+$/;
@@ -337,10 +338,21 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           console.log(`[sessions] writing settings.json sessionId=${sessionId} mcpKeys=${Object.keys(mcpServers).join(',')} size=${settingsJson.length}`);
           writeFileSync(join(claudeDir, 'settings.json'), settingsJson, 'utf8');
 
-          // Write .config.json to skip onboarding prompts and pre-approve API keys.
+          // Write .config.json — trust the project dir, pre-approve API keys,
+          // and inject MCP servers at the project level.
+          // Claude Code stores project-level MCP config and trust state in
+          // ~/.claude/.config.json under projects.<cwd>.
+          const worktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
           const claudeConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
+            projects: {
+              [worktreePath]: {
+                mcpServers,
+                hasTrustDialogAccepted: true,
+                allowedTools: [],
+              },
+            },
           };
           if (modelConfigId) {
             const mc = modelConfigStore.getConfig(modelConfigId);
@@ -738,10 +750,18 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           settings['mcpServers'] = reopenMcpServers;
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
-          // Rebuild .config.json (onboarding + API key approval)
+          // Rebuild .config.json (onboarding + API key + trust + project MCP servers)
+          const reopenWorktreePath = join(getStoragePaths().worktreeBaseDir, id);
           const reopenConfig: Record<string, unknown> = {
             hasCompletedOnboarding: true,
             theme: 'dark',
+            projects: {
+              [reopenWorktreePath]: {
+                mcpServers: reopenMcpServers,
+                hasTrustDialogAccepted: true,
+                allowedTools: [],
+              },
+            },
           };
           const reopenModelConfigId = existing.config.modelConfigId;
           if (reopenModelConfigId) {
