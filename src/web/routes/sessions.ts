@@ -333,7 +333,9 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             settings['permissions'] = perms;
           }
 
-          writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+          const settingsJson = JSON.stringify(settings);
+          console.log(`[sessions] writing settings.json sessionId=${sessionId} mcpKeys=${Object.keys(mcpServers).join(',')} size=${settingsJson.length}`);
+          writeFileSync(join(claudeDir, 'settings.json'), settingsJson, 'utf8');
 
           // Write .config.json to skip onboarding prompts and pre-approve API keys.
           const claudeConfig: Record<string, unknown> = {
