@@ -202,6 +202,24 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // POST /tasks/:id/retry-execute — re-run execution only (keeps investigation/enrichment)
+  router.post('/tasks/:id/retry-execute', (req, res, next) => {
+    try {
+      const task = taskStore.getTask(req.params['id']!);
+      if (!task) {
+        res.status(404).send('Task not found');
+        return;
+      }
+      // Clear error but keep enrichment/investigation results and worktree
+      taskStore.updateTask(task.id, { errorMessage: '' });
+      taskStore.transition(task.id, 'queued', 'Retry execution only — skipping investigation/enrichment');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.status(204).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // POST /tasks/:id/force-enrich — override rejected → enriching
   router.post('/tasks/:id/force-enrich', (req, res, next) => {
     try {

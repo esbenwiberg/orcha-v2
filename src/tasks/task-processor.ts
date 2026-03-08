@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type Database from 'better-sqlite3';
@@ -6,7 +6,12 @@ import { TaskStore } from '../db/task-store.js';
 import { RepoStore } from '../db/repo-store.js';
 import { McpServerStore } from '../db/mcp-server-store.js';
 import { ModelConfigStore } from '../db/model-config-store.js';
+import { GlobalSettingsStore } from '../db/global-settings-store.js';
 import { buildModelEnv, ENV_DELETE } from '../model-config/env-builder.js';
+import { readSettingsFromDb } from '../web/routes/claude-settings-db.js';
+import { buildSessionClaudeMd } from '../web/routes/claude-files.js';
+import { loadSkills } from '../web/routes/skills.js';
+import { getStoragePaths } from '../storage/paths.js';
 import type { SessionManager } from '../terminal/session-manager.js';
 import type { WorktreeManager, WorktreeInfo } from '../terminal/worktree-manager.js';
 import type { Task } from '../domain/task-types.js';
@@ -38,6 +43,7 @@ export class TaskProcessor {
   #repoStore: RepoStore;
   #mcpServerStore: McpServerStore;
   #modelConfigStore: ModelConfigStore;
+  #globalSettingsStore: GlobalSettingsStore;
   #sessionManager: SessionManager;
   #worktreeManager: WorktreeManager;
   #db: Database.Database;
@@ -50,6 +56,7 @@ export class TaskProcessor {
     this.#repoStore = new RepoStore(deps.db);
     this.#mcpServerStore = new McpServerStore(deps.db);
     this.#modelConfigStore = new ModelConfigStore(deps.db);
+    this.#globalSettingsStore = new GlobalSettingsStore(deps.db);
     this.#sessionManager = deps.sessionManager;
     this.#worktreeManager = deps.worktreeManager;
   }
@@ -178,20 +185,10 @@ export class TaskProcessor {
   async #runExecution(task: Task): Promise<void> {
     // Resolve existing worktree (if any) for reuse
     const worktree = task.worktreePath ? await this.#resolveWorktree(task) : undefined;
+    const worktreePath = worktree?.path ?? join(getStoragePaths().worktreeBaseDir, `task-${task.id}`);
 
-    // Resolve model config env (API key, OAuth HOME, etc.) — same as investigation/enrichment
-    const modelEnv = this.#resolveModelEnv(task);
-    const env: Record<string, string> = {};
-    const deleteEnv: string[] = [];
-    for (const [k, v] of Object.entries(modelEnv)) {
-      if (v === ENV_DELETE) {
-        deleteEnv.push(k);
-      } else {
-        env[k] = v;
-      }
-    }
-    const homeDir = env['HOME'];
-    const mc = task.modelConfigId ? this.#modelConfigStore.getConfig(task.modelConfigId) : undefined;
+    // Build full execution environment (HOME dir, env vars, deleteEnv)
+    const { env, deleteEnv, homeDir, modelProvider } = this.#setupExecutionEnv(task, worktreePath);
 
     console.log('[task-processor] TASK-%d execution starting (worktree=%s hasApiKey=%s homeDir=%s)',
       task.displayId, worktree ? worktree.path : 'new', 'ANTHROPIC_API_KEY' in env, homeDir ?? 'none');
@@ -211,7 +208,7 @@ export class TaskProcessor {
         ...(Object.keys(env).length > 0 ? { env } : {}),
         ...(deleteEnv.length > 0 ? { deleteEnv } : {}),
         ...(homeDir !== undefined ? { homeDir } : {}),
-        ...(mc !== undefined ? { modelProvider: mc.provider } : {}),
+        ...(modelProvider !== undefined ? { modelProvider } : {}),
       });
 
       console.log('[task-processor] TASK-%d execution session created: sessionId=%s',
@@ -220,10 +217,24 @@ export class TaskProcessor {
       // Wait for session to complete (non-blocking for the event loop)
       const exitCode = await waitForSessionExit(session);
 
-      console.log('[task-processor] TASK-%d execution session exited: code=%d', task.displayId, exitCode);
+      // Log output buffer size for diagnostics
+      const outputSnapshot = session.outputBuffer.snapshot().toString('utf8');
+      console.log('[task-processor] TASK-%d execution session exited: code=%d outputBytes=%d',
+        task.displayId, exitCode, outputSnapshot.length);
 
       // Persist refreshed OAuth credentials (if any)
       this.#persistRefreshedCredentials(task);
+
+      // Detect silent failures — if Claude produced almost no output, it likely
+      // failed to start or authenticate (the "Starting claude..." prefix is ~40 chars).
+      const STARTING_PREFIX_LEN = 50; // "Starting claude..." + ANSI codes
+      if (outputSnapshot.length < STARTING_PREFIX_LEN + 100) {
+        const tail = outputSnapshot.replace(/[\x00-\x1f]/g, ' ').trim().slice(-200);
+        console.error('[task-processor] TASK-%d silent failure — output too small (%d bytes). Tail: %s',
+          task.displayId, outputSnapshot.length, tail);
+        this.#fail(task.id, `Execution produced no meaningful output (${outputSnapshot.length} bytes) — Claude likely failed to start or authenticate. Check model config credentials.`);
+        return;
+      }
 
       // Extract PR URL and preview URL from terminal output
       const prUrl = extractPrUrl(session);
@@ -368,6 +379,129 @@ export class TaskProcessor {
     }
 
     return env;
+  }
+
+  /**
+   * Build a full execution environment for the task session, mirroring what
+   * the session route does for user-created sessions. This includes:
+   * - Model config env vars (API key or OAuth HOME)
+   * - Full HOME dir setup: .config.json (MCP, trust, onboarding),
+   *   settings.json (permissions, MCP), .credentials.json, .gitconfig,
+   *   .git-credentials, CLAUDE.md, skills
+   */
+  #setupExecutionEnv(task: Task, worktreePath: string): {
+    env: Record<string, string>;
+    deleteEnv: string[];
+    homeDir: string | undefined;
+    modelProvider: string | undefined;
+  } {
+    const mc = task.modelConfigId ? this.#modelConfigStore.getConfig(task.modelConfigId) : undefined;
+    const env: Record<string, string> = {};
+    const deleteEnv: string[] = [];
+
+    // Apply model config env vars (API key, base URL, etc.)
+    if (mc) {
+      const raw = buildModelEnv(mc);
+      for (const [k, v] of Object.entries(raw)) {
+        if (v === ENV_DELETE) {
+          deleteEnv.push(k);
+        } else {
+          env[k] = v;
+        }
+      }
+    }
+
+    // Always create a per-task HOME so we can configure Claude properly
+    const taskHome = `/tmp/orcha-task-home-${task.id}`;
+    const claudeDir = join(taskHome, '.claude');
+    mkdirSync(claudeDir, { recursive: true });
+
+    // 1. Copy host .gitconfig (safe.directory, fileMode settings)
+    const srcGitconfig = join(homedir(), '.gitconfig');
+    if (existsSync(srcGitconfig)) {
+      try { copyFileSync(srcGitconfig, join(taskHome, '.gitconfig')); } catch { /* ignore */ }
+    }
+
+    // 2. Append git user identity from global settings
+    const gitUserName = this.#globalSettingsStore.get('git.user.name');
+    const gitUserEmail = this.#globalSettingsStore.get('git.user.email');
+    if (gitUserName || gitUserEmail) {
+      let section = '\n[user]\n';
+      if (gitUserName) section += `\tname = ${gitUserName}\n`;
+      if (gitUserEmail) section += `\temail = ${gitUserEmail}\n`;
+      try { appendFileSync(join(taskHome, '.gitconfig'), section); } catch { /* ignore */ }
+    }
+
+    // 3. Generate .git-credentials from env (GH_TOKEN for git push)
+    const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'];
+    if (ghToken) {
+      writeFileSync(join(taskHome, '.git-credentials'), `https://oauth2:${ghToken}@github.com\n`);
+    }
+
+    // 4. Build settings.json with permissions, theme, MCP servers
+    const settings: Record<string, unknown> = readSettingsFromDb(this.#globalSettingsStore);
+    if (!('theme' in settings)) settings['theme'] = 'dark';
+
+    // Build MCP servers map
+    const mcpServers: Record<string, unknown> = {};
+    if (task.mcpServerIds.length > 0) {
+      const entries = this.#mcpServerStore.getSettingsEntries(task.mcpServerIds);
+      Object.assign(mcpServers, entries);
+    }
+    // Inject validate MCP server
+    const orchaPort = process.env['PORT'] ?? '3000';
+    mcpServers['validate'] = {
+      type: 'http',
+      url: `http://localhost:${orchaPort}/mcp/validate/${task.id}`,
+    };
+    settings['mcpServers'] = mcpServers;
+    writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+
+    // 5. Build .config.json — MCP servers, trust, onboarding, API key fingerprints
+    const claudeConfig: Record<string, unknown> = {
+      hasCompletedOnboarding: true,
+      theme: 'dark',
+      mcpServers,
+      projects: {
+        [worktreePath]: {
+          hasTrustDialogAccepted: true,
+          allowedTools: [],
+        },
+      },
+    };
+    if (mc?.apiKey) {
+      const keyFingerprint = mc.apiKey.slice(-20);
+      claudeConfig['customApiKeyResponses'] = { approved: [keyFingerprint], rejected: [] };
+    }
+    writeFileSync(join(claudeDir, '.config.json'), JSON.stringify(claudeConfig), 'utf8');
+
+    // 6. Write CLAUDE.md (merged with soul.md)
+    const mergedClaudeMd = buildSessionClaudeMd(this.#globalSettingsStore);
+    if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
+
+    // 7. Write skills
+    const skills = loadSkills(this.#globalSettingsStore);
+    for (const skill of skills) {
+      const skillDir = join(claudeDir, 'skills', skill.name);
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(join(skillDir, 'SKILL.md'), skill.content, 'utf8');
+    }
+
+    // 8. Write OAuth credentials if available
+    if (mc?.credentialsJson) {
+      writeFileSync(join(claudeDir, '.credentials.json'), mc.credentialsJson, 'utf8');
+    }
+
+    env['HOME'] = taskHome;
+    console.log('[task-processor] TASK-%d execution HOME=%s mcpServers=%s hasCredentials=%s',
+      task.displayId, taskHome, Object.keys(mcpServers).join(','), !!mc?.credentialsJson);
+
+    return {
+      env,
+      deleteEnv,
+      homeDir: taskHome,
+      modelProvider: mc?.provider,
+    };
   }
 
   /**

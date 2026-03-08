@@ -77,6 +77,13 @@
         hx-swap="none"
       >Retry</button>
     <% } %>
+    <% if ((it.task.status === 'done' || it.task.status === 'failed') && it.task.enrichmentResult) { %>
+      <button class="btn btn-xs btn-ghost"
+        hx-post="/api/tasks/<%= it.task.id %>/retry-execute"
+        hx-swap="none"
+        hx-confirm="Re-run execution? Investigation and enrichment results will be preserved."
+      >Retry Execute</button>
+    <% } %>
     <% if (it.task.status !== 'done' && it.task.status !== 'cancelled' && it.task.status !== 'failed') { %>
       <button class="btn btn-xs btn-ghost text-red-400"
         hx-post="/api/tasks/<%= it.task.id %>/cancel"

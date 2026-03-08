@@ -59,13 +59,21 @@
     <% if (it.task.prUrl) { %>
       <a href="<%= it.task.prUrl %>" target="_blank" class="btn btn-xs btn-ghost" title="View PR">PR</a>
     <% } %>
-    <% if (it.task.status !== 'done' && it.task.status !== 'cancelled') { %>
+    <% if (it.task.status !== 'done' && it.task.status !== 'cancelled' && it.task.status !== 'failed') { %>
       <button
         class="btn btn-xs btn-ghost text-red-400"
         hx-post="/api/tasks/<%= it.task.id %>/cancel"
         hx-swap="none"
         hx-confirm="Cancel this task?"
       >Cancel</button>
+    <% } %>
+    <% if (it.task.status === 'done' || it.task.status === 'cancelled' || it.task.status === 'failed') { %>
+      <button
+        class="btn btn-xs btn-ghost text-red-400"
+        hx-delete="/api/tasks/<%= it.task.id %>"
+        hx-swap="none"
+        hx-confirm="Delete this task permanently?"
+      >Delete</button>
     <% } %>
   </td>
 </tr>
