@@ -129,6 +129,8 @@ export class TaskProcessor {
         ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
       });
 
+      this.#persistRefreshedCredentials(task);
+
       console.log('[task-processor] TASK-%d investigation complete: rating=%s summary=%s',
         task.displayId, result.rating, result.summary.slice(0, 100));
 
@@ -160,6 +162,8 @@ export class TaskProcessor {
         cwd: worktree.path,
         ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
       });
+
+      this.#persistRefreshedCredentials(task);
 
       console.log('[task-processor] TASK-%d enrichment complete: complexity=%s files=%d',
         task.displayId, result.complexity, result.affectedFiles.length);
@@ -338,6 +342,29 @@ export class TaskProcessor {
     }
 
     return env;
+  }
+
+  /**
+   * After a spawn completes, read back the credentials file from the temp HOME.
+   * Claude CLI may have refreshed the OAuth token (rotating the refresh token),
+   * so we persist the updated credentials to the DB to avoid 401s after restart.
+   */
+  #persistRefreshedCredentials(task: Task): void {
+    if (!task.modelConfigId) return;
+    const mc = this.#modelConfigStore.getConfig(task.modelConfigId);
+    if (!mc?.credentialsJson) return;
+
+    const credsPath = join(`/tmp/orcha-task-home-${task.id}`, '.claude', '.credentials.json');
+    try {
+      if (!existsSync(credsPath)) return;
+      const updated = readFileSync(credsPath, 'utf8');
+      if (updated && updated !== mc.credentialsJson) {
+        this.#modelConfigStore.updateConfig(task.modelConfigId, { credentialsJson: updated });
+        console.log('[task-processor] TASK-%d persisted refreshed OAuth credentials', task.displayId);
+      }
+    } catch (err) {
+      console.warn('[task-processor] TASK-%d failed to persist refreshed credentials: %s', task.displayId, err);
+    }
   }
 
   #fail(taskId: string, message: string): void {
