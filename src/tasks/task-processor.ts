@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import type Database from 'better-sqlite3';
 import { TaskStore } from '../db/task-store.js';
 import { RepoStore } from '../db/repo-store.js';
@@ -217,9 +218,14 @@ export class TaskProcessor {
    * the path on the task row, and returns the WorktreeInfo.
    */
   async #ensureWorktree(task: Task): Promise<WorktreeInfo | undefined> {
-    // Already have a worktree path — resolve it
-    if (task.worktreePath) {
+    // If we have a stored path and it still exists on disk, reuse it
+    if (task.worktreePath && existsSync(task.worktreePath)) {
       return this.#resolveWorktree(task);
+    }
+
+    // Stored path is stale (e.g. container restart wiped /tmp) — clear it
+    if (task.worktreePath) {
+      console.warn('[task-processor] TASK-%d stale worktree path %s — recreating', task.displayId, task.worktreePath);
     }
 
     const repo = this.#repoStore.getRepo(task.repoId);

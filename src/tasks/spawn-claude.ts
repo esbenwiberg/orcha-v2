@@ -94,7 +94,15 @@ export function spawnClaude(opts: SpawnClaudeOptions): Promise<SpawnClaudeResult
     }, 5_000);
   }, timeoutMs);
 
-  return new Promise<SpawnClaudeResult>((resolve) => {
+  return new Promise<SpawnClaudeResult>((resolve, reject) => {
+    // Handle spawn failures (ENOENT if claude not found or cwd doesn't exist)
+    proc.on('error', (err) => {
+      clearTimeout(timer);
+      rl.close();
+      console.error('[spawn-claude] TASK-%d %s spawn error: %s', displayId, phase, err.message);
+      reject(new Error(`Failed to spawn claude: ${err.message}`));
+    });
+
     proc.on('close', (code) => {
       clearTimeout(timer);
       rl.close();
