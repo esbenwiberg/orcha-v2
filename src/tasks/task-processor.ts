@@ -76,25 +76,32 @@ export class TaskProcessor {
     this.#interval = setInterval(() => void this.tick(), intervalMs);
   }
 
-  /** Transition tasks stuck in executing/investigating/enriching to failed on startup. */
+  /** Transition tasks stuck in executing/investigating/enriching on startup. */
   #reconcileOrphanedTasks(): void {
     const activeStatuses = ['executing', 'investigating', 'enriching'] as const;
-    let count = 0;
+    let failCount = 0;
+    let doneCount = 0;
     for (const status of activeStatuses) {
       const tasks = this.#taskStore.listTasks({ status });
       for (const task of tasks) {
         try {
-          this.#taskStore.updateTask(task.id, { errorMessage: `Task was in '${status}' state when the container restarted` });
-          this.#taskStore.transition(task.id, 'failed', `Orphaned in '${status}' — container restarted`);
-          count++;
+          // If the task was executing and already has a PR URL, it likely
+          // completed its work before the container was killed — mark done
+          if (status === 'executing' && task.prUrl) {
+            this.#taskStore.transition(task.id, 'done', 'Container restarted, but PR was already created — marking done');
+            doneCount++;
+          } else {
+            this.#taskStore.updateTask(task.id, { errorMessage: `Task was in '${status}' state when the container restarted` });
+            this.#taskStore.transition(task.id, 'failed', `Orphaned in '${status}' — container restarted`);
+            failCount++;
+          }
         } catch {
           // Transition may fail if state doesn't allow it
         }
       }
     }
-    if (count > 0) {
-      console.log('[task-processor] reconciled %d orphaned task(s) → failed', count);
-    }
+    if (failCount > 0) console.log('[task-processor] reconciled %d orphaned task(s) → failed', failCount);
+    if (doneCount > 0) console.log('[task-processor] reconciled %d orphaned task(s) → done (PR exists)', doneCount);
   }
 
   stop(): void {

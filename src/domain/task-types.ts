@@ -140,6 +140,6 @@ export const TASK_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   queued: ['executing', 'cancelled'],
   executing: ['done', 'failed', 'cancelled'],
   done: ['queued'],
-  failed: ['draft', 'queued', 'cancelled'],
+  failed: ['draft', 'queued', 'done', 'cancelled'],
   cancelled: ['draft'],
 };

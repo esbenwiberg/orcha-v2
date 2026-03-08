@@ -77,6 +77,12 @@
         hx-swap="none"
       >Retry</button>
     <% } %>
+    <% if (it.task.status === 'failed') { %>
+      <button class="btn btn-xs btn-success"
+        hx-post="/api/tasks/<%= it.task.id %>/mark-done"
+        hx-swap="none"
+      >Mark Done</button>
+    <% } %>
     <% if ((it.task.status === 'done' || it.task.status === 'failed') && it.task.enrichmentResult) { %>
       <button class="btn btn-xs btn-ghost"
         hx-post="/api/tasks/<%= it.task.id %>/retry-execute"

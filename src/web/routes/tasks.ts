@@ -252,6 +252,23 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // POST /tasks/:id/mark-done — manually mark a failed task as done
+  router.post('/tasks/:id/mark-done', (req, res, next) => {
+    try {
+      const task = taskStore.getTask(req.params['id']!);
+      if (!task) {
+        res.status(404).send('Task not found');
+        return;
+      }
+      taskStore.updateTask(task.id, { errorMessage: '' });
+      taskStore.transition(task.id, 'done', 'Manually marked done by user');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.status(204).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // DELETE /tasks/:id
   router.delete('/tasks/:id', (req, res, next) => {
     try {
