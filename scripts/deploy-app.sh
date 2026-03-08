@@ -85,6 +85,11 @@ info "Checking Azure login..."
 az account show --output none 2>/dev/null || die "Not logged in to Azure. Run: az login"
 ok "Azure login confirmed"
 
+# ── Set subscription ─────────────────────────────────────────────────────────
+info "Setting subscription to Projectum_Playground..."
+az account set --subscription "Projectum_Playground"
+ok "Subscription: Projectum_Playground"
+
 # ── ACR login ─────────────────────────────────────────────────────────────────
 ACR_SERVER=$(az acr show --name "${ACR_NAME}" --query loginServer -o tsv)
 
