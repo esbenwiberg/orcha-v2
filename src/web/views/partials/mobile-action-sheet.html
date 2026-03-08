@@ -3,7 +3,7 @@
   <div class="action-sheet-panel">
     <div class="action-sheet-header">
       <span class="action-sheet-branch"><%= it.branch %></span>
-      <span class="badge badge--<%= it.status %>"><%= it.status %></span>
+      <% const _bm = { pending:'badge-neutral', starting:'badge-warning badge-dot badge-pulse', running:'badge-success badge-dot badge-pulse', paused:'badge-accent', completed:'badge-success', failed:'badge-error', cancelled:'badge-neutral' }; %><span class="badge <%= _bm[it.status] || 'badge-neutral' %>"><%= it.status %></span>
     </div>
     <div class="action-sheet-actions">
       <% if (it.status === 'running' || it.status === 'pending') { %>

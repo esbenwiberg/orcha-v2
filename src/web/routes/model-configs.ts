@@ -62,11 +62,11 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
       const provider = getField('provider').trim();
 
       if (!name) {
-        res.status(422).send('<div class="badge badge--failed">Name is required</div>');
+        res.status(422).send('<div class="badge badge-error">Name is required</div>');
         return;
       }
       if (!VALID_PROVIDERS.has(provider)) {
-        res.status(422).send('<div class="badge badge--failed">Invalid provider</div>');
+        res.status(422).send('<div class="badge badge-error">Invalid provider</div>');
         return;
       }
 
@@ -81,7 +81,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         try {
           baseUrl = normalizeBaseUrl(baseUrl);
         } catch {
-          res.status(422).send('<div class="badge badge--failed">Invalid Base URL — must be a valid URL (e.g. http://host:11434)</div>');
+          res.status(422).send('<div class="badge badge-error">Invalid Base URL — must be a valid URL (e.g. http://host:11434)</div>');
           return;
         }
       }
@@ -133,7 +133,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
 
       if (config === undefined) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(404).send('<div class="badge badge--failed">Config not found</div>');
+        res.status(404).send('<div class="badge badge-error">Config not found</div>');
         return;
       }
 
@@ -170,11 +170,11 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
       const provider = getField('provider').trim();
 
       if (!name) {
-        res.status(422).send('<div class="badge badge--failed">Name is required</div>');
+        res.status(422).send('<div class="badge badge-error">Name is required</div>');
         return;
       }
       if (!VALID_PROVIDERS.has(provider)) {
-        res.status(422).send('<div class="badge badge--failed">Invalid provider</div>');
+        res.status(422).send('<div class="badge badge-error">Invalid provider</div>');
         return;
       }
 
@@ -189,7 +189,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         try {
           baseUrl = normalizeBaseUrl(baseUrl);
         } catch {
-          res.status(422).send('<div class="badge badge--failed">Invalid Base URL — must be a valid URL (e.g. http://host:11434)</div>');
+          res.status(422).send('<div class="badge badge-error">Invalid Base URL — must be a valid URL (e.g. http://host:11434)</div>');
           return;
         }
       }
@@ -253,7 +253,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
       const id = req.params['id'] ?? '';
       const config = store.getConfig(id);
       if (config === undefined) {
-        res.status(404).send('<div class="badge badge--failed">Config not found</div>');
+        res.status(404).send('<div class="badge badge-error">Config not found</div>');
         return;
       }
 
@@ -301,8 +301,8 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
 
         const html =
           '<div id="auth-status-indicator">' +
-          '<span class="badge badge--running">Authenticated</span>' +
-          '<p class="text-xs text-muted" style="margin-top:0.5rem">Credentials saved. You can close this panel.</p>' +
+          '<span class="badge badge-success">Authenticated</span>' +
+          '<p class="text-xs text-muted mt-2">Credentials saved. You can close this panel.</p>' +
           '</div>';
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(200).send(html);
@@ -316,7 +316,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
 
       // Still waiting — re-render a polling indicator, with URL button if found.
       const urlHtml = loginUrl !== undefined
-        ? `<div style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">` +
+        ? `<div class="mt-2 flex gap-2 items-center flex-wrap">` +
           `<a href="${loginUrl}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">Open login URL</a>` +
           `<button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(${JSON.stringify(loginUrl)}).then(()=>{this.textContent='Copied!';setTimeout(()=>{this.textContent='Copy URL'},2000)})">Copy URL</button>` +
           `</div>`
@@ -326,7 +326,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         `<div id="auth-status-indicator"` +
         ` hx-get="/api/model-configs/${id}/auth/status?token=${token}"` +
         ` hx-trigger="every 2s" hx-swap="outerHTML">` +
-        `<span class="badge badge--paused">Waiting for login…</span>` +
+        `<span class="badge badge-accent">Waiting for login…</span>` +
         urlHtml +
         `</div>`;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

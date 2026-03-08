@@ -6,20 +6,20 @@
   <% } %>
 >
   <td>
-    <span style="font-weight:500;color:var(--color-text-primary)"><%= it.repo.displayName %></span>
+    <span class="font-medium text-slate-50"><%= it.repo.displayName %></span>
   </td>
   <td>
     <span class="font-mono text-xs text-muted" title="<%= it.repo.url %>"><%= it.repo.url %></span>
   </td>
   <td>
     <% if (it.repo.status === 'ready') { %>
-      <span class="badge badge--running">ready</span>
+      <span class="badge badge-success">ready</span>
     <% } else if (it.repo.status === 'cloning') { %>
-      <span class="badge badge--starting">cloning</span>
+      <span class="badge badge-warning badge-dot badge-pulse">cloning</span>
     <% } else if (it.repo.status === 'error') { %>
-      <span class="badge badge--failed" title="<%= it.repo.error ?? '' %>">error</span>
+      <span class="badge badge-error" title="<%= it.repo.error ?? '' %>">error</span>
     <% } else { %>
-      <span class="badge badge--pending">pending</span>
+      <span class="badge badge-neutral">pending</span>
     <% } %>
   </td>
   <td class="data-table__actions">

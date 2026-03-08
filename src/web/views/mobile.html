@@ -7,9 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title><%= it.title ?? 'Orcha' %></title>
-    <link rel="stylesheet" href="/css/tokens.css" />
-    <link rel="stylesheet" href="/css/components.css" />
-    <link rel="stylesheet" href="/css/mobile.css" />
+    <link rel="stylesheet" href="/css/styles.css" />
     <link rel="stylesheet" href="/vendor/xterm.css" />
     <script src="/vendor/htmx.min.js" defer></script>
     <script src="/vendor/htmx-ext-sse.js" defer></script>
@@ -65,7 +63,7 @@
 
       <!-- Terminal area — two layers: terminal persists, content swaps -->
       <main id="mobile-terminal-area" aria-label="Terminal area">
-        <div id="mobile-terminal-layer" style="display:none"></div>
+        <div id="mobile-terminal-layer" class="hidden"></div>
         <div id="mobile-content-layer">
           <div id="mobile-content-slot">
             <p class="mobile-placeholder-text">Select a session to begin</p>

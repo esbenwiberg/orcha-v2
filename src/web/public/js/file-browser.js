@@ -100,9 +100,9 @@
   async function setEditorContent(content, ext, readOnly) {
     var container = document.getElementById('fb-editor-container');
     if (!container) return;
-    container.style.display = '';
-    document.getElementById('fb-editor-empty').style.display = 'none';
-    document.getElementById('fb-editor-message').style.display = 'none';
+    container.classList.remove('hidden');
+    document.getElementById('fb-editor-empty').classList.add('hidden');
+    document.getElementById('fb-editor-message').classList.add('hidden');
 
     await ensureCM();
 
@@ -147,10 +147,10 @@
     var el = document.getElementById('fb-editor-message');
     if (el) {
       el.textContent = msg;
-      el.style.display = 'flex';
+      el.classList.remove('hidden');
     }
-    document.getElementById('fb-editor-container').style.display = 'none';
-    document.getElementById('fb-editor-empty').style.display = 'none';
+    document.getElementById('fb-editor-container').classList.add('hidden');
+    document.getElementById('fb-editor-empty').classList.add('hidden');
   }
 
   function updateBreadcrumb(path) {
@@ -215,10 +215,10 @@
     var isOpen = folder.classList.contains('is-open');
     if (isOpen) {
       folder.classList.remove('is-open');
-      children.style.display = 'none';
+      children.classList.add('hidden');
     } else {
       folder.classList.add('is-open');
-      children.style.display = '';
+      children.classList.remove('hidden');
       // Lazy-load if empty
       if (!children.dataset.loaded) {
         var path = btn.dataset.path;
@@ -256,8 +256,8 @@
     isDirty = false;
     var editToggle = document.getElementById('fb-edit-toggle');
     var saveBtn = document.getElementById('fb-save-btn');
-    if (editToggle) { editToggle.style.display = ''; editToggle.textContent = 'Edit'; }
-    if (saveBtn) saveBtn.style.display = 'none';
+    if (editToggle) { editToggle.classList.remove('hidden'); editToggle.textContent = 'Edit'; }
+    if (saveBtn) saveBtn.classList.add('hidden');
 
     currentPath = path;
     updateBreadcrumb(path);
@@ -266,7 +266,7 @@
     var body = document.querySelector('.file-browser__body');
     if (body && window.innerWidth <= 768) {
       body.classList.add('show-editor');
-      document.getElementById('fb-back-btn').style.display = '';
+      document.getElementById('fb-back-btn').classList.remove('hidden');
     }
 
     // Fetch file content
@@ -279,7 +279,7 @@
         }
         if (data.binary) {
           showMessage('Binary file \u2014 cannot display (' + formatSize(data.size) + ')');
-          if (editToggle) editToggle.style.display = 'none';
+          if (editToggle) editToggle.classList.add('hidden');
           return;
         }
         var ext = path.split('.').pop() || '';
@@ -300,7 +300,7 @@
       isEditing = false;
       isDirty = false;
       if (editToggle) editToggle.textContent = 'Edit';
-      if (saveBtn) saveBtn.style.display = 'none';
+      if (saveBtn) saveBtn.classList.add('hidden');
       // Reload
       fetch('/api/sessions/' + sessionId + '/file-content?path=' + encodeURIComponent(currentPath))
         .then(function (r) { return r.json(); })
@@ -315,7 +315,7 @@
       isEditing = true;
       isDirty = false;
       if (editToggle) editToggle.textContent = 'View';
-      if (saveBtn) { saveBtn.style.display = ''; saveBtn.textContent = 'Save'; }
+      if (saveBtn) { saveBtn.classList.remove('hidden'); saveBtn.textContent = 'Save'; }
       var content = editorView.state.doc.toString();
       var ext = currentPath.split('.').pop() || '';
       setEditorContent(content, ext, false);
@@ -349,7 +349,7 @@
   window.__fbBackToTree = function () {
     var body = document.querySelector('.file-browser__body');
     if (body) body.classList.remove('show-editor');
-    document.getElementById('fb-back-btn').style.display = 'none';
+    document.getElementById('fb-back-btn').classList.add('hidden');
   };
 
   function formatSize(bytes) {

@@ -534,6 +534,39 @@ function showCloseMenu(sessionId, anchorBtn) {
         .catch(() => showToast('Failed to spawn host shell', 'error'));
     });
     menu.appendChild(hostShellItem);
+
+    // Az Sign In — session-scoped device code flow
+    const azLoginItem = document.createElement('button');
+    azLoginItem.className = 'term-close-menu__item';
+    azLoginItem.textContent = 'Az Sign In';
+    azLoginItem.addEventListener('click', () => {
+      menu.remove();
+      fetch(`/api/az-login/session/${sessionId}`, { method: 'POST' })
+        .then((r) => {
+          if (r.ok) return r.text();
+          throw new Error('Failed to start az login');
+        })
+        .then((html) => {
+          if (html) {
+            let container = document.getElementById(`debug-shells-${sessionId}`);
+            if (!container) {
+              const termSlot = document.getElementById(`terminal-slot-${sessionId}`);
+              if (termSlot) {
+                container = document.createElement('div');
+                container.id = `debug-shells-${sessionId}`;
+                termSlot.after(container);
+              }
+            }
+            if (container) {
+              container.insertAdjacentHTML('beforeend', html);
+              // Process htmx attributes (hx-get polling on the banner)
+              htmx.process(container);
+            }
+          }
+        })
+        .catch(() => showToast('Failed to start az login', 'error'));
+    });
+    menu.appendChild(azLoginItem);
   }
 
   // Stop (SIGTERM) — only if session is running

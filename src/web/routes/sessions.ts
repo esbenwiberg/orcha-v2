@@ -491,7 +491,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const action = req.query['action'];
 
       if (action !== 'stop' && action !== 'kill') {
-        res.status(400).send('<div class="badge badge--failed">Invalid action</div>');
+        res.status(400).send('<div class="badge badge-error">Invalid action</div>');
         return;
       }
 
@@ -517,7 +517,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const existing = store.getSession(id);
       if (existing === undefined) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(404).send('<div class="badge badge--failed">Session not found</div>');
+        res.status(404).send('<div class="badge badge-error">Session not found</div>');
         return;
       }
 
@@ -553,7 +553,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const existing = store.getSession(id);
       if (existing === undefined) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(200).send("<div style='display:none'></div>");
+        res.status(200).send('<div class="hidden"></div>');
         return;
       }
 
@@ -689,13 +689,13 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const existing = store.getSession(id);
       if (existing === undefined) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(404).send('<div class="badge badge--failed">Session not found</div>');
+        res.status(404).send('<div class="badge badge-error">Session not found</div>');
         return;
       }
 
       if (existing.status !== 'failed' && existing.status !== 'cancelled' && existing.status !== 'completed') {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(422).send('<div class="badge badge--failed">Session cannot be reopened</div>');
+        res.status(422).send('<div class="badge badge-error">Session cannot be reopened</div>');
         return;
       }
 
@@ -815,7 +815,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const id = req.params['id'] ?? '';
       const source = store.getSession(id);
       if (source === undefined) {
-        res.status(404).send('<div class="badge badge--failed">Session not found</div>');
+        res.status(404).send('<div class="badge badge-error">Session not found</div>');
         return;
       }
 
@@ -1159,7 +1159,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       const worktreePath = session.worktree.worktreePath;
       if (!existsSync(worktreePath)) {
-        res.status(404).send('<div class="badge badge--failed">Worktree not found</div>');
+        res.status(404).send('<div class="badge badge-error">Worktree not found</div>');
         return;
       }
 
@@ -1211,12 +1211,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const worktreePath = session.worktree.worktreePath;
       const absPath = validateMdPath(worktreePath, userPath);
       if (!absPath) {
-        res.status(400).send('<div class="badge badge--failed">Invalid path</div>');
+        res.status(400).send('<div class="badge badge-error">Invalid path</div>');
         return;
       }
 
       if (!existsSync(absPath)) {
-        res.status(404).send('<div class="badge badge--failed">File not found</div>');
+        res.status(404).send('<div class="badge badge-error">File not found</div>');
         return;
       }
 
@@ -1248,12 +1248,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const worktreePath = session.worktree.worktreePath;
       const absPath = validateMdPath(worktreePath, userPath);
       if (!absPath) {
-        res.status(400).send('<div class="badge badge--failed">Invalid path</div>');
+        res.status(400).send('<div class="badge badge-error">Invalid path</div>');
         return;
       }
 
       if (content.length > MD_MAX_BYTES) {
-        res.status(413).send('<div class="badge badge--failed">File too large</div>');
+        res.status(413).send('<div class="badge badge-error">File too large</div>');
         return;
       }
 
@@ -1335,7 +1335,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       const worktreePath = session.worktree.worktreePath;
       if (!existsSync(worktreePath)) {
-        res.status(404).send('<div class="badge badge--failed">Worktree not found</div>');
+        res.status(404).send('<div class="badge badge-error">Worktree not found</div>');
         return;
       }
 
@@ -1359,23 +1359,23 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const worktreePath = session.worktree.worktreePath;
       const absPath = validateFilePath(worktreePath, userPath);
       if (!absPath) {
-        res.status(400).send('<div class="badge badge--failed">Invalid path</div>');
+        res.status(400).send('<div class="badge badge-error">Invalid path</div>');
         return;
       }
 
       let st;
       try { st = statSync(absPath); } catch {
-        res.status(404).send('<div class="badge badge--failed">Directory not found</div>');
+        res.status(404).send('<div class="badge badge-error">Directory not found</div>');
         return;
       }
       if (!st.isDirectory()) {
-        res.status(400).send('<div class="badge badge--failed">Not a directory</div>');
+        res.status(400).send('<div class="badge badge-error">Not a directory</div>');
         return;
       }
 
       let entries: string[];
       try { entries = readdirSync(absPath); } catch {
-        res.status(500).send('<div class="badge badge--failed">Cannot read directory</div>');
+        res.status(500).send('<div class="badge badge-error">Cannot read directory</div>');
         return;
       }
 
@@ -1514,7 +1514,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       const wt = session.worktree.worktreePath;
       if (!existsSync(wt)) {
-        res.status(404).send('<div class="badge badge--failed">Worktree not found</div>');
+        res.status(404).send('<div class="badge badge-error">Worktree not found</div>');
         return;
       }
 

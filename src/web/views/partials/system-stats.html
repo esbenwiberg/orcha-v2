@@ -2,27 +2,27 @@
   <!-- Stat cards -->
   <div class="stat-cards">
     <div class="stat-card">
-      <div class="stat-card__label">Uptime</div>
-      <div class="stat-card__value"><%= it.uptime %></div>
+      <div class="stat-card-label">Uptime</div>
+      <div class="stat-card-value"><%= it.uptime %></div>
     </div>
     <div class="stat-card">
-      <div class="stat-card__label">Database</div>
-      <div class="stat-card__value" style="color:<%= it.dbStatus === 'ok' ? 'var(--color-success)' : 'var(--color-error)' %>">
+      <div class="stat-card-label">Database</div>
+      <div class="stat-card-value <%= it.dbStatus === 'ok' ? 'text-green-500' : 'text-red-500' %>">
         <%= it.dbStatus %>
       </div>
     </div>
     <div class="stat-card">
-      <div class="stat-card__label">Node</div>
-      <div class="stat-card__value"><%= it.nodeVersion %></div>
+      <div class="stat-card-label">Node</div>
+      <div class="stat-card-value"><%= it.nodeVersion %></div>
     </div>
     <div class="stat-card">
-      <div class="stat-card__label">Total disk</div>
-      <div class="stat-card__value"><%= it.disk.total.formatted %></div>
+      <div class="stat-card-label">Total disk</div>
+      <div class="stat-card-value"><%= it.disk.total.formatted %></div>
     </div>
   </div>
 
   <!-- Disk usage -->
-  <div class="page-section" style="margin-top:1.5rem">
+  <div class="page-section mt-6">
     <div class="page-section__header">
       <div>
         <h2 class="page-section__title">Disk Usage</h2>
@@ -45,7 +45,7 @@
         <div class="disk-bar">
           <div class="disk-bar__fill" style="width:<%= it.disk.total.bytes > 0 ? Math.round((it.disk.worktrees.bytes / it.disk.total.bytes) * 100) : 0 %>%"></div>
         </div>
-        <div class="text-xs text-muted" style="margin-top:0.25rem"><%= it.disk.worktrees.path %></div>
+        <div class="text-xs text-muted mt-1"><%= it.disk.worktrees.path %></div>
       </div>
 
       <div class="disk-item">
@@ -56,7 +56,7 @@
         <div class="disk-bar">
           <div class="disk-bar__fill" style="width:<%= it.disk.total.bytes > 0 ? Math.round((it.disk.bareRepos.bytes / it.disk.total.bytes) * 100) : 0 %>%"></div>
         </div>
-        <div class="text-xs text-muted" style="margin-top:0.25rem"><%= it.disk.bareRepos.path %></div>
+        <div class="text-xs text-muted mt-1"><%= it.disk.bareRepos.path %></div>
       </div>
 
       <div class="disk-item">
@@ -67,13 +67,13 @@
         <div class="disk-bar">
           <div class="disk-bar__fill" style="width:<%= it.disk.total.bytes > 0 ? Math.round((it.disk.logs.bytes / it.disk.total.bytes) * 100) : 0 %>%"></div>
         </div>
-        <div class="text-xs text-muted" style="margin-top:0.25rem"><%= it.disk.logs.path %></div>
+        <div class="text-xs text-muted mt-1"><%= it.disk.logs.path %></div>
       </div>
     </div>
   </div>
 
   <!-- Cleanup actions -->
-  <div class="page-section" style="margin-top:1.5rem">
+  <div class="page-section mt-6">
     <div class="page-section__header">
       <div>
         <h2 class="page-section__title">Disk Cleanup</h2>
@@ -81,7 +81,7 @@
       </div>
     </div>
     <div id="cleanup-result"></div>
-    <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+    <div class="flex gap-3 flex-wrap">
       <button
         class="btn btn-ghost"
         hx-post="/api/system/clean/logs"

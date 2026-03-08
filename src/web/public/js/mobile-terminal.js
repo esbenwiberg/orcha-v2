@@ -241,7 +241,7 @@ function _startIdleCheck() {
     const idleSec = (Date.now() - _lastOutputTime) / 1000;
 
     // Update idle badge on session items
-    document.querySelectorAll('.badge--running').forEach((b) => {
+    document.querySelectorAll('.badge-dot.badge-pulse').forEach((b) => {
       if (idleSec > IDLE_SECONDS) {
         if (!b.dataset.origText) b.dataset.origText = b.textContent;
         b.textContent = 'idle';
@@ -305,8 +305,8 @@ async function _copyLastOutput() {
 function _showTerminalLayer() {
   const termLayer = document.getElementById('mobile-terminal-layer');
   const contentLayer = document.getElementById('mobile-content-layer');
-  if (termLayer) termLayer.style.display = '';
-  if (contentLayer) contentLayer.style.display = 'none';
+  if (termLayer) termLayer.classList.remove('hidden');
+  if (contentLayer) contentLayer.classList.add('hidden');
 }
 window._showTerminalLayer = _showTerminalLayer;
 
@@ -314,8 +314,8 @@ window._showTerminalLayer = _showTerminalLayer;
 function _showContentLayer() {
   const termLayer = document.getElementById('mobile-terminal-layer');
   const contentLayer = document.getElementById('mobile-content-layer');
-  if (termLayer) termLayer.style.display = 'none';
-  if (contentLayer) contentLayer.style.display = '';
+  if (termLayer) termLayer.classList.add('hidden');
+  if (contentLayer) contentLayer.classList.remove('hidden');
 }
 window._showContentLayer = _showContentLayer;
 
@@ -753,6 +753,90 @@ function _disposeMobileTerminal() {
   _baseWsUrl = null;
   _bootedFrame = null;
 }
+
+/**
+ * Open a host shell for a session — spawns it server-side, then switches
+ * the mobile terminal to the host shell's WebSocket.
+ * @param {string} sessionId
+ */
+window._openMobileHostShell = async function (sessionId) {
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}/host-shell`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to spawn host shell');
+    const html = await res.text();
+
+    // Extract shellId from the response HTML (data attribute in debug-shell-panel)
+    const match = /id="debug-shell-([^"]+)"/.exec(html);
+    if (!match) throw new Error('Could not parse shell ID');
+    const shellId = match[1];
+
+    // Dispose existing terminal and connect to the host shell WS
+    _disposeMobileTerminal();
+
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const wsUrl = `${proto}://${location.host}/ws/shell/${shellId}`;
+
+    // Inject a terminal frame for the shell into the terminal layer
+    const termLayer = document.getElementById('mobile-terminal-layer');
+    if (termLayer) {
+      termLayer.innerHTML = `<div id="terminal-frame" data-session-id="${shellId}" data-ws-url="${wsUrl}">
+        <div id="xterm-container" class="xterm-container"></div>
+        <div id="mobile-keys" class="mobile-keys">
+          <button class="mobile-key" data-key="esc">Esc</button>
+          <button class="mobile-key" data-key="tab">Tab</button>
+          <button class="mobile-key" data-key="ctrl-c">Ctrl+C</button>
+          <button class="mobile-key" data-key="ctrl-o">Ctrl+O</button>
+          <button class="mobile-key" data-key="enter">Enter</button>
+          <button class="mobile-key" data-key="arrow-up">&uarr;</button>
+          <button class="mobile-key" data-key="arrow-down">&darr;</button>
+          <button class="mobile-key mobile-key--mic no-speech-api-hide" data-key="mic">Mic</button>
+          <button class="mobile-key" data-key="copy">Copy</button>
+        </div>
+      </div>`;
+
+      // Boot the terminal via the normal afterSwap path
+      _bootedFrame = null; // reset so the afterSwap handler picks it up
+    }
+
+    _showTerminalLayer();
+    _showToast('Host shell opened');
+
+    // Manually trigger terminal boot since we injected HTML directly
+    const frame = document.getElementById('terminal-frame');
+    if (frame && frame !== _bootedFrame) {
+      _bootedFrame = frame;
+      openMobileTerminal(shellId, wsUrl);
+
+      const keysBar = document.getElementById('mobile-keys');
+      if (keysBar) {
+        const KEY_MAP = {
+          'esc': '\x1b', 'tab': '\t', 'enter': '\r',
+          'ctrl-c': '\x03', 'ctrl-o': '\x0f',
+          'arrow-up': '\x1b[A', 'arrow-down': '\x1b[B',
+        };
+        let _touchHandled = false;
+        function _handleKey(e) {
+          const btn = e.target.closest('.mobile-key');
+          if (!btn) return;
+          if (e.type === 'touchstart') { _touchHandled = true; e.preventDefault(); }
+          else if (e.type === 'click' && _touchHandled) { _touchHandled = false; return; }
+          const keyName = btn.dataset.key;
+          if (keyName === 'copy') { _copyLastOutput(); return; }
+          if (keyName === 'mic') { _toggleMobileVoice(); return; }
+          const data = KEY_MAP[keyName];
+          if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
+            _activeWs.send(JSON.stringify({ type: 'input', data }));
+          }
+          if (_activeTerm && keyName === 'tab') _activeTerm.focus();
+        }
+        keysBar.addEventListener('touchstart', _handleKey, { passive: false });
+        keysBar.addEventListener('click', _handleKey);
+      }
+    }
+  } catch {
+    _showToast('Failed to open host shell');
+  }
+};
 
 /**
  * Open the action sheet for a session by fetching it from the server.

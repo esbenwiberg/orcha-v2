@@ -562,7 +562,7 @@ export class SessionManager {
 
   // --- Debug shell management ---
 
-  spawnDebugShell(parentSessionId: string): DebugShell {
+  spawnDebugShell(parentSessionId: string, opts?: { command?: string; args?: string[] }): DebugShell {
     // Look up parent by memory sessionId or DB id
     const parent = this._active.get(parentSessionId) ?? this.getSessionByDbId(parentSessionId);
     if (parent === undefined) {
@@ -575,7 +575,8 @@ export class SessionManager {
     const spawnOpts: PtySpawnOptions = {
       sessionId: shellId,
       cwd: parent.worktree.path,
-      command: 'bash',
+      command: opts?.command ?? 'bash',
+      ...(opts?.args !== undefined ? { args: opts.args } : {}),
       ...(ctx.env !== undefined ? { env: ctx.env } : {}),
       size: { cols: 220, rows: 50 },
       ...(ctx.sandbox !== undefined ? { sandbox: ctx.sandbox } : {}),
@@ -693,5 +694,53 @@ export class SessionManager {
     }
     shell.terminal.kill('SIGTERM');
     this._debugShells.delete(shellId);
+  }
+
+  /**
+   * Spawn a standalone shell not tied to any session. Used for host-level
+   * operations like `az login` from the Settings page.
+   *
+   * The shell runs with the host environment and grants landlock RW access
+   * to ~/.azure so `az login` can write tokens.
+   */
+  spawnStandaloneShell(opts: {
+    command: string;
+    args?: string[];
+    env?: Record<string, string>;
+    cwd?: string;
+  }): DebugShell {
+    const shellId = `shell-${randomUUID()}`;
+    const hostAzureDir = join(homedir(), '.azure');
+
+    const spawnOpts: PtySpawnOptions = {
+      sessionId: shellId,
+      cwd: opts.cwd ?? homedir(),
+      command: opts.command,
+      ...(opts.args !== undefined ? { args: opts.args } : {}),
+      ...(opts.env !== undefined ? { env: opts.env } : {}),
+      size: { cols: 220, rows: 50 },
+      extraRwPaths: [hostAzureDir],
+    };
+
+    const terminal = this._ptyManager.spawn(spawnOpts);
+    const outputBuffer = new OutputBuffer();
+    terminal.output.on('data', (chunk: Buffer | string) => {
+      outputBuffer.push(chunk);
+    });
+
+    const shell: DebugShell = {
+      shellId,
+      parentSessionId: '__standalone__',
+      terminal,
+      outputBuffer,
+      createdAt: new Date(),
+    };
+
+    terminal.on('exit', () => {
+      this._debugShells.delete(shellId);
+    });
+
+    this._debugShells.set(shellId, shell);
+    return shell;
   }
 }

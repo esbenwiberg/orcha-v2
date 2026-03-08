@@ -172,7 +172,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
 
       if (preset === undefined) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(404).send('<div class="badge badge--failed">Preset not found</div>');
+        res.status(404).send('<div class="badge badge-error">Preset not found</div>');
         return;
       }
 
@@ -300,7 +300,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
 
       if (preset === undefined) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(404).send('<div class="badge badge--failed">Preset not found</div>');
+        res.status(404).send('<div class="badge badge-error">Preset not found</div>');
         return;
       }
 

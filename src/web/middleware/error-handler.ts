@@ -14,7 +14,7 @@ export function errorHandler(): express.ErrorRequestHandler {
         res
           .status(err.statusCode)
           .setHeader('Content-Type', 'text/html; charset=utf-8')
-          .send(`<div class="badge badge--failed">${err.message}</div>`);
+          .send(`<div class="badge badge-error">${err.message}</div>`);
       } else {
         res.status(err.statusCode).json({
           error: {
@@ -35,7 +35,7 @@ export function errorHandler(): express.ErrorRequestHandler {
       res
         .status(500)
         .setHeader('Content-Type', 'text/html; charset=utf-8')
-        .send('<div class="badge badge--failed">An unexpected error occurred</div>');
+        .send('<div class="badge badge-error">An unexpected error occurred</div>');
     } else {
       res.status(500).json({
         error: {

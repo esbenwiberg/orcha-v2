@@ -7,18 +7,18 @@
   hx-target="#form-panel-slot"
   hx-swap="innerHTML">
 
-  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;"><%= it.editId ? 'Edit Model Config' : 'New Model Config' %></h2>
+  <h2 class="text-sm font-semibold text-slate-50 mb-2"><%= it.editId ? 'Edit Model Config' : 'New Model Config' %></h2>
 
   <div class="form-group">
-    <label for="mc-name">Config Name</label>
-    <input id="mc-name" type="text" name="name" required placeholder="e.g. My Max Plan" value="<%= it.name ?? '' %>" />
+    <label class="form-label" for="mc-name">Config Name</label>
+    <input class="form-input" id="mc-name" type="text" name="name" required placeholder="e.g. My Max Plan" value="<%= it.name ?? '' %>" />
   </div>
 
   <div class="form-group">
-    <label for="mc-provider">Provider</label>
-    <select id="mc-provider" name="provider" required onchange="toggleProviderFields(this.value)">
+    <label class="form-label" for="mc-provider">Provider</label>
+    <select class="form-select" id="mc-provider" name="provider" required onchange="toggleProviderFields(this.value)">
       <option value="">Select provider…</option>
-      <option value="max" <%= it.provider === 'max' ? 'selected' : '' %>>Max / Pro (OAuth)</option>
+      <option value="max" <%= it.provider === 'max' ? 'selected' : '' %>>MAX/PRO (OAuth)</option>
       <option value="anthropic" <%= it.provider === 'anthropic' ? 'selected' : '' %>>Anthropic API</option>
       <option value="foundry" <%= it.provider === 'foundry' ? 'selected' : '' %>>Azure AI Foundry</option>
       <option value="local" <%= it.provider === 'local' ? 'selected' : '' %>>Local (Ollama / vLLM)</option>
@@ -28,94 +28,94 @@
 
   <!-- max: credentials JSON -->
   <div id="mc-fields-max" class="mc-provider-fields" style="display:<%= it.provider === 'max' ? 'block' : 'none' %>">
-    <p class="text-xs text-muted" style="margin:0.5rem 0 0.75rem;">Claude Code will use OAuth / Max plan. Any existing ANTHROPIC_API_KEY will be unset.</p>
+    <p class="text-xs text-muted my-2">Claude Code will use OAuth / Max plan. Any existing ANTHROPIC_API_KEY will be unset.</p>
     <div class="form-group">
-      <label for="mc-credentials-json">Credentials JSON (<code>~/.claude/.credentials.json</code>)</label>
-      <textarea id="mc-credentials-json" name="credentialsJson" rows="6"
+      <label class="form-label" for="mc-credentials-json">Credentials JSON (<code>~/.claude/.credentials.json</code>)</label>
+      <textarea class="form-textarea font-mono text-[11px]" id="mc-credentials-json" name="credentialsJson" rows="6"
         placeholder='{"claudeAiOauth":{"accessToken":"…","refreshToken":"…","expiresAt":…,"scopes":["user:inference"]}}'
-        style="resize:vertical;min-height:100px;font-family:var(--font-mono);font-size:11px;"><%= it.credentialsJson ?? '' %></textarea>
-      <p class="text-xs text-muted" style="margin-top:0.25rem;">Paste the contents of <code>~/.claude/.credentials.json</code> from your local machine after running <code>claude</code> there once.</p>
+        style="resize:vertical;min-height:100px"><%= it.credentialsJson ?? '' %></textarea>
+      <p class="form-hint mt-1">Paste the contents of <code>~/.claude/.credentials.json</code> from your local machine after running <code>claude</code> there once.</p>
     </div>
   </div>
 
   <!-- anthropic -->
   <div id="mc-fields-anthropic" class="mc-provider-fields" style="display:<%= it.provider === 'anthropic' ? 'block' : 'none' %>">
     <div class="form-group">
-      <label for="mc-api-key">API Key</label>
-      <input id="mc-api-key" type="password" name="apiKey" placeholder="sk-ant-…" autocomplete="off" value="<%= it.apiKey ?? '' %>" />
+      <label class="form-label" for="mc-api-key">API Key</label>
+      <input class="form-input" id="mc-api-key" type="password" name="apiKey" placeholder="sk-ant-…" autocomplete="off" value="<%= it.apiKey ?? '' %>" />
     </div>
     <div class="form-group">
-      <label for="mc-anthropic-url">
+      <label class="form-label" for="mc-anthropic-url">
         Base URL
-        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — for API proxies / third-party brokers)</span>
+        <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional — for API proxies / third-party brokers)</span>
       </label>
-      <input id="mc-anthropic-url" type="text" name="baseUrl" placeholder="https://api.anthropic.com" value="<%= it.provider === 'anthropic' ? (it.baseUrl ?? '') : '' %>" />
+      <input class="form-input" id="mc-anthropic-url" type="text" name="baseUrl" placeholder="https://api.anthropic.com" value="<%= it.provider === 'anthropic' ? (it.baseUrl ?? '') : '' %>" />
     </div>
   </div>
 
   <!-- foundry -->
   <div id="mc-fields-foundry" class="mc-provider-fields" style="display:<%= it.provider === 'foundry' ? 'block' : 'none' %>">
     <div class="form-group">
-      <label for="mc-foundry-resource">Foundry Resource Name</label>
-      <input id="mc-foundry-resource" type="text" name="foundryResource" placeholder="my-foundry-resource" value="<%= it.foundryResource ?? '' %>" />
+      <label class="form-label" for="mc-foundry-resource">Foundry Resource Name</label>
+      <input class="form-input" id="mc-foundry-resource" type="text" name="foundryResource" placeholder="my-foundry-resource" value="<%= it.foundryResource ?? '' %>" />
     </div>
     <div class="form-group">
-      <label for="mc-foundry-url">
+      <label class="form-label" for="mc-foundry-url">
         Base URL
-        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(alternative to resource name)</span>
+        <span class="ml-1 italic normal-case tracking-normal text-slate-500">(alternative to resource name)</span>
       </label>
-      <input id="mc-foundry-url" type="text" name="baseUrl" placeholder="https://…" value="<%= it.provider === 'foundry' ? (it.baseUrl ?? '') : '' %>" />
+      <input class="form-input" id="mc-foundry-url" type="text" name="baseUrl" placeholder="https://…" value="<%= it.provider === 'foundry' ? (it.baseUrl ?? '') : '' %>" />
     </div>
     <div class="form-group">
-      <label for="mc-foundry-key">
+      <label class="form-label" for="mc-foundry-key">
         API Key
-        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — uses DefaultAzureCredential if empty)</span>
+        <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional — uses DefaultAzureCredential if empty)</span>
       </label>
-      <input id="mc-foundry-key" type="password" name="apiKey" placeholder="Foundry API key" autocomplete="off" value="<%= it.provider === 'foundry' ? (it.apiKey ?? '') : '' %>" />
+      <input class="form-input" id="mc-foundry-key" type="password" name="apiKey" placeholder="Foundry API key" autocomplete="off" value="<%= it.provider === 'foundry' ? (it.apiKey ?? '') : '' %>" />
     </div>
   </div>
 
   <!-- local -->
   <div id="mc-fields-local" class="mc-provider-fields" style="display:<%= it.provider === 'local' ? 'block' : 'none' %>">
     <div class="form-group">
-      <label for="mc-local-url">Base URL</label>
-      <input id="mc-local-url" type="text" name="baseUrl" placeholder="http://localhost:11434 or :8000" value="<%= it.provider === 'local' ? (it.baseUrl ?? '') : '' %>" />
-      <p class="text-xs text-muted" style="margin-top:0.25rem;">Ollama default: <code>:11434</code> &nbsp; vLLM default: <code>:8000</code></p>
+      <label class="form-label" for="mc-local-url">Base URL</label>
+      <input class="form-input" id="mc-local-url" type="text" name="baseUrl" placeholder="http://localhost:11434 or :8000" value="<%= it.provider === 'local' ? (it.baseUrl ?? '') : '' %>" />
+      <p class="form-hint mt-1">Ollama default: <code>:11434</code> &nbsp; vLLM default: <code>:8000</code></p>
     </div>
     <div class="form-group">
-      <label for="mc-local-api-key">
+      <label class="form-label" for="mc-local-api-key">
         API Key
-        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — empty if not required)</span>
+        <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional — empty if not required)</span>
       </label>
-      <input id="mc-local-api-key" type="password" name="apiKey" placeholder="e.g. ollama" autocomplete="off" value="<%= it.provider === 'local' ? (it.apiKey ?? '') : '' %>" />
+      <input class="form-input" id="mc-local-api-key" type="password" name="apiKey" placeholder="e.g. ollama" autocomplete="off" value="<%= it.provider === 'local' ? (it.apiKey ?? '') : '' %>" />
     </div>
     <div class="form-group">
-      <label for="mc-local-auth-token">
+      <label class="form-label" for="mc-local-auth-token">
         Auth Token
-        <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional — defaults to "local")</span>
+        <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional — defaults to "local")</span>
       </label>
-      <input id="mc-local-auth-token" type="password" name="authToken" placeholder="e.g. ollama" autocomplete="off" value="<%= it.provider === 'local' ? (it.authToken ?? '') : '' %>" />
+      <input class="form-input" id="mc-local-auth-token" type="password" name="authToken" placeholder="e.g. ollama" autocomplete="off" value="<%= it.provider === 'local' ? (it.authToken ?? '') : '' %>" />
     </div>
   </div>
 
   <!-- custom -->
   <div id="mc-fields-custom" class="mc-provider-fields" style="display:<%= it.provider === 'custom' ? 'block' : 'none' %>">
     <div class="form-group">
-      <label for="mc-extra-env">Environment Variables <span class="text-xs text-muted">(one KEY=VALUE per line)</span></label>
-      <textarea id="mc-extra-env" name="extraEnv" rows="5" placeholder="ANTHROPIC_API_KEY=sk-ant-…&#10;ANTHROPIC_MODEL=claude-sonnet-4-6" style="resize:vertical;min-height:80px;font-family:var(--font-mono);font-size:12px;"><% if (it.extraEnv) { %><%= Object.entries(it.extraEnv).map(([k,v]) => k + '=' + v).join('\n') %><% } %></textarea>
+      <label class="form-label" for="mc-extra-env">Environment Variables <span class="text-xs text-slate-500">(one KEY=VALUE per line)</span></label>
+      <textarea class="form-textarea font-mono text-xs" id="mc-extra-env" name="extraEnv" rows="5" placeholder="ANTHROPIC_API_KEY=sk-ant-…&#10;ANTHROPIC_MODEL=claude-sonnet-4-6" style="resize:vertical;min-height:80px"><% if (it.extraEnv) { %><%= Object.entries(it.extraEnv).map(([k,v]) => k + '=' + v).join('\n') %><% } %></textarea>
     </div>
   </div>
 
   <!-- Model override (all providers) -->
   <div class="form-group" id="mc-model-group" style="display:<%= it.provider ? 'block' : 'none' %>">
-    <label for="mc-model">
+    <label class="form-label" for="mc-model">
       Model Override
-      <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
+      <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional)</span>
     </label>
-    <input id="mc-model" type="text" name="modelId" placeholder="e.g. claude-sonnet-4-6, qwen3-coder" value="<%= it.modelId ?? '' %>" />
+    <input class="form-input" id="mc-model" type="text" name="modelId" placeholder="e.g. claude-sonnet-4-6, qwen3-coder" value="<%= it.modelId ?? '' %>" />
   </div>
 
-  <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+  <div class="flex gap-2 mt-2">
     <button type="submit" class="btn btn-primary"><%= it.editId ? 'Update Config' : 'Create Config' %></button>
     <button type="button" class="btn btn-ghost"
       onclick="document.getElementById('form-panel').classList.remove('is-open')">Cancel</button>

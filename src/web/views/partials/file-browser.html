@@ -6,9 +6,9 @@
         <span id="fb-path" class="file-browser__path">Select a file...</span>
       </div>
       <div class="file-browser__toolbar-actions">
-        <button class="btn btn-ghost btn-sm" id="fb-edit-toggle" onclick="window.__fbToggleEdit()" style="display:none">Edit</button>
-        <button class="btn btn-primary btn-sm" id="fb-save-btn" onclick="window.__fbSave()" style="display:none">Save</button>
-        <button class="btn btn-ghost btn-sm fb-back-btn" id="fb-back-btn" onclick="window.__fbBackToTree()" style="display:none">Back</button>
+        <button class="btn btn-ghost btn-sm hidden" id="fb-edit-toggle" onclick="window.__fbToggleEdit()">Edit</button>
+        <button class="btn btn-primary btn-sm hidden" id="fb-save-btn" onclick="window.__fbSave()">Save</button>
+        <button class="btn btn-ghost btn-sm fb-back-btn hidden" id="fb-back-btn" onclick="window.__fbBackToTree()">Back</button>
         <button class="btn btn-ghost btn-sm" onclick="window.__fileBrowserClose()">Close</button>
       </div>
     </div>
@@ -23,8 +23,8 @@
           <svg width="48" height="48" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.3"><path d="M2 2h8l4 4v8a1 1 0 01-1 1H3a1 1 0 01-1-1V2z"/><path d="M9 2v4h4"/></svg>
           <p>Select a file to view</p>
         </div>
-        <div class="file-browser__editor-container" id="fb-editor-container" style="display:none"></div>
-        <div class="file-browser__editor-message" id="fb-editor-message" style="display:none"></div>
+        <div class="file-browser__editor-container hidden" id="fb-editor-container"></div>
+        <div class="file-browser__editor-message hidden" id="fb-editor-message"></div>
       </div>
     </div>
   </div>

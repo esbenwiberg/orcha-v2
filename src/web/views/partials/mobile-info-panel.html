@@ -17,7 +17,7 @@
     </div>
     <div class="info-panel__row">
       <span class="info-panel__label">Status</span>
-      <span class="badge badge--<%= it.session.status %>"><%= it.session.status %></span>
+      <% const _bm = { pending:'badge-neutral', starting:'badge-warning badge-dot badge-pulse', running:'badge-success badge-dot badge-pulse', paused:'badge-accent', completed:'badge-success', failed:'badge-error', cancelled:'badge-neutral' }; %><span class="badge <%= _bm[it.session.status] || 'badge-neutral' %>"><%= it.session.status %></span>
     </div>
     <div class="info-panel__row">
       <span class="info-panel__label">Started</span>
@@ -50,14 +50,35 @@
       <span class="info-panel__meta<%= it.credentials.isExpired ? ' info-panel__meta--danger' : (it.credentials.isExpiringSoon ? ' info-panel__meta--warn' : '') %>"><%= it.credentials.expiresInFormatted %></span>
     </div>
     <button
-      class="action-sheet-btn action-sheet-btn--danger"
-      style="margin-top: 8px"
+      class="action-sheet-btn action-sheet-btn--danger mt-2"
       hx-post="/api/credentials/<%= it.credentials.id %>/revoke"
       hx-swap="none"
       hx-on::after-request="window._onInfoPanelAction(event)"
     >Revoke Credentials</button>
   </div>
   <% } %>
+
+  <div class="info-panel__section">
+    <h3 class="info-panel__section-title">Azure CLI</h3>
+    <% if (it.session.status === 'running' || it.session.status === 'pending') { %>
+    <button
+      type="button"
+      class="action-sheet-btn action-sheet-btn--az"
+      hx-post="/api/az-login/session/<%= it.session.id %>"
+      hx-target="#az-login-session-slot"
+      hx-swap="innerHTML"
+    >Az Sign In (Session)</button>
+    <div id="az-login-session-slot"></div>
+    <% } %>
+    <button
+      type="button"
+      class="action-sheet-btn action-sheet-btn--az mt-1.5"
+      hx-post="/api/az-login/host"
+      hx-target="#az-login-host-slot"
+      hx-swap="innerHTML"
+    >Az Sign In (Host)</button>
+    <div id="az-login-host-slot"></div>
+  </div>
 
   <% if (it.hasDeployCommand) { %>
   <div class="info-panel__section">
@@ -69,6 +90,17 @@
       hx-on::after-request="window._onMobileDeploy(event)"
     >Deploy</button>
     <div id="mobile-deploy-slot"></div>
+  </div>
+  <% } %>
+
+  <% if (it.session.status === 'running' || it.session.status === 'pending') { %>
+  <div class="info-panel__section">
+    <h3 class="info-panel__section-title">Shells</h3>
+    <button
+      type="button"
+      class="action-sheet-btn"
+      onclick="window._openMobileHostShell('<%= it.session.id %>')"
+    >Host Shell</button>
   </div>
   <% } %>
 

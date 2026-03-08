@@ -31,7 +31,7 @@ export function createBootstrapPatsRouter(eta: Eta, db: Database.Database): Rout
     try {
       const pat = ((req.body as Record<string, string>)['pat'] ?? '').trim();
       if (!pat) {
-        res.status(422).send('<div class="badge badge--failed">PAT is required</div>');
+        res.status(422).send('<div class="badge badge-error">PAT is required</div>');
         return;
       }
       store.set(DEVOPS_KEY, pat);

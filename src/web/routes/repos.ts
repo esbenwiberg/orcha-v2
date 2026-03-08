@@ -39,7 +39,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
 
       if (repo === undefined) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(404).send('<div class="badge badge--failed">Repo not found</div>');
+        res.status(404).send('<div class="badge badge-error">Repo not found</div>');
         return;
       }
 
@@ -242,7 +242,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
 
       if (repo === undefined) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(404).send('<span class="badge badge--failed">Not found</span>');
+        res.status(404).send('<span class="badge badge-error">Not found</span>');
         return;
       }
 
@@ -262,7 +262,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
 
       if (repo === undefined) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(404).send('<span class="badge badge--failed">Not found</span>');
+        res.status(404).send('<span class="badge badge-error">Not found</span>');
         return;
       }
 

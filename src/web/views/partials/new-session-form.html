@@ -3,16 +3,16 @@
   hx-target="#form-panel-slot"
   hx-swap="innerHTML"
   hx-on::after-request="if(event.detail.successful){ document.getElementById('form-panel').classList.remove('is-open'); }"
-  style="display:flex;flex-direction:column;gap:1.25rem;"
+  class="flex flex-col gap-5"
 >
-  <div style="display:flex;flex-direction:column;gap:2px;">
-    <h2 style="font-size:15px;font-weight:700;color:var(--color-text-primary);margin:0;letter-spacing:-0.01em;">New Session</h2>
-    <p style="font-size:12px;color:var(--color-text-muted);margin:0;">Configure and launch a new agent session.</p>
+  <div class="flex flex-col gap-0.5">
+    <h2 class="text-[15px] font-bold text-slate-50 m-0 tracking-tight">New Session</h2>
+    <p class="text-xs text-slate-500 m-0">Configure and launch a new agent session.</p>
   </div>
 
   <div class="form-group">
-    <label for="ns-repo">Repository</label>
-    <select
+    <label class="form-label" for="ns-repo">Repository</label>
+    <select class="form-select"
       id="ns-repo"
       name="repoId"
       required
@@ -35,11 +35,11 @@
   </div>
 
   <div class="form-group">
-    <label for="ns-source-branch">
+    <label class="form-label" for="ns-source-branch">
       Source Branch
-      <span id="ns-source-branch-loading" class="htmx-indicator" style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(loading…)</span>
+      <span id="ns-source-branch-loading" class="htmx-indicator ml-1 italic normal-case tracking-normal text-slate-500">(loading…)</span>
     </label>
-    <select id="ns-source-branch" name="sourceBranch"
+    <select class="form-select" id="ns-source-branch" name="sourceBranch"
       <% if (it.repoId && !(it.branches && it.branches.length > 0) && !(it.sourceBranch && !it.sourceBranch.startsWith('origin/'))) { %>
         hx-get="/api/repos/<%= it.repoId %>/branches"
         hx-trigger="focus once"
@@ -62,8 +62,9 @@
   </div>
 
   <div class="form-group">
-    <label for="ns-branch">Branch Name</label>
+    <label class="form-label" for="ns-branch">Branch Name</label>
     <input
+      class="form-input"
       id="ns-branch"
       type="text"
       name="branch"
@@ -75,11 +76,11 @@
   </div>
 
   <div class="form-group">
-    <label for="ns-cred-profile">
+    <label class="form-label" for="ns-cred-profile">
       Credential Profile
-      <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
+      <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional)</span>
     </label>
-    <select id="ns-cred-profile" name="credentialProfileId">
+    <select class="form-select" id="ns-cred-profile" name="credentialProfileId">
       <option value="">None — use ambient credentials</option>
       <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
         <option value="<%= p.id %>" <%= p.id === (it.credentialProfileId ?? '') ? 'selected' : '' %>><%= p.name %> (<%= p.durationHours %>h)</option>
@@ -88,100 +89,82 @@
   </div>
 
   <div class="form-group">
-    <label for="ns-model-config">
+    <label class="form-label" for="ns-model-config">
       Model Config
-      <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
+      <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional)</span>
     </label>
-    <select id="ns-model-config" name="modelConfigId">
+    <select class="form-select" id="ns-model-config" name="modelConfigId">
       <option value="">None — use ambient config</option>
       <% if (it.modelConfigs) { for (const mc of it.modelConfigs) { %>
-        <option value="<%= mc.id %>" <%= mc.id === (it.modelConfigId ?? '') ? 'selected' : '' %>><%= mc.name %> (<%= mc.provider %>)</option>
+        <option value="<%= mc.id %>" <%= mc.id === (it.modelConfigId ?? '') ? 'selected' : '' %>><%= mc.name %> (<%= mc.provider === 'max' ? 'MAX/PRO' : mc.provider %>)</option>
       <% } } %>
     </select>
   </div>
 
   <% if (it.mcpServers && it.mcpServers.length > 0) { %>
   <div class="form-group">
-    <label>MCP Servers</label>
-    <div style="display:flex;flex-direction:column;gap:0.375rem;margin-top:0.25rem">
+    <label class="form-label">MCP Servers</label>
+    <div class="flex flex-col gap-1.5 mt-1">
       <% const selectedIds = it.mcpServerIds ?? []; %>
       <% for (const srv of it.mcpServers) { %>
-        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:12px;color:var(--color-text-secondary);">
+        <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
           <input
             type="checkbox"
             name="mcpServerIds"
             value="<%= srv.id %>"
             <%= selectedIds.includes(srv.id) ? 'checked' : '' %>
-            style="accent-color:var(--color-accent);"
+            class="form-checkbox"
           />
           <span><%= srv.name %></span>
-          <span class="badge badge--running" style="font-size:10px;padding:1px 5px;"><%= srv.type %></span>
+          <span class="badge badge-info badge-sm"><%= srv.type %></span>
         </label>
       <% } %>
     </div>
   </div>
   <% } %>
 
-  <label style="display:flex;align-items:center;gap:0.625rem;cursor:pointer;user-select:none;">
-    <span style="position:relative;display:inline-block;width:34px;height:20px;flex-shrink:0;">
-      <input
-        type="checkbox"
-        name="sandbox"
-        value="1"
-        id="ns-sandbox"
-        style="opacity:0;width:0;height:0;position:absolute;"
-        <%= (it.sandbox === false) ? '' : 'checked' %>
-        onchange="var t=this.parentElement.querySelector('span');t.style.background=this.checked?'var(--color-accent)':'var(--color-bg-3)';t.querySelector('span').style.transform=this.checked?'translateX(14px)':'';"
-      />
-      <span style="position:absolute;inset:0;border-radius:10px;background:<%= (it.sandbox === false) ? 'var(--color-bg-3)' : 'var(--color-accent)' %>;transition:background 0.15s;">
-        <span style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform 0.15s;<%= (it.sandbox === false) ? '' : 'transform:translateX(14px);' %>"></span>
-      </span>
-    </span>
-    <span style="font-size:12px;color:var(--color-text-secondary);">
+  <label class="flex items-center gap-2.5 cursor-pointer select-none">
+    <input type="checkbox" name="sandbox" value="1" id="ns-sandbox" class="sr-only"
+      <%= (it.sandbox === false) ? '' : 'checked' %>
+    />
+    <button type="button" role="switch"
+      class="toggle<%= (it.sandbox === false) ? '' : ' active' %>"
+      aria-checked="<%= (it.sandbox === false) ? 'false' : 'true' %>"
+      onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+    ><span class="toggle-knob"></span></button>
+    <span class="text-xs text-slate-300">
       Isolate filesystem
-      <span style="color:var(--color-text-muted);margin-left:2px;">(filesystem isolation)</span>
+      <span class="text-slate-500 ml-0.5">(filesystem isolation)</span>
     </span>
   </label>
 
-  <label style="display:flex;align-items:center;gap:0.625rem;cursor:pointer;user-select:none;">
-    <span style="position:relative;display:inline-block;width:34px;height:20px;flex-shrink:0;">
-      <input
-        type="checkbox"
-        name="webAccess"
-        value="1"
-        id="ns-web-access"
-        style="opacity:0;width:0;height:0;position:absolute;"
-        <%= (it.webAccess === false) ? '' : 'checked' %>
-        onchange="var t=this.parentElement.querySelector('span');t.style.background=this.checked?'var(--color-accent)':'var(--color-bg-3)';t.querySelector('span').style.transform=this.checked?'translateX(14px)':'';"
-      />
-      <span style="position:absolute;inset:0;border-radius:10px;background:<%= (it.webAccess === false) ? 'var(--color-bg-3)' : 'var(--color-accent)' %>;transition:background 0.15s;">
-        <span style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform 0.15s;<%= (it.webAccess === false) ? '' : 'transform:translateX(14px);' %>"></span>
-      </span>
-    </span>
-    <span style="font-size:12px;color:var(--color-text-secondary);">
+  <label class="flex items-center gap-2.5 cursor-pointer select-none">
+    <input type="checkbox" name="webAccess" value="1" id="ns-web-access" class="sr-only"
+      <%= (it.webAccess === false) ? '' : 'checked' %>
+    />
+    <button type="button" role="switch"
+      class="toggle<%= (it.webAccess === false) ? '' : ' active' %>"
+      aria-checked="<%= (it.webAccess === false) ? 'false' : 'true' %>"
+      onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+    ><span class="toggle-knob"></span></button>
+    <span class="text-xs text-slate-300">
       Web access
-      <span style="color:var(--color-text-muted);margin-left:2px;">(WebFetch + WebSearch)</span>
+      <span class="text-slate-500 ml-0.5">(WebFetch + WebSearch)</span>
     </span>
   </label>
 
-  <label style="display:flex;align-items:center;gap:0.625rem;cursor:pointer;user-select:none;">
-    <span style="position:relative;display:inline-block;width:34px;height:20px;flex-shrink:0;">
-      <input
-        type="checkbox"
-        name="skipPermissions"
-        value="1"
-        id="ns-skip-permissions"
-        style="opacity:0;width:0;height:0;position:absolute;"
-        <%= it.skipPermissions ? 'checked' : '' %>
-        onchange="var t=this.parentElement.querySelector('span');t.style.background=this.checked?'var(--color-accent)':'var(--color-bg-3)';t.querySelector('span').style.transform=this.checked?'translateX(14px)':'';"
-      />
-      <span style="position:absolute;inset:0;border-radius:10px;background:<%= it.skipPermissions ? 'var(--color-accent)' : 'var(--color-bg-3)' %>;transition:background 0.15s;">
-        <span style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform 0.15s;<%= it.skipPermissions ? 'transform:translateX(14px);' : '' %>"></span>
-      </span>
-    </span>
-    <span style="font-size:12px;color:var(--color-text-secondary);">
+  <label class="flex items-center gap-2.5 cursor-pointer select-none">
+    <input type="checkbox" name="skipPermissions" value="1" id="ns-skip-permissions" class="sr-only"
+      <%= it.skipPermissions ? 'checked' : '' %>
+    />
+    <button type="button" role="switch"
+      class="toggle<%= it.skipPermissions ? ' active' : '' %>"
+      aria-checked="<%= it.skipPermissions ? 'true' : 'false' %>"
+      onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+    ><span class="toggle-knob"></span></button>
+    <span class="text-xs text-slate-300">
       Skip permissions
-      <span style="color:var(--color-text-muted);margin-left:2px;">(--dangerously-skip-permissions)</span>
+      <span class="text-slate-500 ml-0.5">(--dangerously-skip-permissions)</span>
     </span>
   </label>
 
@@ -197,19 +180,19 @@
   </script>
   <% } %>
 
-  <div style="display:flex;gap:0.5rem;padding-top:0.25rem;border-top:1px solid var(--color-border);margin-top:auto;">
-    <button type="submit" class="btn btn-primary" style="flex:1;" aria-busy="false"
+  <div class="flex gap-2 pt-1 border-t border-slate-700/50 mt-auto">
+    <button type="submit" class="btn btn-primary flex-1" aria-busy="false"
       hx-on::before-request="this.setAttribute('aria-busy','true'); this.disabled=true;"
       hx-on::after-request="this.setAttribute('aria-busy','false'); this.disabled=false;"
     >
       <svg class="btn-icon-default" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
         <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <svg class="btn-icon-loading" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" style="display:none;animation:spin 0.7s linear infinite;">
+      <svg class="btn-icon-loading hidden animate-spin" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
         <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20" stroke-dashoffset="5" stroke-linecap="round"/>
       </svg>
       <span class="btn-label-default">Create Session</span>
-      <span class="btn-label-loading" style="display:none;">Creating…</span>
+      <span class="btn-label-loading hidden">Creating…</span>
     </button>
     <button
       type="button"

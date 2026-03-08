@@ -7,11 +7,12 @@
   hx-target="#form-panel-slot"
   hx-swap="innerHTML"
 >
-  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;"><%= it.editId ? 'Edit Preset' : 'Save Preset' %></h2>
+  <h2 class="text-sm font-semibold text-slate-50 mb-2"><%= it.editId ? 'Edit Preset' : 'Save Preset' %></h2>
 
   <div class="form-group">
-    <label for="sp-name">Preset Name</label>
+    <label class="form-label" for="sp-name">Preset Name</label>
     <input
+      class="form-input"
       id="sp-name"
       type="text"
       name="name"
@@ -24,8 +25,8 @@
   </div>
 
   <div class="form-group">
-    <label for="sp-repo">Repository</label>
-    <select id="sp-repo" name="repoId">
+    <label class="form-label" for="sp-repo">Repository</label>
+    <select class="form-select" id="sp-repo" name="repoId">
       <option value="">None</option>
       <% if (it.repos) { for (const r of it.repos) { %>
         <option
@@ -38,11 +39,11 @@
   </div>
 
   <div class="form-group">
-    <label for="sp-cred-profile">
+    <label class="form-label" for="sp-cred-profile">
       Credential Profile
-      <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
+      <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional)</span>
     </label>
-    <select id="sp-cred-profile" name="credentialProfileId">
+    <select class="form-select" id="sp-cred-profile" name="credentialProfileId">
       <option value="">None</option>
       <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
         <option
@@ -54,76 +55,70 @@
   </div>
 
   <div class="form-group">
-    <label for="sp-model-config">
+    <label class="form-label" for="sp-model-config">
       Model Config
-      <span style="color:var(--color-text-muted);font-style:italic;text-transform:none;letter-spacing:0;margin-left:4px;">(optional)</span>
+      <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional)</span>
     </label>
-    <select id="sp-model-config" name="modelConfigId">
+    <select class="form-select" id="sp-model-config" name="modelConfigId">
       <option value="">None</option>
       <% if (it.modelConfigs) { for (const mc of it.modelConfigs) { %>
         <option
           value="<%= mc.id %>"
           <%= mc.id === (it.modelConfigId ?? '') ? 'selected' : '' %>
-        ><%= mc.name %> (<%= mc.provider %>)</option>
+        ><%= mc.name %> (<%= mc.provider === 'max' ? 'MAX/PRO' : mc.provider %>)</option>
       <% } } %>
     </select>
   </div>
 
   <% if (it.mcpServers && it.mcpServers.length > 0) { %>
   <div class="form-group">
-    <label>MCP Servers</label>
-    <div style="display:flex;flex-direction:column;gap:0.375rem;margin-top:0.25rem">
+    <label class="form-label">MCP Servers</label>
+    <div class="flex flex-col gap-1.5 mt-1">
       <% const selectedIds = it.mcpServerIds ?? []; %>
       <% for (const srv of it.mcpServers) { %>
-        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:12px;color:var(--color-text-secondary);">
+        <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
           <input
             type="checkbox"
             name="mcpServerIds"
             value="<%= srv.id %>"
             <%= selectedIds.includes(srv.id) ? 'checked' : '' %>
-            style="accent-color:var(--color-accent);"
+            class="form-checkbox"
           />
           <span><%= srv.name %></span>
-          <span class="badge badge--running" style="font-size:10px;padding:1px 5px;"><%= srv.type %></span>
+          <span class="badge badge-info badge-sm"><%= srv.type %></span>
         </label>
       <% } %>
     </div>
   </div>
   <% } %>
 
-  <label style="display:flex;align-items:center;gap:0.625rem;cursor:pointer;user-select:none;margin-top:0.5rem;">
-    <span style="position:relative;display:inline-block;width:34px;height:20px;flex-shrink:0;">
-      <input
-        type="checkbox"
-        name="webAccess"
-        value="1"
-        id="sp-web-access"
-        style="opacity:0;width:0;height:0;position:absolute;"
-        <%= (it.webAccess === false) ? '' : 'checked' %>
-        onchange="var t=this.parentElement.querySelector('span');t.style.background=this.checked?'var(--color-accent)':'var(--color-bg-3)';t.querySelector('span').style.transform=this.checked?'translateX(14px)':'';"
-      />
-      <span style="position:absolute;inset:0;border-radius:10px;background:<%= (it.webAccess === false) ? 'var(--color-bg-3)' : 'var(--color-accent)' %>;transition:background 0.15s;">
-        <span style="position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform 0.15s;<%= (it.webAccess === false) ? '' : 'transform:translateX(14px);' %>"></span>
-      </span>
-    </span>
-    <span style="font-size:12px;color:var(--color-text-secondary);">
+  <label class="flex items-center gap-2.5 cursor-pointer select-none mt-2">
+    <input type="checkbox" name="webAccess" value="1" id="sp-web-access" class="sr-only"
+      <%= (it.webAccess === false) ? '' : 'checked' %>
+    />
+    <button type="button" role="switch"
+      class="toggle<%= (it.webAccess === false) ? '' : ' active' %>"
+      aria-checked="<%= (it.webAccess === false) ? 'false' : 'true' %>"
+      onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+    ><span class="toggle-knob"></span></button>
+    <span class="text-xs text-slate-300">
       Web access
-      <span style="color:var(--color-text-muted);margin-left:2px;">(WebFetch + WebSearch)</span>
+      <span class="text-slate-500 ml-0.5">(WebFetch + WebSearch)</span>
     </span>
   </label>
 
-  <details style="margin-top:0.75rem;border-top:1px solid var(--color-border);padding-top:0.5rem;">
-    <summary style="cursor:pointer;font-size:12px;font-weight:600;color:var(--color-text-primary);user-select:none;">
-      Validation Overrides <span style="font-weight:400;color:var(--color-text-muted)">(optional)</span>
+  <details class="mt-3 border-t border-slate-700/50 pt-2">
+    <summary class="cursor-pointer text-xs font-semibold text-slate-50 select-none">
+      Validation Overrides <span class="font-normal text-slate-500">(optional)</span>
     </summary>
-    <div style="margin-top:0.5rem;">
-      <span style="font-size:11px;color:var(--color-text-muted);display:block;margin-bottom:0.5rem;">
+    <div class="mt-2">
+      <span class="text-[11px] text-slate-500 block mb-2">
         Leave blank to inherit from repo config.
       </span>
 
       <div class="form-group">
-        <label for="sp-validate-mode">Mode</label>
-        <select id="sp-validate-mode" name="validateMode" onchange="
+        <label class="form-label" for="sp-validate-mode">Mode</label>
+        <select class="form-select" id="sp-validate-mode" name="validateMode" onchange="
           var mode = this.value;
           document.getElementById('sp-serve-fields').style.display = mode === 'serve' ? '' : 'none';
           document.getElementById('sp-docker-fields').style.display = mode === 'docker' ? '' : 'none';
@@ -135,37 +130,37 @@
       </div>
 
       <div class="form-group">
-        <label for="sp-validate-build">Build Command</label>
-        <input id="sp-validate-build" type="text" name="validateBuild" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateBuild ?? '' %>" />
+        <label class="form-label" for="sp-validate-build">Build Command</label>
+        <input class="form-input" id="sp-validate-build" type="text" name="validateBuild" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateBuild ?? '' %>" />
       </div>
 
       <div id="sp-serve-fields" style="<%= it.validateMode === 'serve' ? '' : 'display:none' %>">
         <div class="form-group">
-          <label for="sp-validate-start">Start Command</label>
-          <input id="sp-validate-start" type="text" name="validateStart" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateStart ?? '' %>" />
+          <label class="form-label" for="sp-validate-start">Start Command</label>
+          <input class="form-input" id="sp-validate-start" type="text" name="validateStart" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateStart ?? '' %>" />
         </div>
       </div>
 
       <div class="form-group">
-        <label for="sp-validate-health">Health Path</label>
-        <input id="sp-validate-health" type="text" name="validateHealth" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateHealth ?? '' %>" />
+        <label class="form-label" for="sp-validate-health">Health Path</label>
+        <input class="form-input" id="sp-validate-health" type="text" name="validateHealth" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateHealth ?? '' %>" />
       </div>
 
       <div id="sp-docker-fields" style="<%= it.validateMode === 'docker' ? '' : 'display:none' %>">
         <div class="form-group">
-          <label for="sp-validate-compose">Compose File</label>
-          <input id="sp-validate-compose" type="text" name="validateComposeFile" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateComposeFile ?? '' %>" />
+          <label class="form-label" for="sp-validate-compose">Compose File</label>
+          <input class="form-input" id="sp-validate-compose" type="text" name="validateComposeFile" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateComposeFile ?? '' %>" />
         </div>
       </div>
 
       <div class="form-group">
-        <label for="sp-validate-timeout">Timeout (seconds)</label>
-        <input id="sp-validate-timeout" type="number" name="validateTimeout" min="30" max="3600" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateTimeout ?? '' %>" />
+        <label class="form-label" for="sp-validate-timeout">Timeout (seconds)</label>
+        <input class="form-input" id="sp-validate-timeout" type="number" name="validateTimeout" min="30" max="3600" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateTimeout ?? '' %>" />
       </div>
     </div>
   </details>
 
-  <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+  <div class="flex gap-2 mt-2">
     <button type="submit" class="btn btn-primary"><%= it.editId ? 'Update' : 'Save' %></button>
     <button
       type="button"

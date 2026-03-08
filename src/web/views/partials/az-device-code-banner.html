@@ -1,0 +1,42 @@
+<div
+  class="az-login-banner az-login-banner--<%= it.status %>"
+  id="az-login-<%= it.shellId %>"
+  <% if (it.status !== 'success' && it.status !== 'complete') { %>
+  hx-get="/api/az-login/<%= it.shellId %>/status"
+  hx-trigger="load delay:2s"
+  hx-swap="outerHTML"
+  <% } %>
+>
+  <% if (it.status === 'pending') { %>
+  <div class="az-login-banner__body">
+    <div class="az-login-banner__spinner"></div>
+    <span>Starting Azure CLI sign-in&hellip;</span>
+  </div>
+
+  <% } else if (it.status === 'authenticating') { %>
+  <div class="az-login-banner__body">
+    <p class="az-login-banner__prompt">Open link and enter code:</p>
+    <a href="<%= it.url %>" target="_blank" rel="noopener" class="az-login-banner__url"><%= it.url %></a>
+    <div class="az-login-banner__code-row">
+      <code class="az-login-banner__code"><%= it.code %></code>
+      <button
+        type="button"
+        class="az-login-banner__copy"
+        onclick="navigator.clipboard.writeText('<%= it.code %>').then(()=>{this.textContent='Copied!'});setTimeout(()=>{this.textContent='Copy'},1500)"
+      >Copy</button>
+    </div>
+  </div>
+
+  <% } else if (it.status === 'success') { %>
+  <div class="az-login-banner__body az-login-banner__body--success">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <span>Signed in<% if (it.account) { %> as <strong><%= it.account %></strong><% } %></span>
+  </div>
+
+  <% } else { %>
+  <div class="az-login-banner__body az-login-banner__body--success">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <span>Sign-in complete</span>
+  </div>
+  <% } %>
+</div>

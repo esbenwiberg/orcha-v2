@@ -32,10 +32,10 @@
     if (!container) return;
 
     if (!diffText || !diffText.trim()) {
-      container.style.display = 'none';
+      container.classList.add('hidden');
       if (empty) {
         empty.querySelector('p').textContent = 'No changes';
-        empty.style.display = '';
+        empty.classList.remove('hidden');
       }
       return;
     }
@@ -48,8 +48,8 @@
     });
 
     container.innerHTML = html;
-    container.style.display = '';
-    if (empty) empty.style.display = 'none';
+    container.classList.remove('hidden');
+    if (empty) empty.classList.add('hidden');
   }
 
   /** Fetch diff content for the current base + path. */
@@ -68,7 +68,7 @@
       var container = document.getElementById('diff-content');
       if (container) {
         container.innerHTML = '<div class="diff-browser__error">Failed to load diff</div>';
-        container.style.display = '';
+        container.classList.remove('hidden');
       }
     }
   }
@@ -117,8 +117,8 @@
     function onKey(e) {
       if (e.key === 'Escape') {
         var dropdown = document.getElementById('diff-branch-dropdown');
-        if (dropdown && dropdown.style.display !== 'none') {
-          dropdown.style.display = 'none';
+        if (dropdown && !dropdown.classList.contains('hidden')) {
+          dropdown.classList.add('hidden');
         } else {
           window.__diffBrowserClose();
           document.removeEventListener('keydown', onKey);
@@ -133,7 +133,7 @@
       overlay.addEventListener('click', function (e) {
         if (!e.target.closest('#diff-branch-picker')) {
           var dropdown = document.getElementById('diff-branch-dropdown');
-          if (dropdown) dropdown.style.display = 'none';
+          if (dropdown) dropdown.classList.add('hidden');
         }
       });
     }
@@ -160,7 +160,7 @@
   window.__diffSelectBranch = function (btn) {
     var ref = btn.getAttribute('data-ref');
     if (!ref || ref === currentBase) {
-      document.getElementById('diff-branch-dropdown').style.display = 'none';
+      document.getElementById('diff-branch-dropdown').classList.add('hidden');
       return;
     }
 
@@ -175,7 +175,7 @@
     if (label) label.textContent = ref;
 
     // Close dropdown
-    document.getElementById('diff-branch-dropdown').style.display = 'none';
+    document.getElementById('diff-branch-dropdown').classList.add('hidden');
 
     // Update base and reload everything
     currentBase = ref;
@@ -213,9 +213,9 @@
     var search = document.getElementById('diff-branch-search');
     if (!dropdown) return;
 
-    var open = dropdown.style.display === 'none';
-    dropdown.style.display = open ? '' : 'none';
-    if (open && search) {
+    var isHidden = dropdown.classList.contains('hidden');
+    dropdown.classList.toggle('hidden');
+    if (isHidden && search) {
       search.value = '';
       search.dispatchEvent(new Event('input'));
       search.focus();
@@ -228,7 +228,7 @@
       var q = e.target.value.toLowerCase();
       document.querySelectorAll('.diff-branch-picker__item').forEach(function (btn) {
         var ref = btn.getAttribute('data-ref').toLowerCase();
-        btn.style.display = ref.includes(q) ? '' : 'none';
+        btn.classList.toggle('hidden', !ref.includes(q));
       });
     }
   });

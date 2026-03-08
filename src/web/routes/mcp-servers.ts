@@ -42,22 +42,22 @@ export function createMcpServersRouter(eta: Eta, db: Database.Database): Router 
       const type = (typeof req.body['type'] === 'string' ? req.body['type'] : '').trim();
 
       if (!name) {
-        res.status(422).send('<div class="badge badge--failed">Name is required</div>');
+        res.status(422).send('<div class="badge badge-error">Name is required</div>');
         return;
       }
       if (!VALID_TYPES.has(type)) {
-        res.status(422).send('<div class="badge badge--failed">Invalid server type</div>');
+        res.status(422).send('<div class="badge badge-error">Invalid server type</div>');
         return;
       }
       if (store.getServerByName(name)) {
-        res.status(422).send('<div class="badge badge--failed">A server with that name already exists</div>');
+        res.status(422).send('<div class="badge badge-error">A server with that name already exists</div>');
         return;
       }
 
       if (type === 'url' || type === 'sse' || type === 'http') {
         const url = (typeof req.body['url'] === 'string' ? req.body['url'] : '').trim();
         if (!url) {
-          res.status(422).send('<div class="badge badge--failed">URL is required</div>');
+          res.status(422).send('<div class="badge badge-error">URL is required</div>');
           return;
         }
 
@@ -86,7 +86,7 @@ export function createMcpServersRouter(eta: Eta, db: Database.Database): Router 
           typeof req.body['command'] === 'string' ? req.body['command'] : ''
         ).trim();
         if (!command) {
-          res.status(422).send('<div class="badge badge--failed">Command is required</div>');
+          res.status(422).send('<div class="badge badge-error">Command is required</div>');
           return;
         }
 

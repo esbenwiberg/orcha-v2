@@ -1,22 +1,22 @@
 <div id="bootstrap-pats-panel">
-  <table class="table" style="width:100%">
+  <table class="data-table w-full">
     <thead>
       <tr>
         <th class="text-xs">Provider</th>
         <th class="text-xs">Status</th>
-        <th class="text-xs" style="min-width:200px">Token</th>
+        <th class="text-xs min-w-[200px]">Token</th>
         <th class="text-xs">Actions</th>
       </tr>
     </thead>
     <tbody>
       <!-- DevOps -->
       <tr>
-        <td class="text-sm" style="font-weight:500">Azure DevOps</td>
+        <td class="text-sm font-medium">Azure DevOps</td>
         <td>
           <% if (it.devopsSet) { %>
-            <span class="badge badge--active">Set</span>
+            <span class="badge badge-success">Set</span>
           <% } else { %>
-            <span class="badge badge--idle">Not set</span>
+            <span class="badge badge-neutral">Not set</span>
           <% } %>
         </td>
         <td>
@@ -24,14 +24,13 @@
             hx-post="/api/bootstrap-pats/devops"
             hx-target="#bootstrap-pats-panel"
             hx-swap="outerHTML"
-            style="display:flex;gap:0.5rem;align-items:center"
+            class="flex gap-2 items-center"
           >
             <input
               type="password"
               name="pat"
               placeholder="<%= it.devopsSet ? '••••••••' : 'Paste PAT...' %>"
-              class="input input--sm"
-              style="flex:1;min-width:0"
+              class="form-input text-xs flex-1 min-w-0"
               autocomplete="off"
             />
             <button type="submit" class="btn btn-xs btn-primary">Save</button>
@@ -40,8 +39,7 @@
         <td>
           <% if (it.devopsSet) { %>
             <button
-              class="btn btn-xs"
-              style="color:var(--color-error)"
+              class="btn btn-xs text-red-400"
               hx-delete="/api/bootstrap-pats/devops"
               hx-target="#bootstrap-pats-panel"
               hx-swap="outerHTML"
@@ -52,7 +50,7 @@
       </tr>
     </tbody>
   </table>
-  <small class="text-xs text-muted" style="display:block;margin-top:0.5rem">
+  <small class="text-xs text-muted block mt-2">
     The DevOps bootstrap PAT is used to provision short-lived session tokens. It is stored encrypted and shared across all credential profiles.
     You can also set it via the <code class="font-mono">DEVOPS_BOOTSTRAP_PAT</code> environment variable.
     GitHub PATs are configured per credential profile.

@@ -5,6 +5,7 @@ dist/
 *.db-wal
 .env
 coverage/
+src/web/public/css/styles.css
 infra/parameters.json
 data-dev/
 data/

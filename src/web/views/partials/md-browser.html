@@ -6,7 +6,7 @@
           <span class="md-picker__label" id="md-picker-label"><%= it.initialFile || 'Select file...' %></span>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <div class="md-picker__dropdown" id="md-picker-dropdown" style="display:none">
+        <div class="md-picker__dropdown hidden" id="md-picker-dropdown">
           <input class="md-picker__search" id="md-picker-search" type="text" placeholder="Filter files..." autocomplete="off" />
           <div class="md-picker__list" id="md-picker-list">
             <% for (const file of it.files) { %>
@@ -27,7 +27,7 @@
       </div>
       <div class="md-browser__toolbar-actions">
         <button class="btn btn-ghost btn-sm" onclick="window.__mdToggleEdit('<%= it.sessionId %>')" id="md-edit-toggle-btn">Edit</button>
-        <button class="btn btn-primary btn-sm" onclick="window.__mdSave('<%= it.sessionId %>')" id="md-save-btn" style="display:none">Save</button>
+        <button class="btn btn-primary btn-sm hidden" onclick="window.__mdSave('<%= it.sessionId %>')" id="md-save-btn">Save</button>
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('md-browser-overlay').remove()">Close</button>
       </div>
     </div>
@@ -49,8 +49,8 @@
 
   function onKey(e) {
     if (e.key === 'Escape') {
-      if (dropdown.style.display !== 'none') {
-        dropdown.style.display = 'none';
+      if (!dropdown.classList.contains('hidden')) {
+        dropdown.classList.add('hidden');
       } else {
         overlay.remove();
         document.removeEventListener('keydown', onKey);
@@ -62,14 +62,14 @@
   // Close dropdown when clicking outside
   overlay.addEventListener('click', function(e) {
     if (!e.target.closest('#md-picker')) {
-      dropdown.style.display = 'none';
+      dropdown.classList.add('hidden');
     }
   });
 
   window.__mdPickerToggle = function() {
-    var open = dropdown.style.display === 'none';
-    dropdown.style.display = open ? '' : 'none';
-    if (open) {
+    var isHidden = dropdown.classList.contains('hidden');
+    dropdown.classList.toggle('hidden');
+    if (isHidden) {
       search.value = '';
       search.dispatchEvent(new Event('input'));
       search.focus();
@@ -83,12 +83,12 @@
     // Update label
     label.textContent = btn.getAttribute('data-path');
     // Close dropdown
-    dropdown.style.display = 'none';
+    dropdown.classList.add('hidden');
     // Reset edit mode
     var toggleBtn = document.getElementById('md-edit-toggle-btn');
     var saveBtn = document.getElementById('md-save-btn');
     if (toggleBtn) toggleBtn.textContent = 'Edit';
-    if (saveBtn) saveBtn.style.display = 'none';
+    if (saveBtn) saveBtn.classList.add('hidden');
   };
 
   // Filter logic
@@ -96,7 +96,7 @@
     var q = search.value.toLowerCase();
     document.querySelectorAll('.md-picker__item').forEach(function(btn) {
       var path = btn.getAttribute('data-path').toLowerCase();
-      btn.style.display = path.includes(q) ? '' : 'none';
+      btn.classList.toggle('hidden', !path.includes(q));
     });
   });
 
@@ -108,16 +108,16 @@
     var saveBtn = document.getElementById('md-save-btn');
     if (!viewEl || !editEl) return;
 
-    if (editEl.style.display === 'none') {
-      viewEl.style.display = 'none';
-      editEl.style.display = 'flex';
+    if (editEl.classList.contains('hidden')) {
+      viewEl.classList.add('hidden');
+      editEl.classList.remove('hidden');
       toggleBtn.textContent = 'View';
-      saveBtn.style.display = '';
+      saveBtn.classList.remove('hidden');
     } else {
-      editEl.style.display = 'none';
-      viewEl.style.display = '';
+      editEl.classList.add('hidden');
+      viewEl.classList.remove('hidden');
       toggleBtn.textContent = 'Edit';
-      saveBtn.style.display = 'none';
+      saveBtn.classList.add('hidden');
     }
   };
 
@@ -137,7 +137,7 @@
       var toggleBtn = document.getElementById('md-edit-toggle-btn');
       var saveBtn = document.getElementById('md-save-btn');
       if (toggleBtn) toggleBtn.textContent = 'Edit';
-      if (saveBtn) saveBtn.style.display = 'none';
+      if (saveBtn) saveBtn.classList.add('hidden');
     });
   };
 })();

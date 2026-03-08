@@ -60,13 +60,13 @@ export function createSkillsRouter(eta: Eta, db: Database.Database): Router {
 
       if (!name || !NAME_RE.test(name)) {
         res.status(422).send(
-          '<div class="badge badge--failed">Invalid name — lowercase, numbers, hyphens only (max 64 chars)</div>',
+          '<div class="badge badge-error">Invalid name — lowercase, numbers, hyphens only (max 64 chars)</div>',
         );
         return;
       }
       if (!content.trim()) {
         res.status(422).send(
-          '<div class="badge badge--failed">Skill content cannot be empty</div>',
+          '<div class="badge badge-error">Skill content cannot be empty</div>',
         );
         return;
       }

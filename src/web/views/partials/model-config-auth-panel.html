@@ -1,13 +1,13 @@
 <div id="model-config-auth-panel-<%= it.id %>">
-  <h2 class="text-sm" style="color:var(--color-text-primary);font-weight:600;margin:0 0 0.5rem;">Authenticate with Claude Max</h2>
-  <p class="text-xs text-muted" style="margin:0 0 1rem;">
+  <h2 class="text-sm font-semibold text-slate-50 mb-2">Authenticate with Claude Max</h2>
+  <p class="text-xs text-muted mb-4">
     A login URL will appear in the terminal below. Open it in your browser to sign in with your claude.ai account.
     Credentials will be saved automatically once you've logged in.
   </p>
 
   <!-- Auth terminal -->
-  <div style="background:#000;border-radius:var(--radius-card);overflow:hidden;height:300px;margin-bottom:1rem;">
-    <div id="xterm-auth-<%= it.id %>" style="width:100%;height:100%;"></div>
+  <div class="bg-black rounded-lg overflow-hidden h-[300px] mb-4">
+    <div id="xterm-auth-<%= it.id %>" class="w-full h-full"></div>
   </div>
 
   <!-- Status indicator — polls every 2s until credentials appear -->
@@ -15,8 +15,8 @@
        hx-get="/api/model-configs/<%= it.id %>/auth/status?token=<%= it.token %>"
        hx-trigger="every 2s"
        hx-swap="outerHTML"
-       style="margin-bottom:0.75rem;">
-    <span class="badge badge--paused">Waiting for login…</span>
+       class="mb-3">
+    <span class="badge badge-accent">Waiting for login…</span>
   </div>
 
   <button

@@ -27,7 +27,7 @@ export function createClaudePermissionsRouter(eta: Eta, db: Database.Database): 
     try {
       const rule = (typeof req.body['rule'] === 'string' ? req.body['rule'] : '').trim();
       if (!rule) {
-        res.status(422).send('<div class="badge badge--failed">Rule is required</div>');
+        res.status(422).send('<div class="badge badge-error">Rule is required</div>');
         return;
       }
 
@@ -86,7 +86,7 @@ export function createClaudePermissionsRouter(eta: Eta, db: Database.Database): 
     try {
       const rule = (typeof req.body['rule'] === 'string' ? req.body['rule'] : '').trim();
       if (!rule) {
-        res.status(422).send('<div class="badge badge--failed">Rule is required</div>');
+        res.status(422).send('<div class="badge badge-error">Rule is required</div>');
         return;
       }
 

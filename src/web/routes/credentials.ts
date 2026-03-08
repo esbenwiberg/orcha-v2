@@ -72,7 +72,7 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
       const durationHours = parseInt(String(body['durationHours'] ?? '4'), 10);
 
       if (!name) {
-        res.status(422).send('<div class="badge badge--failed">Name is required</div>');
+        res.status(422).send('<div class="badge badge-error">Name is required</div>');
         return;
       }
 
@@ -138,7 +138,7 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
 
       if (!profile) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(404).send('<div class="badge badge--failed">Profile not found</div>');
+        res.status(404).send('<div class="badge badge-error">Profile not found</div>');
         return;
       }
 
@@ -166,7 +166,7 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
       const durationHours = parseInt(String(body['durationHours'] ?? '4'), 10);
 
       if (!name) {
-        res.status(422).send('<div class="badge badge--failed">Name is required</div>');
+        res.status(422).send('<div class="badge badge-error">Name is required</div>');
         return;
       }
 
@@ -258,7 +258,7 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
       const creds = store.getById(id);
 
       if (!creds) {
-        res.status(404).send('<div class="badge badge--failed">Not found</div>');
+        res.status(404).send('<div class="badge badge-error">Not found</div>');
         return;
       }
 

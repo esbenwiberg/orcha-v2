@@ -2,7 +2,7 @@
   <div class="md-file-view markdown-body">
     <%~ it.rendered %>
   </div>
-  <div class="md-file-edit" style="display:none">
+  <div class="md-file-edit hidden">
     <textarea class="md-file-edit__textarea" spellcheck="false"><%= it.raw %></textarea>
   </div>
 </div>
@@ -13,6 +13,6 @@
   var toggleBtn = document.getElementById('md-edit-toggle-btn');
   var saveBtn = document.getElementById('md-save-btn');
   if (toggleBtn) toggleBtn.textContent = 'Edit';
-  if (saveBtn) saveBtn.style.display = 'none';
+  if (saveBtn) saveBtn.classList.add('hidden');
 })();
 </script>

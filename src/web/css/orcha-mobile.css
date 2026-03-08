@@ -1,0 +1,913 @@
+/*
+ * Orcha Mobile — Standalone full-viewport shell with bottom tab navigation.
+ *
+ * JS-toggled classes preserved as CSS selectors:
+ *   is-recording, mobile-tab--active, header-toggle--active
+ */
+
+@layer components {
+
+  /* ===================================================================
+     Mobile shell — full viewport, three rows: header, main, tabs
+     =================================================================== */
+
+  #mobile-shell {
+    @apply flex flex-col overflow-hidden;
+    height: 100%;
+    height: 100dvh;
+  }
+
+  /* ===================================================================
+     Mobile header
+     =================================================================== */
+
+  #mobile-header {
+    @apply shrink-0 flex items-center select-none;
+    gap: 12px;
+    height: 52px;
+    padding: 0 16px;
+    /* Safe-area inset for iOS notch / Dynamic Island */
+    padding-top: env(safe-area-inset-top);
+    background-color: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    -webkit-user-select: none;
+  }
+
+  .mobile-header__logo {
+    @apply flex items-center shrink-0 font-bold no-underline;
+    gap: 8px;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    color: var(--color-text-primary);
+  }
+
+  .mobile-header__title {
+    @apply overflow-hidden whitespace-nowrap font-semibold;
+    font-size: 14px;
+    color: var(--color-text-muted);
+    text-overflow: ellipsis;
+  }
+
+  /* ===================================================================
+     Header toggle buttons (wake lock, notifications)
+     =================================================================== */
+
+  .header-toggle {
+    @apply shrink-0 flex items-center justify-center cursor-pointer;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    color: var(--color-text-muted);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+  }
+
+  .header-toggle--active {
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  }
+
+  /* ===================================================================
+     Terminal / main content area
+     =================================================================== */
+
+  #mobile-terminal-area {
+    @apply flex-1 overflow-hidden relative flex flex-col;
+    flex-basis: 0;
+    background-color: var(--color-bg);
+    /* Safe-area insets for curved / cutout display edges */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Two-layer system: terminal layer persists, content layer swaps */
+  #mobile-terminal-layer,
+  #mobile-content-layer {
+    @apply absolute inset-0 flex flex-col overflow-hidden;
+  }
+
+  #mobile-content-slot {
+    @apply flex-1 flex items-center justify-center;
+    padding: 24px;
+  }
+
+  .mobile-placeholder-text {
+    @apply text-center;
+    color: var(--color-text-muted);
+    font-size: 14px;
+  }
+
+  /* ===================================================================
+     Bottom tab bar
+     =================================================================== */
+
+  #mobile-tabs {
+    @apply shrink-0 flex items-stretch;
+    background-color: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    /* Safe-area inset for iOS home indicator — minimum 8px */
+    padding-bottom: max(env(safe-area-inset-bottom), 8px);
+  }
+
+  /* ===================================================================
+     Individual tab buttons — 44px minimum touch target (WCAG 2.5.5)
+     =================================================================== */
+
+  .mobile-tab {
+    @apply flex-1 flex flex-col items-center justify-center cursor-pointer select-none;
+    gap: 4px;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 4px;
+    background: transparent;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+  }
+
+  .mobile-tab:active {
+    background: rgba(37, 99, 235, 0.2);
+  }
+
+  .mobile-tab--active {
+    color: var(--color-accent);
+  }
+
+  .mobile-tab__icon {
+    @apply block shrink-0;
+  }
+
+  .mobile-tab__label {
+    @apply block;
+    line-height: 1;
+  }
+
+  /* ===================================================================
+     Sessions panel
+     =================================================================== */
+
+  .sessions-panel {
+    @apply flex flex-col h-full overflow-hidden;
+  }
+
+  .sessions-panel__heading {
+    @apply shrink-0;
+    padding: 16px 16px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  /* ===================================================================
+     Preset quick-launch bar
+     =================================================================== */
+
+  .preset-bar {
+    @apply shrink-0 flex flex-col;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .preset-bar__branch-input {
+    width: 100%;
+    min-height: 36px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-secondary, #1a1a2e);
+    color: var(--color-text);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .preset-bar__branch-input:focus {
+    border-color: var(--color-accent);
+  }
+
+  .preset-bar__branch-input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .preset-bar__chips {
+    @apply flex overflow-x-auto;
+    gap: 8px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  /* Hide scrollbar but keep scrollability */
+  .preset-bar__chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .preset-bar__chips {
+    scrollbar-width: none;
+  }
+
+  .preset-chip {
+    @apply shrink-0 inline-flex items-center justify-center whitespace-nowrap cursor-pointer;
+    min-height: 36px;
+    min-width: 44px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-accent);
+    background-color: transparent;
+    border: 1.5px solid var(--color-accent);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: background-color 0.15s, color 0.15s, opacity 0.15s;
+  }
+
+  .preset-chip:active {
+    background-color: var(--color-accent);
+    color: #fff;
+  }
+
+  .preset-chip:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  /* ===================================================================
+     Session list
+     =================================================================== */
+
+  .session-list {
+    @apply overflow-y-auto;
+    flex: 1 1 0;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    list-style: none;
+    padding: 8px 0;
+  }
+
+  .session-item {
+    padding: 4px 12px;
+  }
+
+  /* ===================================================================
+     Session select button — full-width tap target, min 44px
+     =================================================================== */
+
+  .session-select-btn {
+    @apply flex items-center justify-between w-full text-left cursor-pointer;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px 14px;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    color: var(--color-text-primary);
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .session-select-btn:active {
+    background: rgba(37, 99, 235, 0.2);
+    border-color: var(--color-accent);
+  }
+
+  .session-select-btn__labels {
+    @apply flex flex-col flex-1 min-w-0 text-left;
+    margin-right: 8px;
+  }
+
+  .session-select-btn__repo {
+    @apply overflow-hidden whitespace-nowrap font-medium;
+    text-overflow: ellipsis;
+  }
+
+  .session-select-btn__branch {
+    @apply overflow-hidden whitespace-nowrap;
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+  }
+
+  /* ===================================================================
+     Session item row — flex wrapper for select button + kebab
+     =================================================================== */
+
+  .session-item-row {
+    @apply flex items-center;
+    gap: 4px;
+  }
+
+  .session-item-row .session-select-btn {
+    @apply flex-1 min-w-0;
+  }
+
+  .session-kebab-btn {
+    @apply shrink-0 flex items-center justify-center;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 20px;
+    line-height: 1;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .session-kebab-btn:active {
+    background: rgba(37, 99, 235, 0.2);
+  }
+
+  /* ===================================================================
+     Connecting message
+     =================================================================== */
+
+  .connecting-msg {
+    @apply flex items-center justify-center h-full font-medium;
+    font-size: 15px;
+    color: var(--color-text-muted);
+  }
+
+  .connecting-msg--error {
+    color: var(--color-error);
+  }
+
+  /* ===================================================================
+     Terminal frame — full-height xterm.js mount
+     =================================================================== */
+
+  .terminal-frame {
+    @apply flex flex-col h-full w-full overflow-hidden;
+    background-color: #0d0d0d;
+  }
+
+  /* Auth banner slot — sits above terminal */
+  .mobile-auth-slot {
+    @apply shrink-0;
+  }
+
+  .mobile-auth-slot:empty {
+    @apply hidden;
+  }
+
+  .mobile-auth-slot .auth-banner {
+    margin: 0;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+  }
+
+  .mobile-auth-slot .auth-banner--login {
+    @apply flex-wrap;
+    gap: 6px;
+    padding: 8px 12px;
+  }
+
+  #mobile-shell .xterm-container {
+    flex: 1 1 0;
+    @apply overflow-hidden;
+    min-height: 0;
+    min-width: 0;
+    /* Prevent browser from handling vertical touch scroll */
+    touch-action: none;
+  }
+
+  /* Ensure xterm fills container */
+  #mobile-shell .xterm-container .xterm,
+  #mobile-shell .xterm-container .xterm-viewport,
+  #mobile-shell .xterm-container .xterm-screen {
+    height: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Enable native momentum scrolling on xterm viewport for iOS */
+  #mobile-shell .xterm-container .xterm-viewport {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hide blinking cursor on mobile */
+  #mobile-shell .xterm-container .xterm-cursor-layer {
+    display: none !important;
+  }
+
+  /* ===================================================================
+     On-screen key buttons for mobile
+     =================================================================== */
+
+  .mobile-keys {
+    @apply shrink-0 flex overflow-x-auto;
+    gap: 6px;
+    padding: 6px 8px;
+    background-color: #111;
+    border-top: 1px solid var(--color-border);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-key {
+    @apply shrink-0 cursor-pointer;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-key:active {
+    background: var(--color-accent);
+    color: #fff;
+    border-color: var(--color-accent);
+  }
+
+  .mobile-key--arrow {
+    padding: 6px 12px;
+  }
+
+  .mobile-key--mic {
+    @apply inline-flex items-center justify-center;
+    padding: 6px 8px;
+  }
+
+  .mobile-key--mic.is-recording {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border-color: #ef4444;
+    animation: voice-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes voice-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .mobile-key--copy {
+    @apply ml-auto;
+    background: color-mix(in srgb, var(--color-accent) 20%, var(--color-surface-raised));
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  .mobile-key--copy:active {
+    background: var(--color-accent);
+    color: #fff;
+  }
+
+  /* Voice transcript bar */
+  .terminal-frame .voice-transcript {
+    @apply shrink-0 whitespace-nowrap overflow-hidden;
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.9);
+    color: #94a3b8;
+    font-size: 12px;
+    font-style: italic;
+    font-family: var(--font-mono);
+    border-top: 1px solid var(--color-border);
+    text-overflow: ellipsis;
+  }
+
+  /* ===================================================================
+     Toast notifications (mobile — bottom-center)
+     =================================================================== */
+
+  #mobile-shell #toast-container {
+    position: fixed;
+    bottom: calc(60px + max(env(safe-area-inset-bottom), 8px));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 300;
+    @apply flex flex-col items-center pointer-events-none;
+    gap: 6px;
+  }
+
+  #mobile-shell .toast {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #fff;
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    animation: toast-in 0.2s ease, toast-out 0.3s ease 2s forwards;
+    pointer-events: auto;
+  }
+
+  @keyframes toast-out {
+    to { opacity: 0; transform: translateY(8px); }
+  }
+
+  /* ===================================================================
+     Diff browser — mobile overrides
+     =================================================================== */
+
+  #mobile-shell .diff-browser-overlay {
+    position: static;
+    padding: 0;
+    background: none;
+    overflow: hidden;
+    height: 100%;
+    @apply flex flex-col;
+  }
+
+  #mobile-shell .diff-browser {
+    max-height: 100%;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+    @apply flex flex-col;
+  }
+
+  #mobile-shell .diff-browser__body {
+    @apply flex-col;
+  }
+
+  #mobile-shell .diff-browser__file-pane {
+    width: 100%;
+    max-height: 180px;
+    overflow-x: auto;
+    overflow-y: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  #mobile-shell .diff-browser__close-btn,
+  #mobile-shell .diff-browser__view-toggle,
+  #mobile-shell .diff-browser__toolbar-actions {
+    @apply hidden;
+  }
+
+  /* ===================================================================
+     Action sheet — bottom-sheet for session actions
+     =================================================================== */
+
+  .action-sheet {
+    @apply fixed inset-0 flex flex-col justify-end;
+    z-index: 200;
+  }
+
+  .action-sheet-backdrop {
+    @apply absolute inset-0;
+    background-color: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+
+  .action-sheet-panel {
+    @apply relative flex flex-col;
+    z-index: 1;
+    gap: 8px;
+    padding: 20px 16px;
+    padding-bottom: max(env(safe-area-inset-bottom), 20px);
+    background-color: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    border-radius: 16px 16px 0 0;
+  }
+
+  .action-sheet-header {
+    @apply flex items-center justify-between;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .action-sheet-branch {
+    @apply flex-1 overflow-hidden whitespace-nowrap font-semibold;
+    font-size: 14px;
+    color: var(--color-text-primary);
+    text-overflow: ellipsis;
+    margin-right: 8px;
+  }
+
+  .action-sheet-actions {
+    @apply flex flex-col;
+    gap: 6px;
+  }
+
+  .action-sheet-btn {
+    @apply flex items-center justify-center cursor-pointer font-semibold;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 15px;
+    border: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: background-color 0.15s, opacity 0.15s;
+  }
+
+  .action-sheet-btn--warn {
+    background-color: color-mix(in srgb, #f59e0b 15%, var(--color-surface-raised));
+    color: #f59e0b;
+  }
+
+  .action-sheet-btn--warn:active {
+    background-color: color-mix(in srgb, #f59e0b 30%, var(--color-surface-raised));
+  }
+
+  .action-sheet-btn--success {
+    background-color: color-mix(in srgb, #22c55e 15%, var(--color-surface-raised));
+    color: #22c55e;
+  }
+
+  .action-sheet-btn--success:active {
+    background-color: color-mix(in srgb, #22c55e 30%, var(--color-surface-raised));
+  }
+
+  .action-sheet-btn--danger {
+    background-color: color-mix(in srgb, var(--color-error) 15%, var(--color-surface-raised));
+    color: var(--color-error);
+  }
+
+  .action-sheet-btn--danger:active {
+    background-color: color-mix(in srgb, var(--color-error) 30%, var(--color-surface-raised));
+  }
+
+  .action-sheet-btn--cancel {
+    background-color: var(--color-surface-raised);
+    color: var(--color-text-primary);
+    margin-top: 4px;
+  }
+
+  .action-sheet-btn--cancel:active {
+    background-color: var(--color-border);
+  }
+
+  .action-sheet-btn--docs {
+    background-color: color-mix(in srgb, var(--color-accent) 15%, var(--color-surface-raised));
+    color: var(--color-accent);
+  }
+
+  .action-sheet-btn--docs:active {
+    background-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-surface-raised));
+  }
+
+  .action-sheet-btn--deploy {
+    background-color: color-mix(in srgb, #22c55e 15%, var(--color-surface-raised));
+    color: #22c55e;
+    font-weight: 600;
+  }
+
+  .action-sheet-btn--deploy:active {
+    background-color: color-mix(in srgb, #22c55e 30%, var(--color-surface-raised));
+  }
+
+  /* Deploy shell slot */
+  #mobile-deploy-slot:empty {
+    @apply hidden;
+  }
+
+  #mobile-deploy-slot {
+    margin-top: 8px;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  #mobile-deploy-slot .debug-shell-panel {
+    background: #0d0d0d;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  #mobile-deploy-slot .debug-shell-header {
+    @apply flex items-center justify-between;
+    padding: 6px 10px;
+    background: var(--color-surface-raised);
+  }
+
+  #mobile-deploy-slot .xterm-container {
+    height: 240px;
+  }
+
+  /* ===================================================================
+     Connection status badge — shown in mobile header
+     =================================================================== */
+
+  .conn-badge {
+    @apply ml-auto shrink-0 inline-block whitespace-nowrap;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  .conn-live {
+    background-color: color-mix(in srgb, #22c55e 18%, transparent);
+    color: #22c55e;
+  }
+
+  .conn-reconnecting {
+    background-color: color-mix(in srgb, #f59e0b 18%, transparent);
+    color: #f59e0b;
+  }
+
+  .conn-disconnected {
+    background-color: color-mix(in srgb, var(--color-error) 18%, transparent);
+    color: var(--color-error);
+  }
+
+  /* ===================================================================
+     Reconnect failed notice
+     =================================================================== */
+
+  .reconnect-failed-msg {
+    @apply absolute left-0 right-0 text-center font-medium;
+    bottom: 48px;
+    padding: 10px 16px;
+    background-color: color-mix(in srgb, var(--color-error) 15%, var(--color-surface));
+    color: var(--color-error);
+    font-size: 13px;
+    border-top: 1px solid var(--color-error);
+  }
+
+  /* ===================================================================
+     Info panel — session detail view for the Info tab
+     =================================================================== */
+
+  .info-panel {
+    @apply flex flex-col h-full overflow-y-auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .info-panel__empty {
+    @apply flex items-center justify-center flex-1;
+  }
+
+  .info-panel__section {
+    @apply flex flex-col;
+    gap: 10px;
+    padding: 14px;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+  }
+
+  .info-panel__section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    margin-bottom: 2px;
+  }
+
+  .info-panel__row {
+    @apply flex items-center justify-between;
+    gap: 8px;
+  }
+
+  .info-panel__label {
+    @apply shrink-0 font-medium;
+    font-size: 13px;
+    color: var(--color-text-muted);
+  }
+
+  .info-panel__branch {
+    @apply overflow-hidden whitespace-nowrap text-right font-semibold;
+    font-size: 14px;
+    color: var(--color-text-primary);
+    text-overflow: ellipsis;
+  }
+
+  .info-panel__meta {
+    @apply text-right;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+  }
+
+  .info-panel__meta--warn {
+    color: #f59e0b;
+  }
+
+  .info-panel__meta--danger {
+    color: var(--color-error);
+  }
+
+  .info-panel__actions {
+    gap: 8px;
+  }
+
+  /* ===================================================================
+     Hover states — wrapped in (hover: hover) to prevent iOS sticky-hover
+     =================================================================== */
+
+  @media (hover: hover) {
+    .mobile-tab:hover {
+      color: var(--color-text-primary);
+      background-color: var(--color-surface-raised);
+    }
+
+    .session-select-btn:hover {
+      background-color: var(--color-surface-raised);
+      border-color: var(--color-accent);
+    }
+
+    .session-kebab-btn:hover {
+      background-color: var(--color-surface-raised);
+      color: var(--color-text-primary);
+    }
+
+    .action-sheet-btn--warn:hover {
+      background-color: color-mix(in srgb, #f59e0b 25%, var(--color-surface-raised));
+    }
+
+    .action-sheet-btn--success:hover {
+      background-color: color-mix(in srgb, #22c55e 25%, var(--color-surface-raised));
+    }
+
+    .action-sheet-btn--danger:hover {
+      background-color: color-mix(in srgb, var(--color-error) 25%, var(--color-surface-raised));
+    }
+
+    .action-sheet-btn--cancel:hover {
+      background-color: var(--color-surface-raised);
+    }
+
+    .action-sheet-btn--docs:hover {
+      background-color: color-mix(in srgb, var(--color-accent) 25%, var(--color-surface-raised));
+    }
+
+    .action-sheet-btn--deploy:hover {
+      background-color: color-mix(in srgb, #22c55e 25%, var(--color-surface-raised));
+    }
+
+    .preset-chip:hover:not(:disabled) {
+      background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    }
+  }
+
+  /* ===================================================================
+     Markdown browser — mobile overrides
+     =================================================================== */
+
+  #mobile-shell .md-browser-overlay {
+    padding: 0;
+  }
+
+  #mobile-shell .md-browser {
+    max-height: 100vh;
+    max-height: 100dvh;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+  }
+
+  #mobile-shell .md-browser__toolbar {
+    padding: 10px 12px;
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+
+  #mobile-shell .md-browser__content {
+    padding: 16px;
+  }
+
+  #mobile-shell .md-file-edit__textarea {
+    min-height: 200px;
+  }
+
+  /* ===================================================================
+     Landscape orientation — compact header and tab bar
+     =================================================================== */
+
+  @media (orientation: landscape) {
+    #mobile-tabs {
+      height: 44px;
+    }
+
+    #mobile-header {
+      height: 36px;
+    }
+
+    :root {
+      --term-font-size: 11px;
+    }
+  }
+}

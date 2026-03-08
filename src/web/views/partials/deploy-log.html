@@ -1,6 +1,6 @@
 <div class="deploy-log" id="deploy-log">
   <div class="deploy-log__header">
-    <span class="badge badge--running" id="deploy-status-badge">Deploying...</span>
+    <span class="badge badge-success badge-dot badge-pulse" id="deploy-status-badge">Deploying...</span>
     <span class="text-xs text-muted" id="deploy-tag">Tag: <%= it.tag %></span>
   </div>
   <pre class="deploy-log__output" id="deploy-output"></pre>
@@ -31,11 +31,11 @@
         appendLine(entry);
 
         if (entry.phase === 'done') {
-          badge.className = 'badge badge--completed';
+          badge.className = 'badge badge-success';
           badge.textContent = 'Complete';
           es.close();
         } else if (entry.phase === 'error') {
-          badge.className = 'badge badge--error';
+          badge.className = 'badge badge-error';
           badge.textContent = 'Failed';
           es.close();
         }
@@ -48,7 +48,7 @@
       reconnecting = true;
 
       // Connection lost — the app is likely restarting after deploy
-      badge.className = 'badge badge--starting';
+      badge.className = 'badge badge-warning badge-dot badge-pulse';
       badge.textContent = 'Restarting...';
       appendLine({ ts: Date.now(), phase: 'done', level: 'info', message: 'Connection lost — app is restarting...' });
 
@@ -59,7 +59,7 @@
   function pollHealth(attempt) {
     if (attempt >= 30) {
       appendLine({ ts: Date.now(), phase: 'error', level: 'error', message: 'Timed out waiting for app to come back. Check the Azure portal.' });
-      badge.className = 'badge badge--error';
+      badge.className = 'badge badge-error';
       badge.textContent = 'Timeout';
       return;
     }
@@ -70,7 +70,7 @@
         .then(function(data) {
           if (data.status === 'ok') {
             appendLine({ ts: Date.now(), phase: 'done', level: 'success', message: 'App is live! Reloading...' });
-            badge.className = 'badge badge--completed';
+            badge.className = 'badge badge-success';
             badge.textContent = 'Live';
             setTimeout(function() { window.location.reload(); }, 2000);
           } else {
