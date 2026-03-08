@@ -4,19 +4,21 @@
     <p class="text-sm text-muted mt-1">Add a repository to start creating sessions.</p>
   </div>
 <% } else { %>
-  <table class="data-table" id="repo-list">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>URL</th>
-        <th>Status</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <% for (const repo of it.repos) { %>
-        <%~ include('repo-item', { repo }) %>
-      <% } %>
-    </tbody>
-  </table>
+  <div class="table-scroll">
+    <table class="data-table" id="repo-list">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>URL</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const repo of it.repos) { %>
+          <%~ include('repo-item', { repo }) %>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
 <% } %>

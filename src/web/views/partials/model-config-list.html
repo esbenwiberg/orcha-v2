@@ -4,54 +4,56 @@
     <p class="text-sm text-muted mt-1">Create a config to set which LLM backend sessions use.</p>
   </div>
 <% } else { %>
-  <table class="data-table" id="model-config-list">
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Provider</th>
-        <th>Model</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <% for (const c of it.configs) { %>
-        <tr id="model-config-<%= c.id %>">
-          <td>
-            <span class="font-medium text-slate-50"><%= c.name %></span>
-          </td>
-          <td>
-            <span class="badge badge-accent"><%= c.provider === 'max' ? 'MAX/PRO' : c.provider %></span>
-          </td>
-          <td>
-            <span class="text-xs text-muted"><%= c.modelId ?? '—' %></span>
-          </td>
-          <td class="data-table__actions">
-            <button
-              class="btn btn-ghost btn-xs"
-              hx-get="/api/model-configs/<%= c.id %>/edit-form"
-              hx-target="#form-panel-slot"
-              hx-swap="innerHTML"
-              onclick="document.getElementById('form-panel').classList.add('is-open')"
-            >Edit</button>
-            <% if (c.provider === 'max') { %>
-            <button
-              class="btn btn-ghost btn-xs"
-              hx-post="/api/model-configs/<%= c.id %>/auth/start"
-              hx-target="#form-panel-slot"
-              hx-swap="innerHTML"
-              onclick="document.getElementById('form-panel').classList.add('is-open')"
-            >Authenticate</button>
-            <% } %>
-            <button
-              class="btn btn-ghost btn-xs"
-              hx-delete="/api/model-configs/<%= c.id %>"
-              hx-target="#model-config-<%= c.id %>"
-              hx-swap="outerHTML"
-              hx-confirm="Delete model config?"
-            >Delete</button>
-          </td>
+  <div class="table-scroll">
+    <table class="data-table" id="model-config-list">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Provider</th>
+          <th>Model</th>
+          <th></th>
         </tr>
-      <% } %>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <% for (const c of it.configs) { %>
+          <tr id="model-config-<%= c.id %>">
+            <td>
+              <span class="font-medium text-slate-50"><%= c.name %></span>
+            </td>
+            <td>
+              <span class="badge badge-accent"><%= c.provider === 'max' ? 'MAX/PRO' : c.provider %></span>
+            </td>
+            <td>
+              <span class="text-xs text-muted"><%= c.modelId ?? '—' %></span>
+            </td>
+            <td class="data-table__actions">
+              <button
+                class="btn btn-ghost btn-xs"
+                hx-get="/api/model-configs/<%= c.id %>/edit-form"
+                hx-target="#form-panel-slot"
+                hx-swap="innerHTML"
+                onclick="document.getElementById('form-panel').classList.add('is-open')"
+              >Edit</button>
+              <% if (c.provider === 'max') { %>
+              <button
+                class="btn btn-ghost btn-xs"
+                hx-post="/api/model-configs/<%= c.id %>/auth/start"
+                hx-target="#form-panel-slot"
+                hx-swap="innerHTML"
+                onclick="document.getElementById('form-panel').classList.add('is-open')"
+              >Authenticate</button>
+              <% } %>
+              <button
+                class="btn btn-ghost btn-xs"
+                hx-delete="/api/model-configs/<%= c.id %>"
+                hx-target="#model-config-<%= c.id %>"
+                hx-swap="outerHTML"
+                hx-confirm="Delete model config?"
+              >Delete</button>
+            </td>
+          </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
 <% } %>

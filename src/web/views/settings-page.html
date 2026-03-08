@@ -1,149 +1,175 @@
-<div class="page-section">
-  <div class="page-section__header">
-    <div>
-      <h2 class="page-section__title">Azure CLI</h2>
-      <p class="page-section__subtitle">Host-level Azure sign-in — used for deployments and <code class="font-mono text-xs">az</code> commands outside sessions</p>
+<div class="tabs mb-6">
+  <button class="tab active" onclick="switchSettingsTab(this, 'general')">General</button>
+  <button class="tab" onclick="switchSettingsTab(this, 'agent')">Agent</button>
+  <button class="tab" onclick="switchSettingsTab(this, 'integrations')">Integrations</button>
+  <button class="tab" onclick="switchSettingsTab(this, 'credentials')">Credentials</button>
+</div>
+
+<div data-tab="general" class="flex flex-col gap-4">
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">Azure CLI</h2>
+        <p class="page-section__subtitle">Host-level Azure sign-in — used for deployments and <code class="font-mono text-xs">az</code> commands outside sessions</p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/az-login/host-status"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
     </div>
   </div>
-  <div
-    hx-get="/api/az-login/host-status"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <div class="skeleton skeleton-row"></div>
+
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">Git Identity</h2>
+        <p class="page-section__subtitle">Default <code class="font-mono text-xs">user.name</code> and <code class="font-mono text-xs">user.email</code> injected into every session's <code class="font-mono text-xs">.gitconfig</code></p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/git-identity"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
+    </div>
   </div>
 </div>
 
-<div class="page-section">
-  <div class="page-section__header">
-    <div>
-      <h2 class="page-section__title">Git Identity</h2>
-      <p class="page-section__subtitle">Default <code class="font-mono text-xs">user.name</code> and <code class="font-mono text-xs">user.email</code> injected into every session's <code class="font-mono text-xs">.gitconfig</code></p>
+<div data-tab="agent" style="display:none" class="flex flex-col gap-4">
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">CLAUDE.md</h2>
+        <p class="page-section__subtitle">Global instructions injected into every session's <code class="font-mono text-xs">~/.claude/CLAUDE.md</code></p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/claude-files/claude_md"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row mt-2"></div>
     </div>
   </div>
-  <div
-    hx-get="/api/git-identity"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <div class="skeleton skeleton-row"></div>
+
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">soul.md</h2>
+        <p class="page-section__subtitle">Voice and style guide — merged into <code class="font-mono text-xs">~/.claude/CLAUDE.md</code> at session start</p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/claude-files/soul_md"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row mt-2"></div>
+    </div>
+  </div>
+
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">Claude Permissions</h2>
+        <p class="page-section__subtitle">Tool allow/deny rules written to <code class="font-mono text-xs">.claude/settings.json</code></p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/claude-permissions"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row mt-2"></div>
+    </div>
   </div>
 </div>
 
-<div class="page-section">
-  <div class="page-section__header">
-    <div>
-      <h2 class="page-section__title">CLAUDE.md</h2>
-      <p class="page-section__subtitle">Global instructions injected into every session's <code class="font-mono text-xs">~/.claude/CLAUDE.md</code></p>
+<div data-tab="integrations" style="display:none" class="flex flex-col gap-4">
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">Global SDKs</h2>
+        <p class="page-section__subtitle">SDKs installed at container boot and available to all agent sessions</p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/sdks"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
     </div>
   </div>
-  <div
-    hx-get="/api/claude-files/claude_md"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <div class="skeleton skeleton-row"></div>
-    <div class="skeleton skeleton-row mt-2"></div>
+
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">MCP Servers</h2>
+        <p class="page-section__subtitle">Model Context Protocol servers injected into agent sessions</p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/mcp-servers"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row mt-2"></div>
+    </div>
+  </div>
+
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">Skills</h2>
+        <p class="page-section__subtitle">Custom <code class="font-mono text-xs">/slash</code> commands written to <code class="font-mono text-xs">~/.claude/skills/</code> in every session</p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/skills"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row mt-2"></div>
+    </div>
   </div>
 </div>
 
-<div class="page-section">
-  <div class="page-section__header">
-    <div>
-      <h2 class="page-section__title">soul.md</h2>
-      <p class="page-section__subtitle">Voice and style guide — merged into <code class="font-mono text-xs">~/.claude/CLAUDE.md</code> at session start</p>
+<div data-tab="credentials" style="display:none" class="flex flex-col gap-4">
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">Bootstrap PATs</h2>
+        <p class="page-section__subtitle">Long-lived tokens used to provision short-lived session credentials</p>
+      </div>
     </div>
-  </div>
-  <div
-    hx-get="/api/claude-files/soul_md"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <div class="skeleton skeleton-row"></div>
-    <div class="skeleton skeleton-row mt-2"></div>
+    <div
+      hx-get="/api/bootstrap-pats"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row mt-2"></div>
+    </div>
   </div>
 </div>
 
-<div class="page-section">
-  <div class="page-section__header">
-    <div>
-      <h2 class="page-section__title">Global SDKs</h2>
-      <p class="page-section__subtitle">SDKs installed at container boot and available to all agent sessions</p>
-    </div>
-  </div>
-  <div
-    hx-get="/api/sdks"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <div class="skeleton skeleton-row"></div>
-  </div>
-</div>
-
-<div class="page-section">
-  <div class="page-section__header">
-    <div>
-      <h2 class="page-section__title">Claude Permissions</h2>
-      <p class="page-section__subtitle">Tool allow/deny rules written to <code class="font-mono text-xs">.claude/settings.json</code></p>
-    </div>
-  </div>
-  <div
-    hx-get="/api/claude-permissions"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <div class="skeleton skeleton-row"></div>
-    <div class="skeleton skeleton-row mt-2"></div>
-  </div>
-</div>
-
-<div class="page-section">
-  <div class="page-section__header">
-    <div>
-      <h2 class="page-section__title">MCP Servers</h2>
-      <p class="page-section__subtitle">Model Context Protocol servers injected into agent sessions</p>
-    </div>
-  </div>
-  <div
-    hx-get="/api/mcp-servers"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <div class="skeleton skeleton-row"></div>
-    <div class="skeleton skeleton-row mt-2"></div>
-  </div>
-</div>
-
-<div class="page-section">
-  <div class="page-section__header">
-    <div>
-      <h2 class="page-section__title">Skills</h2>
-      <p class="page-section__subtitle">Custom <code class="font-mono text-xs">/slash</code> commands written to <code class="font-mono text-xs">~/.claude/skills/</code> in every session</p>
-    </div>
-  </div>
-  <div
-    hx-get="/api/skills"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <div class="skeleton skeleton-row"></div>
-    <div class="skeleton skeleton-row mt-2"></div>
-  </div>
-</div>
-
-<div class="page-section">
-  <div class="page-section__header">
-    <div>
-      <h2 class="page-section__title">Bootstrap PATs</h2>
-      <p class="page-section__subtitle">Long-lived tokens used to provision short-lived session credentials</p>
-    </div>
-  </div>
-  <div
-    hx-get="/api/bootstrap-pats"
-    hx-trigger="load"
-    hx-swap="innerHTML"
-  >
-    <div class="skeleton skeleton-row"></div>
-    <div class="skeleton skeleton-row mt-2"></div>
-  </div>
-</div>
+<script>
+function switchSettingsTab(btn, tab) {
+  btn.closest('.orcha-main').querySelectorAll('[data-tab]').forEach(function(el) {
+    el.style.display = el.dataset.tab === tab ? '' : 'none';
+  });
+  btn.closest('.tabs').querySelectorAll('.tab').forEach(function(el) {
+    el.classList.toggle('active', el === btn);
+  });
+}
+</script>

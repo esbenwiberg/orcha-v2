@@ -191,7 +191,9 @@
   .form-panel {
     @apply fixed right-0 top-0 flex flex-col;
     height: 100vh;
-    width: 420px;
+    width: 100%;
+    max-width: 420px;
+    overflow-y: auto;
     background: var(--color-surface);
     border-left: 1px solid var(--color-border);
     transform: translateX(100%);
@@ -2307,5 +2309,38 @@
 
   .az-login-banner__copy:hover {
     background: var(--color-accent-dim);
+  }
+
+  /* ===================================================================
+     Table horizontal scroll wrapper (for mobile)
+     =================================================================== */
+
+  .table-scroll {
+    @apply overflow-x-auto -mx-1.5;
+    padding: 0 0.375rem;
+  }
+
+  /* ===================================================================
+     Permissions grid — stack on mobile
+     =================================================================== */
+
+  #claude-permissions-panel .grid {
+    @apply grid-cols-1 sm:grid-cols-2;
+  }
+
+  /* ===================================================================
+     MCP server item styling
+     =================================================================== */
+
+  .mcp-server-item {
+    @apply flex items-center gap-3 text-xs;
+    padding: 0.5rem 0.625rem;
+    background: color-mix(in srgb, var(--color-surface-raised) 50%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+    border-radius: 6px;
+  }
+
+  .mcp-server-item code {
+    @apply font-mono min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
   }
 }

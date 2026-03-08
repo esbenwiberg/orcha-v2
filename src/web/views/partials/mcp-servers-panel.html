@@ -2,34 +2,36 @@
   <% if (it.servers && it.servers.length > 0) { %>
     <div class="flex flex-col gap-2 mb-4">
       <% for (const srv of it.servers) { %>
-        <div class="perm-rule flex items-center gap-3">
-          <code class="text-xs font-mono flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-            <%= srv.name %>
-          </code>
-          <span class="badge badge-info shrink-0"><%= srv.type %></span>
-          <code class="text-xs font-mono text-muted flex-[2] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+        <div class="mcp-server-item">
+          <span class="font-medium text-slate-200 shrink-0"><%= srv.name %></span>
+          <span class="badge badge-info badge-sm shrink-0"><%= srv.type %></span>
+          <code class="text-slate-500 flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
             <%= srv.url ?? (srv.command ? srv.command + (srv.args ? ' ' + srv.args.join(' ') : '') : '') %>
           </code>
           <button
-            class="btn btn-xs text-red-400 shrink-0"
+            class="btn btn-ghost btn-xs text-red-400 shrink-0"
             hx-delete="/api/mcp-servers/<%= srv.id %>"
             hx-target="#mcp-servers-panel"
             hx-swap="outerHTML"
+            aria-label="Remove server"
           >&times;</button>
         </div>
       <% } %>
     </div>
   <% } else { %>
-    <p class="text-xs text-muted mb-4">No MCP servers configured</p>
+    <p class="text-xs text-slate-500 mb-4">No MCP servers configured.</p>
   <% } %>
 
-  <details>
-    <summary class="btn btn-xs btn-primary cursor-pointer list-none">+ Add MCP Server</summary>
+  <div>
+    <button
+      class="btn btn-primary btn-sm"
+      onclick="this.nextElementSibling.classList.toggle('hidden'); this.classList.toggle('hidden');"
+    >+ Add Server</button>
     <form
       hx-post="/api/mcp-servers"
       hx-target="#mcp-servers-panel"
       hx-swap="outerHTML"
-      class="mt-3 flex flex-col gap-2 max-w-[480px]"
+      class="hidden flex flex-col gap-3 max-w-[480px]"
     >
       <div class="flex gap-2">
         <input
@@ -66,9 +68,14 @@
         <textarea name="args" placeholder="Arguments (one per line)" class="form-textarea text-xs" rows="2"></textarea>
       </div>
 
-      <div>
-        <button class="btn btn-xs btn-primary">Add</button>
+      <div class="flex gap-2">
+        <button class="btn btn-primary btn-xs">Add</button>
+        <button
+          type="button"
+          class="btn btn-ghost btn-xs"
+          onclick="this.closest('form').classList.add('hidden'); this.closest('form').previousElementSibling.classList.remove('hidden');"
+        >Cancel</button>
       </div>
     </form>
-  </details>
+  </div>
 </div>
