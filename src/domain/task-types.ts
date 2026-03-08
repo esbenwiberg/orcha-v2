@@ -133,7 +133,7 @@ export interface TaskEvent {
 
 /** Valid task status transitions. */
 export const TASK_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
-  draft: ['investigating', 'queued', 'cancelled'],
+  draft: ['investigating', 'queued', 'failed', 'cancelled'],
   investigating: ['rejected', 'enriching', 'failed', 'cancelled'],
   rejected: ['enriching', 'queued', 'cancelled'],
   enriching: ['queued', 'failed', 'cancelled'],

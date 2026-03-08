@@ -241,7 +241,19 @@ export class TaskProcessor {
       task.displayId, branch, repo.barePath);
 
     try {
-      const worktree = await this.#worktreeManager.addWorktree(worktreeId, branch, repo.barePath);
+      let worktree: WorktreeInfo;
+      try {
+        worktree = await this.#worktreeManager.addWorktree(worktreeId, branch, repo.barePath);
+      } catch (addErr) {
+        // Branch already exists (e.g. from a previous failed attempt) — restore it
+        if (String(addErr).includes('already exists')) {
+          console.log('[task-processor] TASK-%d branch exists, restoring worktree', task.displayId);
+          worktree = await this.#worktreeManager.restoreWorktree(worktreeId, branch, repo.barePath);
+        } else {
+          throw addErr;
+        }
+      }
+
       this.#taskStore.setWorktreePath(task.id, worktree.path);
 
       // Also persist the branch if it wasn't set
