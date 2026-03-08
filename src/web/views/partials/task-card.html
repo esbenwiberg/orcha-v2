@@ -1,0 +1,71 @@
+<%
+  const _taskStatusMap = {
+    draft: 'badge-neutral',
+    investigating: 'badge-warning badge-dot badge-pulse',
+    rejected: 'badge-error',
+    enriching: 'badge-warning badge-dot badge-pulse',
+    queued: 'badge-accent',
+    executing: 'badge-success badge-dot badge-pulse',
+    done: 'badge-success',
+    failed: 'badge-error',
+    cancelled: 'badge-neutral',
+  };
+  const _ratingMap = {
+    reject: 'badge-error',
+    weak: 'badge-warning',
+    viable: 'badge-accent',
+    good: 'badge-success',
+    excellent: 'badge-success',
+  };
+  const repo = it.repos ? it.repos.find(r => r.id === it.task.repoId) : null;
+  const repoName = repo ? repo.displayName : it.task.repoId.slice(0, 8);
+
+  function timeAgo(d) {
+    const secs = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (secs < 60) return secs + 's ago';
+    if (secs < 3600) return Math.floor(secs / 60) + 'm ago';
+    if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
+    return Math.floor(secs / 86400) + 'd ago';
+  }
+%>
+<tr>
+  <td class="text-slate-400 font-mono text-xs"><%= it.task.displayId %></td>
+  <td>
+    <button
+      class="text-left text-sm font-medium text-slate-200 hover:text-white bg-transparent border-0 p-0 cursor-pointer underline-offset-2 hover:underline"
+      hx-get="/api/tasks/<%= it.task.id %>"
+      hx-target="#form-panel-slot"
+      hx-swap="innerHTML"
+      onclick="document.getElementById('form-panel').classList.add('is-open')"
+    ><%= it.task.title %></button>
+  </td>
+  <td class="text-xs text-slate-400"><%= repoName %></td>
+  <td>
+    <span class="badge <%= _taskStatusMap[it.task.status] || 'badge-neutral' %>"
+      id="task-badge-<%= it.task.id %>"
+      sse-swap="task-status-<%= it.task.id %>"
+      hx-swap="outerHTML"
+    ><%= it.task.status %></span>
+  </td>
+  <td>
+    <% if (it.task.investigationRating) { %>
+      <span class="badge <%= _ratingMap[it.task.investigationRating] || 'badge-neutral' %>"><%= it.task.investigationRating %></span>
+    <% } else { %>
+      <span class="text-xs text-slate-600">—</span>
+    <% } %>
+  </td>
+  <td class="text-xs text-slate-500"><%= timeAgo(it.task.createdAt) %></td>
+  <td class="text-right">
+    <% if (it.task.prUrl) { %>
+      <a href="<%= it.task.prUrl %>" target="_blank" class="btn btn-xs btn-ghost" title="View PR">PR</a>
+    <% } %>
+    <% if (it.task.status !== 'done' && it.task.status !== 'cancelled') { %>
+      <button
+        class="btn btn-xs btn-ghost text-red-400"
+        hx-post="/api/tasks/<%= it.task.id %>/cancel"
+        hx-swap="none"
+        hx-confirm="Cancel this task?"
+      >Cancel</button>
+    <% } %>
+  </td>
+</tr>

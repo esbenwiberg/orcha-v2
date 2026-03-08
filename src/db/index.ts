@@ -11,3 +11,4 @@ export { GlobalSettingsStore } from './global-settings-store.js';
 export { ModelConfigStore } from './model-config-store.js';
 export { McpServerStore } from './mcp-server-store.js';
 export type { McpServer, CreateMcpServerInput, McpSettingsEntry } from './mcp-server-store.js';
+export { TaskStore } from './task-store.js';

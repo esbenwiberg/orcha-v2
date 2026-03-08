@@ -1,0 +1,57 @@
+<% if (!it.entries || it.entries.length === 0) { %>
+  <div class="text-xs text-slate-600 py-1">No transcript entries.</div>
+<% } else { %>
+  <div class="flex flex-col gap-1">
+    <% for (const entry of it.entries) { %>
+      <% const data = entry.data; %>
+      <% if (entry.eventType === 'assistant') { %>
+        <div class="text-xs py-1">
+          <span class="text-slate-500 mr-1">agent</span>
+          <% const content = data && data.message && data.message.content; %>
+          <% if (Array.isArray(content)) { %>
+            <% for (const block of content) { %>
+              <% if (block.type === 'text') { %>
+                <span class="text-slate-300"><%= block.text %></span>
+              <% } %>
+            <% } %>
+          <% } else if (typeof content === 'string') { %>
+            <span class="text-slate-300"><%= content %></span>
+          <% } %>
+        </div>
+      <% } else if (entry.eventType === 'tool_use') { %>
+        <div class="text-xs py-1">
+          <span class="text-blue-400 mr-1">tool</span>
+          <span class="text-slate-300 font-mono"><%= data && data.tool ? data.tool.name : 'unknown' %></span>
+          <% if (data && data.tool && data.tool.input) { %>
+            <details class="inline">
+              <summary class="text-slate-600 cursor-pointer ml-1">(input)</summary>
+              <pre class="text-[10px] text-slate-500 mt-0.5 overflow-x-auto max-h-24 p-1 bg-slate-800/50 rounded"><%= JSON.stringify(data.tool.input, null, 2).slice(0, 500) %></pre>
+            </details>
+          <% } %>
+        </div>
+      <% } else if (entry.eventType === 'tool_result') { %>
+        <div class="text-xs py-1">
+          <details>
+            <summary class="text-slate-500 cursor-pointer">result</summary>
+            <pre class="text-[10px] text-slate-500 mt-0.5 overflow-x-auto max-h-24 p-1 bg-slate-800/50 rounded"><%= typeof data === 'string' ? data.slice(0, 1000) : JSON.stringify(data, null, 2).slice(0, 1000) %></pre>
+          </details>
+        </div>
+      <% } else if (entry.eventType === 'result') { %>
+        <div class="text-xs py-1 border-t border-slate-700/30 mt-1 pt-1">
+          <span class="text-green-400 mr-1">done</span>
+          <% const resultText = data && data.result ? data.result.text : ''; %>
+          <span class="text-slate-300"><%= typeof resultText === 'string' ? resultText.slice(0, 500) : '' %></span>
+        </div>
+      <% } else if (entry.eventType === 'error') { %>
+        <div class="text-xs py-1 text-red-400">
+          <span class="mr-1">error</span>
+          <span><%= typeof data === 'string' ? data : JSON.stringify(data).slice(0, 300) %></span>
+        </div>
+      <% } else { %>
+        <div class="text-xs py-1 text-slate-600">
+          <span class="mr-1"><%= entry.eventType %></span>
+        </div>
+      <% } %>
+    <% } %>
+  </div>
+<% } %>

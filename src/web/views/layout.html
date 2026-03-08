@@ -60,6 +60,18 @@
         </a>
 
         <a
+          href="/tasks"
+          class="orcha-sidebar__nav-item<%= it.activeNav === 'tasks' ? ' orcha-sidebar__nav-item--active' : '' %>"
+          title="Tasks"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 3h10v10H3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M5 7.5l2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="orcha-sidebar__nav-item-text">Tasks</span>
+        </a>
+
+        <a
           href="/presets"
           class="orcha-sidebar__nav-item<%= it.activeNav === 'presets' ? ' orcha-sidebar__nav-item--active' : '' %>"
           title="Presets"
@@ -225,6 +237,10 @@
       });
       document.body.addEventListener('refresh-model-list', function () {
         var el = document.getElementById('model-config-list-slot');
+        if (el) htmx.trigger(el, 'refresh');
+      });
+      document.body.addEventListener('refresh-task-list', function () {
+        var el = document.getElementById('task-list-slot');
         if (el) htmx.trigger(el, 'refresh');
       });
     </script>

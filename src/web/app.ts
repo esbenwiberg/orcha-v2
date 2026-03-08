@@ -29,6 +29,7 @@ import { createBootstrapPatsRouter } from './routes/bootstrap-pats.js';
 import { createSdksRouter } from './routes/sdks.js';
 import { createSkillsRouter } from './routes/skills.js';
 import { createAzLoginRouter } from './routes/az-login.js';
+import { createTasksRouter } from './routes/tasks.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
@@ -185,6 +186,9 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
 
   // Az login (session-scoped + host-scoped device code flow)
   app.use('/api', createAzLoginRouter(eta, deps));
+
+  // Tasks pipeline router
+  app.use('/api', createTasksRouter(eta, deps));
 
   // Self-deploy (optional — only if DEPLOY_* env vars are set)
   const deployConfig = loadDeployConfig();

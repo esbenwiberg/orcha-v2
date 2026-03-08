@@ -1,0 +1,27 @@
+<% if (!it.tasks || it.tasks.length === 0) { %>
+  <div class="empty-state">
+    <p>No tasks yet.</p>
+    <p class="text-sm text-muted mt-1">Create a task to have Claude autonomously investigate, enrich, and execute it.</p>
+  </div>
+<% } else { %>
+  <div class="table-scroll">
+    <table class="data-table" id="task-list">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Title</th>
+          <th>Repo</th>
+          <th>Status</th>
+          <th>Rating</th>
+          <th>Created</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const task of it.tasks) { %>
+          <%~ include('task-card', { task, repos: it.repos }) %>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+<% } %>

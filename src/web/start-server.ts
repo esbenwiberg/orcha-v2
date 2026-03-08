@@ -17,6 +17,7 @@ import { emitStartupDiagnostics } from '../diagnostics/startup.js';
 import { getStoragePaths } from '../storage/paths.js';
 import { GlobalSettingsStore } from '../db/global-settings-store.js';
 import { installEnabledSdks } from '../sdk-installer.js';
+import { TaskProcessor } from '../tasks/task-processor.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
@@ -128,6 +129,14 @@ const authConfig = loadAuthConfig();
 const authTerminalManager = new AuthTerminalManager();
 
 const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig, authTerminalManager, validationManager };
+
+// Start the task pipeline processor (background loop)
+const taskProcessor = new TaskProcessor({ db, sessionManager: sessionEngine });
+taskProcessor.start(10_000);
+
+process.on('SIGTERM', () => {
+  taskProcessor.stop();
+});
 
 startServer(deps, port)
   .then(() => {

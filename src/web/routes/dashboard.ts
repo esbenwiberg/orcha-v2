@@ -180,6 +180,31 @@ export function createDashboardRouter(eta: Eta): Router {
     }
   });
 
+  // GET /tasks — task pipeline page
+  router.get('/tasks', (_req, res, next) => {
+    try {
+      const body = eta.render('tasks-page', {});
+      const html = eta.render('layout', {
+        ...shared,
+        title: 'Orcha – Tasks',
+        pageTitle: 'Tasks',
+        activeNav: 'tasks',
+        headerActions: `<button
+          class="btn btn-primary"
+          hx-get="/api/tasks/new-form"
+          hx-target="#form-panel-slot"
+          hx-swap="innerHTML"
+          onclick="document.getElementById('form-panel').classList.add('is-open')"
+        >+ New Task</button>`,
+        body,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // GET /system — system health + disk usage
   router.get('/system', (_req, res, next) => {
     try {

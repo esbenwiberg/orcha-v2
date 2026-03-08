@@ -1,9 +1,20 @@
-export type SseEvent = {
-  sessionId: string;
+export type SessionSseEvent = {
   type: 'status' | 'created' | 'deleted';
+  sessionId: string;
   status?: string;
   html?: string;
 };
+
+export type TaskSseEvent = {
+  type: 'task-status' | 'task-transcript';
+  taskId: string;
+  status?: string;
+  phase?: string;
+  seq?: number;
+  event?: unknown;
+};
+
+export type SseEvent = SessionSseEvent | TaskSseEvent;
 
 class EventBus {
   private subscribers = new Set<(event: SseEvent) => void>();

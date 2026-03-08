@@ -2343,4 +2343,21 @@
   .mcp-server-item code {
     @apply font-mono min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
   }
+
+  /* ─── Task pipeline cards ─────────────────────────────────────────── */
+  .task-card {
+    @apply border border-slate-700/50 rounded-lg overflow-hidden;
+  }
+  .task-card__header {
+    @apply px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-900/50 border-b border-slate-700/30;
+  }
+  .task-card__body {
+    @apply p-3;
+  }
+  .task-card--error {
+    @apply border-red-500/30;
+  }
+  .task-card--error .task-card__header {
+    @apply bg-red-500/10;
+  }
 }

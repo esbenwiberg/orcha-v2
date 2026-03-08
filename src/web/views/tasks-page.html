@@ -1,0 +1,33 @@
+<div class="page-section">
+  <div class="flex gap-2 mb-4">
+    <select class="form-select form-select-sm" id="task-status-filter"
+      hx-get="/api/tasks"
+      hx-target="#task-list-slot"
+      hx-swap="innerHTML"
+      hx-trigger="change"
+      hx-include="this"
+      name="status"
+    >
+      <option value="">All statuses</option>
+      <option value="draft">Draft</option>
+      <option value="investigating">Investigating</option>
+      <option value="rejected">Rejected</option>
+      <option value="enriching">Enriching</option>
+      <option value="queued">Queued</option>
+      <option value="executing">Executing</option>
+      <option value="done">Done</option>
+      <option value="failed">Failed</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+  </div>
+
+  <div id="task-list-slot"
+    hx-get="/api/tasks"
+    hx-trigger="load, refresh"
+    hx-swap="innerHTML"
+  >
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row mt-2"></div>
+    <div class="skeleton skeleton-row mt-2"></div>
+  </div>
+</div>

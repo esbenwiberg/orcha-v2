@@ -24,14 +24,33 @@ export function createEventsRouter(eta: Eta): Router {
       // Always send the raw JSON event
       res.write(`data: ${JSON.stringify(event)}\n\n`);
 
-      // For status events, also send a named event with the badge HTML
-      if (event.type === 'status' && event.status) {
+      // For session status events, also send a named event with the badge HTML
+      if (event.type === 'status' && 'sessionId' in event && event.status) {
         const badgeHtml = await eta.renderAsync('partials/status-badge', {
           status: event.status,
           sessionId: event.sessionId,
         });
         const eventName = `session-status-${event.sessionId}`;
         res.write(`event: ${eventName}\ndata: ${badgeHtml.replace(/\n/g, '')}\n\n`);
+      }
+
+      // For task status events, send a named event with the badge HTML
+      if (event.type === 'task-status' && 'taskId' in event && event.status) {
+        const _taskStatusMap: Record<string, string> = {
+          draft: 'badge-neutral',
+          investigating: 'badge-warning badge-dot badge-pulse',
+          rejected: 'badge-error',
+          enriching: 'badge-warning badge-dot badge-pulse',
+          queued: 'badge-accent',
+          executing: 'badge-success badge-dot badge-pulse',
+          done: 'badge-success',
+          failed: 'badge-error',
+          cancelled: 'badge-neutral',
+        };
+        const cls = _taskStatusMap[event.status] || 'badge-neutral';
+        const badgeHtml = `<span class="badge ${cls}" id="task-badge-${event.taskId}" sse-swap="task-status-${event.taskId}" hx-swap="outerHTML">${event.status}</span>`;
+        const eventName = `task-status-${event.taskId}`;
+        res.write(`event: ${eventName}\ndata: ${badgeHtml}\n\n`);
       }
 
       // Flush if the method exists (some middleware adds it)
