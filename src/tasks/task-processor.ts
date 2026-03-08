@@ -8,6 +8,8 @@ import { McpServerStore } from '../db/mcp-server-store.js';
 import { ModelConfigStore } from '../db/model-config-store.js';
 import { GlobalSettingsStore } from '../db/global-settings-store.js';
 import { buildModelEnv, ENV_DELETE } from '../model-config/env-builder.js';
+import { CredentialStore } from '../db/credential-store.js';
+import { credentialManager } from '../credentials/credential-manager.js';
 import { readSettingsFromDb } from '../web/routes/claude-settings-db.js';
 import { buildSessionClaudeMd } from '../web/routes/claude-files.js';
 import { loadSkills } from '../web/routes/skills.js';
@@ -44,6 +46,7 @@ export class TaskProcessor {
   #mcpServerStore: McpServerStore;
   #modelConfigStore: ModelConfigStore;
   #globalSettingsStore: GlobalSettingsStore;
+  #credentialStore: CredentialStore;
   #sessionManager: SessionManager;
   #worktreeManager: WorktreeManager;
   #db: Database.Database;
@@ -57,14 +60,41 @@ export class TaskProcessor {
     this.#mcpServerStore = new McpServerStore(deps.db);
     this.#modelConfigStore = new ModelConfigStore(deps.db);
     this.#globalSettingsStore = new GlobalSettingsStore(deps.db);
+    this.#credentialStore = new CredentialStore(deps.db);
     this.#sessionManager = deps.sessionManager;
     this.#worktreeManager = deps.worktreeManager;
   }
 
   start(intervalMs = 10_000): void {
+    // Reconcile tasks stuck in active states from a previous container lifecycle.
+    // Sessions are reconciled separately by SessionStore, but task status must also
+    // be updated so they can be retried.
+    this.#reconcileOrphanedTasks();
+
     console.log('[task-processor] started (interval=%dms)', intervalMs);
     void this.tick();
     this.#interval = setInterval(() => void this.tick(), intervalMs);
+  }
+
+  /** Transition tasks stuck in executing/investigating/enriching to failed on startup. */
+  #reconcileOrphanedTasks(): void {
+    const activeStatuses = ['executing', 'investigating', 'enriching'] as const;
+    let count = 0;
+    for (const status of activeStatuses) {
+      const tasks = this.#taskStore.listTasks({ status });
+      for (const task of tasks) {
+        try {
+          this.#taskStore.updateTask(task.id, { errorMessage: `Task was in '${status}' state when the container restarted` });
+          this.#taskStore.transition(task.id, 'failed', `Orphaned in '${status}' — container restarted`);
+          count++;
+        } catch {
+          // Transition may fail if state doesn't allow it
+        }
+      }
+    }
+    if (count > 0) {
+      console.log('[task-processor] reconciled %d orphaned task(s) → failed', count);
+    }
   }
 
   stop(): void {
@@ -188,10 +218,10 @@ export class TaskProcessor {
     const worktreePath = worktree?.path ?? join(getStoragePaths().worktreeBaseDir, `task-${task.id}`);
 
     // Build full execution environment (HOME dir, env vars, deleteEnv)
-    const { env, deleteEnv, homeDir, modelProvider } = this.#setupExecutionEnv(task, worktreePath);
+    const { env, deleteEnv, homeDir, modelProvider } = await this.#setupExecutionEnv(task, worktreePath);
 
-    console.log('[task-processor] TASK-%d execution starting (worktree=%s hasApiKey=%s homeDir=%s)',
-      task.displayId, worktree ? worktree.path : 'new', 'ANTHROPIC_API_KEY' in env, homeDir ?? 'none');
+    console.log('[task-processor] TASK-%d execution starting (worktree=%s hasApiKey=%s hasGhToken=%s homeDir=%s)',
+      task.displayId, worktree ? worktree.path : 'new', 'ANTHROPIC_API_KEY' in env, 'GH_TOKEN' in env, homeDir ?? 'none');
 
     try {
       this.#taskStore.transition(task.id, 'executing', 'Starting execution session');
@@ -389,12 +419,12 @@ export class TaskProcessor {
    *   settings.json (permissions, MCP), .credentials.json, .gitconfig,
    *   .git-credentials, CLAUDE.md, skills
    */
-  #setupExecutionEnv(task: Task, worktreePath: string): {
+  async #setupExecutionEnv(task: Task, worktreePath: string): Promise<{
     env: Record<string, string>;
     deleteEnv: string[];
     homeDir: string | undefined;
     modelProvider: string | undefined;
-  } {
+  }> {
     const mc = task.modelConfigId ? this.#modelConfigStore.getConfig(task.modelConfigId) : undefined;
     const env: Record<string, string> = {};
     const deleteEnv: string[] = [];
@@ -407,6 +437,33 @@ export class TaskProcessor {
           deleteEnv.push(k);
         } else {
           env[k] = v;
+        }
+      }
+    }
+
+    // Provision credentials from the credential profile (GitHub PAT, Azure SP, DevOps)
+    if (task.credentialProfileId) {
+      const profile = this.#credentialStore.getProfile(task.credentialProfileId);
+      if (profile) {
+        try {
+          const { activeCreds, env: credEnv } = await credentialManager.provision(profile);
+          Object.assign(env, credEnv);
+
+          // Persist credential grant for auto-revoke on session exit
+          this.#credentialStore.createSessionCredentials({
+            profileId: profile.id,
+            profileName: profile.name,
+            ...(activeCreds.azureSpName !== undefined ? { azureSpName: activeCreds.azureSpName } : {}),
+            ...(activeCreds.azureAppId !== undefined ? { azureAppId: activeCreds.azureAppId } : {}),
+            ...(activeCreds.githubPatId !== undefined ? { githubPatId: activeCreds.githubPatId } : {}),
+            ...(activeCreds.devopsPatId !== undefined ? { devopsPatId: activeCreds.devopsPatId } : {}),
+            expiresAt: activeCreds.expiresAt,
+          });
+
+          console.log('[task-processor] TASK-%d credentials provisioned: profile=%s ghToken=%s',
+            task.displayId, profile.name, 'GH_TOKEN' in credEnv);
+        } catch (err) {
+          console.warn('[task-processor] TASK-%d credential provisioning failed: %s', task.displayId, err);
         }
       }
     }
