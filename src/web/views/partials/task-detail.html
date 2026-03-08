@@ -241,6 +241,30 @@
     </div>
   </div>
 
+  <!-- Event Log -->
+  <% if (it.events && it.events.length > 0) { %>
+  <div class="task-card">
+    <div class="task-card__header">Event Log</div>
+    <div class="task-card__body" style="max-height: 240px; overflow-y: auto; font-family: monospace;">
+      <% for (const ev of it.events) { %>
+        <div class="text-[11px] py-0.5 border-b border-slate-800/50 last:border-0 flex gap-2">
+          <span class="text-slate-600 shrink-0 w-[130px]"><%= new Date(ev.occurredAt).toISOString().replace('T', ' ').slice(0, 19) %></span>
+          <span class="shrink-0">
+            <% if (ev.fromStatus) { %>
+              <span class="text-slate-500"><%= ev.fromStatus %></span>
+              <span class="text-slate-600">&rarr;</span>
+            <% } %>
+            <span class="<%= ev.toStatus === 'failed' || ev.toStatus === 'rejected' ? 'text-red-400' : ev.toStatus === 'done' ? 'text-green-400' : 'text-slate-300' %>"><%= ev.toStatus %></span>
+          </span>
+          <% if (ev.note) { %>
+            <span class="text-slate-500 truncate"><%= ev.note %></span>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
   <!-- Actions -->
   <div class="flex gap-2 pt-2 border-t border-slate-700/50">
     <% if (it.task.status === 'rejected') { %>

@@ -37,6 +37,8 @@ export interface CreateSessionOptions {
   sourceBranch?: string;
   /** MCP server IDs selected for this session (from the registry). */
   mcpServerIds?: string[];
+  /** Pre-existing worktree to reuse (skips worktree creation). */
+  existingWorktree?: WorktreeInfo;
 }
 
 export interface ActiveSession {
@@ -119,16 +121,20 @@ export class SessionManager {
       );
     }
 
-    // Step 1: Create worktree
+    // Step 1: Create worktree (or reuse an existing one)
     let worktree: WorktreeInfo;
-    try {
-      worktree = await this._worktreeManager.addWorktree(sessionId, opts.branch, opts.repoRoot, opts.sourceBranch);
-    } catch (err) {
-      throw new SessionError(
-        `Failed to create worktree for session '${sessionId}': ${String(err)}`,
-        'WORKTREE_FAILED',
-        err,
-      );
+    if (opts.existingWorktree) {
+      worktree = opts.existingWorktree;
+    } else {
+      try {
+        worktree = await this._worktreeManager.addWorktree(sessionId, opts.branch, opts.repoRoot, opts.sourceBranch);
+      } catch (err) {
+        throw new SessionError(
+          `Failed to create worktree for session '${sessionId}': ${String(err)}`,
+          'WORKTREE_FAILED',
+          err,
+        );
+      }
     }
 
     // Step 2: Spawn PTY

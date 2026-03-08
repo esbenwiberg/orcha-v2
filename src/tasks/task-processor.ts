@@ -3,6 +3,7 @@ import { TaskStore } from '../db/task-store.js';
 import { RepoStore } from '../db/repo-store.js';
 import { McpServerStore } from '../db/mcp-server-store.js';
 import type { SessionManager } from '../terminal/session-manager.js';
+import type { WorktreeManager, WorktreeInfo } from '../terminal/worktree-manager.js';
 import type { Task } from '../domain/task-types.js';
 import { investigate } from './investigate.js';
 import { enrich } from './enrich.js';
@@ -12,6 +13,19 @@ import { eventBus } from '../web/services/event-bus.js';
 export interface TaskProcessorDeps {
   db: Database.Database;
   sessionManager: SessionManager;
+  worktreeManager: WorktreeManager;
+}
+
+/** Slugify a task title into a git branch name. */
+function slugifyBranch(title: string): string {
+  return (
+    'task/' +
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 60)
+  );
 }
 
 export class TaskProcessor {
@@ -19,6 +33,7 @@ export class TaskProcessor {
   #repoStore: RepoStore;
   #mcpServerStore: McpServerStore;
   #sessionManager: SessionManager;
+  #worktreeManager: WorktreeManager;
   #db: Database.Database;
   #interval: ReturnType<typeof setInterval> | undefined;
   #processing = false;
@@ -29,10 +44,11 @@ export class TaskProcessor {
     this.#repoStore = new RepoStore(deps.db);
     this.#mcpServerStore = new McpServerStore(deps.db);
     this.#sessionManager = deps.sessionManager;
+    this.#worktreeManager = deps.worktreeManager;
   }
 
   start(intervalMs = 10_000): void {
-    // Run an immediate tick, then schedule
+    console.log('[task-processor] started (interval=%dms)', intervalMs);
     void this.tick();
     this.#interval = setInterval(() => void this.tick(), intervalMs);
   }
@@ -41,6 +57,7 @@ export class TaskProcessor {
     if (this.#interval !== undefined) {
       clearInterval(this.#interval);
       this.#interval = undefined;
+      console.log('[task-processor] stopped');
     }
   }
 
@@ -50,6 +67,8 @@ export class TaskProcessor {
     try {
       const task = this.#taskStore.getNextActionable();
       if (!task) return;
+
+      console.log('[task-processor] picked up TASK-%d (%s) status=%s', task.displayId, task.id.slice(0, 8), task.status);
 
       switch (task.status) {
         case 'draft':
@@ -73,10 +92,13 @@ export class TaskProcessor {
   }
 
   async #handleDraft(task: Task): Promise<void> {
+    // Create worktree up front — shared across investigate, enrich, and execute
+    const worktree = await this.#ensureWorktree(task);
+    if (!worktree) return; // #ensureWorktree already called #fail
+
     if (task.autoEnrich) {
       this.#taskStore.transition(task.id, 'investigating', 'Auto-enrich enabled — starting investigation');
       this.#publishStatus(task.id, 'investigating');
-      // Re-fetch and run investigation immediately
       const updated = this.#taskStore.getTask(task.id)!;
       await this.#runInvestigation(updated);
     } else {
@@ -86,27 +108,27 @@ export class TaskProcessor {
   }
 
   async #runInvestigation(task: Task): Promise<void> {
-    const repo = this.#repoStore.getRepo(task.repoId);
-    if (!repo?.barePath) {
-      this.#fail(task.id, `Repo '${task.repoId}' not found or not cloned`);
-      return;
-    }
+    const worktree = await this.#ensureWorktree(task);
+    if (!worktree) return;
+
+    console.log('[task-processor] TASK-%d investigation starting (cwd=%s)', task.displayId, worktree.path);
 
     try {
       const result = await investigate({
         task,
         taskStore: this.#taskStore,
-        cwd: repo.barePath,
+        cwd: worktree.path,
       });
 
-      // Rate the result
+      console.log('[task-processor] TASK-%d investigation complete: rating=%s summary=%s',
+        task.displayId, result.rating, result.summary.slice(0, 100));
+
       if (result.rating === 'reject' || result.rating === 'weak') {
         this.#taskStore.transition(task.id, 'rejected', `Investigation rated: ${result.rating}`);
         this.#publishStatus(task.id, 'rejected');
       } else {
         this.#taskStore.transition(task.id, 'enriching', `Investigation rated: ${result.rating}`);
         this.#publishStatus(task.id, 'enriching');
-        // Run enrichment immediately
         const updated = this.#taskStore.getTask(task.id)!;
         await this.#runEnrichment(updated);
       }
@@ -116,18 +138,20 @@ export class TaskProcessor {
   }
 
   async #runEnrichment(task: Task): Promise<void> {
-    const repo = this.#repoStore.getRepo(task.repoId);
-    if (!repo?.barePath) {
-      this.#fail(task.id, `Repo '${task.repoId}' not found or not cloned`);
-      return;
-    }
+    const worktree = await this.#ensureWorktree(task);
+    if (!worktree) return;
+
+    console.log('[task-processor] TASK-%d enrichment starting (cwd=%s)', task.displayId, worktree.path);
 
     try {
-      await enrich({
+      const result = await enrich({
         task,
         taskStore: this.#taskStore,
-        cwd: repo.barePath,
+        cwd: worktree.path,
       });
+
+      console.log('[task-processor] TASK-%d enrichment complete: complexity=%s files=%d',
+        task.displayId, result.complexity, result.affectedFiles.length);
 
       this.#taskStore.transition(task.id, 'queued', 'Enrichment complete — ready for execution');
       this.#publishStatus(task.id, 'queued');
@@ -137,6 +161,12 @@ export class TaskProcessor {
   }
 
   async #runExecution(task: Task): Promise<void> {
+    // Resolve existing worktree (if any) for reuse
+    const worktree = task.worktreePath ? await this.#resolveWorktree(task) : undefined;
+
+    console.log('[task-processor] TASK-%d execution starting (worktree=%s)',
+      task.displayId, worktree ? worktree.path : 'new');
+
     try {
       this.#taskStore.transition(task.id, 'executing', 'Starting execution session');
       this.#publishStatus(task.id, 'executing');
@@ -148,16 +178,23 @@ export class TaskProcessor {
         repoStore: this.#repoStore,
         mcpServerStore: this.#mcpServerStore,
         db: this.#db,
+        ...(worktree !== undefined ? { existingWorktree: worktree } : {}),
       });
+
+      console.log('[task-processor] TASK-%d execution session created: sessionId=%s',
+        task.displayId, session.sessionId.slice(0, 8));
 
       // Wait for session to complete (non-blocking for the event loop)
       const exitCode = await waitForSessionExit(session);
+
+      console.log('[task-processor] TASK-%d execution session exited: code=%d', task.displayId, exitCode);
 
       // Extract PR URL and preview URL from terminal output
       const prUrl = extractPrUrl(session);
       const previewUrl = task.selfValidate ? extractPreviewUrl(session) : null;
 
       if (prUrl) {
+        console.log('[task-processor] TASK-%d PR created: %s', task.displayId, prUrl);
         this.#taskStore.setExecution(task.id, { prUrl });
       }
       if (previewUrl) {
@@ -173,6 +210,62 @@ export class TaskProcessor {
     } catch (err) {
       this.#fail(task.id, `Execution error: ${String(err)}`);
     }
+  }
+
+  /**
+   * Ensures a worktree exists for the task. Creates one if needed, persists
+   * the path on the task row, and returns the WorktreeInfo.
+   */
+  async #ensureWorktree(task: Task): Promise<WorktreeInfo | undefined> {
+    // Already have a worktree path — resolve it
+    if (task.worktreePath) {
+      return this.#resolveWorktree(task);
+    }
+
+    const repo = this.#repoStore.getRepo(task.repoId);
+    if (!repo?.barePath) {
+      this.#fail(task.id, `Repo '${task.repoId}' not found or not cloned`);
+      return undefined;
+    }
+
+    const branch = task.branch || slugifyBranch(task.title);
+    const worktreeId = `task-${task.id}`;
+
+    console.log('[task-processor] TASK-%d creating worktree (branch=%s repo=%s)',
+      task.displayId, branch, repo.barePath);
+
+    try {
+      const worktree = await this.#worktreeManager.addWorktree(worktreeId, branch, repo.barePath);
+      this.#taskStore.setWorktreePath(task.id, worktree.path);
+
+      // Also persist the branch if it wasn't set
+      if (!task.branch) {
+        this.#taskStore.updateTask(task.id, { branch });
+      }
+
+      console.log('[task-processor] TASK-%d worktree created at %s', task.displayId, worktree.path);
+      return worktree;
+    } catch (err) {
+      this.#fail(task.id, `Worktree creation failed: ${String(err)}`);
+      return undefined;
+    }
+  }
+
+  /** Build WorktreeInfo from a persisted worktree path. */
+  async #resolveWorktree(task: Task): Promise<WorktreeInfo | undefined> {
+    if (!task.worktreePath) return undefined;
+
+    const repo = this.#repoStore.getRepo(task.repoId);
+    const branch = task.branch || slugifyBranch(task.title);
+
+    return {
+      id: `task-${task.id}`,
+      path: task.worktreePath,
+      branch,
+      commitSha: '', // Not needed for reuse
+      createdAt: task.createdAt,
+      ...(repo?.barePath ? {} : {}),
+    };
   }
 
   #fail(taskId: string, message: string): void {

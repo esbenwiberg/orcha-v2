@@ -137,7 +137,8 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       const sessionActive = task.sessionId
         ? deps.sessionEngine.getSessionByDbId(task.sessionId) !== undefined
         : false;
-      const html = eta.render('partials/task-detail', { task, repo, transcript, sessionActive });
+      const events = taskStore.getEvents(task.id);
+      const html = eta.render('partials/task-detail', { task, repo, transcript, sessionActive, events });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {

@@ -29,6 +29,8 @@ done
 command -v az >/dev/null 2>&1 || { echo "az CLI not found." >&2; exit 1; }
 az account show --output none 2>/dev/null || { echo "Not logged in to Azure. Run: az login" >&2; exit 1; }
 
+az account set --subscription "Projectum_Playground"
+
 if [[ "${SYSTEM}" == "true" ]]; then
   echo "=== System events (restarts, OOM, crashes) — last ${HOURS}h ==="
   echo ""

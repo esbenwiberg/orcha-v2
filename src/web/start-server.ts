@@ -131,7 +131,7 @@ const authTerminalManager = new AuthTerminalManager();
 const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig, authTerminalManager, validationManager };
 
 // Start the task pipeline processor (background loop)
-const taskProcessor = new TaskProcessor({ db, sessionManager: sessionEngine });
+const taskProcessor = new TaskProcessor({ db, sessionManager: sessionEngine, worktreeManager });
 taskProcessor.start(10_000);
 
 process.on('SIGTERM', () => {

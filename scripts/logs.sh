@@ -39,6 +39,8 @@ CONTAINER_APP_NAME=$(read_param containerAppName)
 command -v az >/dev/null 2>&1 || { echo "az CLI not found." >&2; exit 1; }
 az account show --output none 2>/dev/null || { echo "Not logged in to Azure. Run: az login" >&2; exit 1; }
 
+az account set --subscription "Projectum_Playground"
+
 echo "=== Orcha logs: ${CONTAINER_APP_NAME} (rg: ${RESOURCE_GROUP}) ==="
 echo ""
 

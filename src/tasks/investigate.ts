@@ -1,9 +1,7 @@
-import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
 import type { Task, InvestigationResult } from '../domain/task-types.js';
 import type { TaskStore } from '../db/task-store.js';
 import { buildInvestigationPrompt, INVESTIGATION_TOOLS } from './prompts.js';
-import { eventBus } from '../web/services/event-bus.js';
+import { spawnClaude } from './spawn-claude.js';
 
 export interface InvestigateContext {
   task: Task;
@@ -24,59 +22,29 @@ export async function investigate(ctx: InvestigateContext): Promise<Investigatio
     prompt,
   ];
 
-  const proc = spawn('claude', args, {
+  const { exitCode, resultText, eventCount, timedOut } = await spawnClaude({
+    args,
     cwd,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env },
+    taskId: task.id,
+    displayId: task.displayId,
+    phase: 'investigate',
+    taskStore,
+    timeoutMs: 5 * 60_000, // 5 minutes
   });
 
-  let seq = 0;
-  let lastResultText = '';
-
-  const rl = createInterface({ input: proc.stdout! });
-  rl.on('line', (line) => {
-    if (!line.trim()) return;
-    try {
-      const event = JSON.parse(line) as Record<string, unknown>;
-      const eventType = (event['type'] as string) ?? 'unknown';
-
-      taskStore.appendTranscript(task.id, 'investigate', seq++, eventType, event);
-      eventBus.publish({
-        type: 'task-transcript',
-        taskId: task.id,
-        phase: 'investigate',
-        seq: seq - 1,
-        event,
-      });
-
-      // Capture the final result text
-      if (eventType === 'result') {
-        const result = event['result'] as Record<string, unknown> | undefined;
-        if (result) {
-          lastResultText = (result['text'] as string) ?? '';
-        }
-      }
-    } catch {
-      // Non-JSON line — ignore
-    }
-  });
-
-  // Collect stderr for error reporting
-  let stderr = '';
-  proc.stderr!.on('data', (chunk: Buffer) => {
-    stderr += chunk.toString();
-  });
-
-  const exitCode = await new Promise<number>((resolve) => {
-    proc.on('close', (code) => resolve(code ?? 1));
-  });
-
-  if (exitCode !== 0) {
-    throw new Error(`Investigation failed (exit ${exitCode}): ${stderr.slice(0, 500)}`);
+  if (timedOut) {
+    throw new Error('Investigation timed out after 5 minutes');
   }
 
-  // Parse the investigation result from the final result text
-  const result = parseInvestigationResult(lastResultText);
+  if (exitCode !== 0) {
+    throw new Error(`Investigation failed (exit ${exitCode})`);
+  }
+
+  if (eventCount === 0) {
+    console.warn('[investigate] TASK-%d no stream-json events captured — claude may have failed silently', task.displayId);
+  }
+
+  const result = parseInvestigationResult(resultText);
   taskStore.setInvestigation(task.id, result);
 
   return result;
@@ -99,7 +67,6 @@ function parseInvestigationResult(text: string): InvestigationResult {
       ...(parsed['webResearch'] !== undefined ? { webResearch: parsed['webResearch'] as string } : {}),
     };
   } catch {
-    // If we can't parse JSON, return a minimal result based on the raw text
     return {
       rating: 'weak',
       summary: 'Failed to parse structured investigation result.',

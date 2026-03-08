@@ -43,6 +43,7 @@ export class TaskStore {
         ? (JSON.parse(row['enrichment_result'] as string) as EnrichmentResult)
         : null,
       enrichedAt: row['enriched_at'] ? new Date(row['enriched_at'] as string) : null,
+      worktreePath: (row['worktree_path'] as string | null) ?? null,
       sessionId: (row['session_id'] as string | null) ?? null,
       branch: (row['branch'] as string | null) ?? null,
       prUrl: (row['pr_url'] as string | null) ?? null,
@@ -239,6 +240,12 @@ export class TaskStore {
          WHERE id = ?`,
       )
       .run(result.improvedDescription, JSON.stringify(result), id);
+  }
+
+  setWorktreePath(id: string, worktreePath: string): void {
+    this.#db
+      .prepare("UPDATE tasks SET worktree_path = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(worktreePath, id);
   }
 
   setExecution(

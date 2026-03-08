@@ -72,6 +72,9 @@ export interface Task {
   enrichmentResult: EnrichmentResult | null;
   enrichedAt: Date | null;
 
+  // Worktree (shared across all phases)
+  worktreePath: string | null;
+
   // Execution
   sessionId: string | null;
   branch: string | null;

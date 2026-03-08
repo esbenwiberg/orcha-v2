@@ -1,6 +1,7 @@
 import type { Task } from '../domain/task-types.js';
 import type { TaskStore } from '../db/task-store.js';
 import type { SessionManager, ActiveSession } from '../terminal/session-manager.js';
+import type { WorktreeInfo } from '../terminal/worktree-manager.js';
 import type { RepoStore } from '../db/repo-store.js';
 import { McpServerStore } from '../db/mcp-server-store.js';
 import { buildExecutionPrompt } from './prompts.js';
@@ -13,6 +14,8 @@ export interface ExecuteContext {
   repoStore: RepoStore;
   mcpServerStore: McpServerStore;
   db: import('better-sqlite3').Database;
+  /** Pre-existing worktree to reuse (from investigation/enrichment). */
+  existingWorktree?: WorktreeInfo;
 }
 
 /** Slugify a task title into a git branch name. */
@@ -59,6 +62,7 @@ export async function execute(ctx: ExecuteContext): Promise<ActiveSession> {
     sandbox: false, // Task sessions need full access for git push, gh pr create
     ...(mcpServerIds !== undefined ? { mcpServerIds } : {}),
     ...(task.modelConfigId ? { modelConfigId: task.modelConfigId } : {}),
+    ...(ctx.existingWorktree !== undefined ? { existingWorktree: ctx.existingWorktree } : {}),
   });
 
   // Store execution metadata on the task
