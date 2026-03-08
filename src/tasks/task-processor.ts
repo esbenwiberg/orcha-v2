@@ -259,9 +259,14 @@ export class TaskProcessor {
       try {
         worktree = await this.#worktreeManager.addWorktree(worktreeId, branch, repo.barePath);
       } catch (addErr) {
-        // Branch already exists (e.g. from a previous failed attempt) — restore it
+        // Branch or directory already exists from a previous attempt — clean up and restore
         if (String(addErr).includes('already exists')) {
-          console.log('[task-processor] TASK-%d branch exists, restoring worktree', task.displayId);
+          console.log('[task-processor] TASK-%d conflict detected, removing stale worktree and restoring', task.displayId);
+          try {
+            await this.#worktreeManager.removeWorktree(worktreeId, repo.barePath);
+          } catch {
+            // May fail if git doesn't track it — that's fine, we'll prune below
+          }
           worktree = await this.#worktreeManager.restoreWorktree(worktreeId, branch, repo.barePath);
         } else {
           throw addErr;
