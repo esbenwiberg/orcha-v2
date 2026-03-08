@@ -3,6 +3,8 @@ import type Database from 'better-sqlite3';
 import { TaskStore } from '../db/task-store.js';
 import { RepoStore } from '../db/repo-store.js';
 import { McpServerStore } from '../db/mcp-server-store.js';
+import { ModelConfigStore } from '../db/model-config-store.js';
+import { buildModelEnv, ENV_DELETE } from '../model-config/env-builder.js';
 import type { SessionManager } from '../terminal/session-manager.js';
 import type { WorktreeManager, WorktreeInfo } from '../terminal/worktree-manager.js';
 import type { Task } from '../domain/task-types.js';
@@ -33,6 +35,7 @@ export class TaskProcessor {
   #taskStore: TaskStore;
   #repoStore: RepoStore;
   #mcpServerStore: McpServerStore;
+  #modelConfigStore: ModelConfigStore;
   #sessionManager: SessionManager;
   #worktreeManager: WorktreeManager;
   #db: Database.Database;
@@ -44,6 +47,7 @@ export class TaskProcessor {
     this.#taskStore = new TaskStore(deps.db);
     this.#repoStore = new RepoStore(deps.db);
     this.#mcpServerStore = new McpServerStore(deps.db);
+    this.#modelConfigStore = new ModelConfigStore(deps.db);
     this.#sessionManager = deps.sessionManager;
     this.#worktreeManager = deps.worktreeManager;
   }
@@ -112,13 +116,15 @@ export class TaskProcessor {
     const worktree = await this.#ensureWorktree(task);
     if (!worktree) return;
 
-    console.log('[task-processor] TASK-%d investigation starting (cwd=%s)', task.displayId, worktree.path);
+    const extraEnv = this.#resolveModelEnv(task);
+    console.log('[task-processor] TASK-%d investigation starting (cwd=%s hasApiKey=%s)', task.displayId, worktree.path, 'ANTHROPIC_API_KEY' in extraEnv);
 
     try {
       const result = await investigate({
         task,
         taskStore: this.#taskStore,
         cwd: worktree.path,
+        ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
       });
 
       console.log('[task-processor] TASK-%d investigation complete: rating=%s summary=%s',
@@ -142,6 +148,7 @@ export class TaskProcessor {
     const worktree = await this.#ensureWorktree(task);
     if (!worktree) return;
 
+    const extraEnv = this.#resolveModelEnv(task);
     console.log('[task-processor] TASK-%d enrichment starting (cwd=%s)', task.displayId, worktree.path);
 
     try {
@@ -149,6 +156,7 @@ export class TaskProcessor {
         task,
         taskStore: this.#taskStore,
         cwd: worktree.path,
+        ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
       });
 
       console.log('[task-processor] TASK-%d enrichment complete: complexity=%s files=%d',
@@ -284,6 +292,20 @@ export class TaskProcessor {
       createdAt: task.createdAt,
       ...(repo?.barePath ? {} : {}),
     };
+  }
+
+  /** Resolve model config env vars for a task (ANTHROPIC_API_KEY etc). */
+  #resolveModelEnv(task: Task): Record<string, string> {
+    if (!task.modelConfigId) return {};
+    const mc = this.#modelConfigStore.getConfig(task.modelConfigId);
+    if (!mc) return {};
+    const raw = buildModelEnv(mc);
+    // Filter out ENV_DELETE sentinels — just omit those keys
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (v !== ENV_DELETE) env[k] = v;
+    }
+    return env;
   }
 
   #fail(taskId: string, message: string): void {

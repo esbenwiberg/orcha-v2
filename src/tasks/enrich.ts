@@ -7,10 +7,11 @@ export interface EnrichContext {
   task: Task;
   taskStore: TaskStore;
   cwd: string;
+  extraEnv?: Record<string, string>;
 }
 
 export async function enrich(ctx: EnrichContext): Promise<EnrichmentResult> {
-  const { task, taskStore, cwd } = ctx;
+  const { task, taskStore, cwd, extraEnv } = ctx;
   const prompt = buildEnrichmentPrompt(task);
 
   const args = [
@@ -30,6 +31,7 @@ export async function enrich(ctx: EnrichContext): Promise<EnrichmentResult> {
     phase: 'enrich',
     taskStore,
     timeoutMs: 5 * 60_000, // 5 minutes
+    ...(extraEnv !== undefined ? { extraEnv } : {}),
   });
 
   if (timedOut) {

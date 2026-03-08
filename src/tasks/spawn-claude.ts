@@ -12,6 +12,8 @@ export interface SpawnClaudeOptions {
   taskStore: TaskStore;
   /** Kill the process after this many ms. Default: 5 minutes. */
   timeoutMs?: number;
+  /** Extra env vars to merge (e.g. ANTHROPIC_API_KEY from model config). */
+  extraEnv?: Record<string, string>;
 }
 
 export interface SpawnClaudeResult {
@@ -30,10 +32,11 @@ export interface SpawnClaudeResult {
  * BOTH streams to handle all cases.
  */
 export function spawnClaude(opts: SpawnClaudeOptions): Promise<SpawnClaudeResult> {
-  const { args, cwd, taskId, displayId, phase, taskStore, timeoutMs = 5 * 60_000 } = opts;
+  const { args, cwd, taskId, displayId, phase, taskStore, timeoutMs = 5 * 60_000, extraEnv } = opts;
 
   // Strip CLAUDECODE to avoid "nested session" rejection.
-  const env = { ...process.env };
+  // Merge extraEnv (model config vars like ANTHROPIC_API_KEY) on top.
+  const env = { ...process.env, ...extraEnv };
   delete env['CLAUDECODE'];
 
   const proc = spawn('claude', args, {

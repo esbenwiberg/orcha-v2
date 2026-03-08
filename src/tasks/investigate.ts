@@ -7,10 +7,11 @@ export interface InvestigateContext {
   task: Task;
   taskStore: TaskStore;
   cwd: string;
+  extraEnv?: Record<string, string>;
 }
 
 export async function investigate(ctx: InvestigateContext): Promise<InvestigationResult> {
-  const { task, taskStore, cwd } = ctx;
+  const { task, taskStore, cwd, extraEnv } = ctx;
   const prompt = buildInvestigationPrompt(task);
 
   const args = [
@@ -30,6 +31,7 @@ export async function investigate(ctx: InvestigateContext): Promise<Investigatio
     phase: 'investigate',
     taskStore,
     timeoutMs: 5 * 60_000, // 5 minutes
+    ...(extraEnv !== undefined ? { extraEnv } : {}),
   });
 
   if (timedOut) {
