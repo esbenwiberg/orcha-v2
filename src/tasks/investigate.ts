@@ -23,7 +23,7 @@ export async function investigate(ctx: InvestigateContext): Promise<Investigatio
     prompt,
   ];
 
-  const { exitCode, resultText, eventCount, timedOut } = await spawnClaude({
+  const { exitCode, resultText, eventCount, timedOut, stderrTail } = await spawnClaude({
     args,
     cwd,
     taskId: task.id,
@@ -39,7 +39,9 @@ export async function investigate(ctx: InvestigateContext): Promise<Investigatio
   }
 
   if (exitCode !== 0) {
-    throw new Error(`Investigation failed (exit ${exitCode})`);
+    const hint = resultText ? `\nResult: ${resultText.slice(0, 300)}` : '';
+    const stderr = stderrTail ? `\nStderr: ${stderrTail.slice(0, 300)}` : '';
+    throw new Error(`Investigation failed (exit ${exitCode})${hint}${stderr}`);
   }
 
   if (eventCount === 0) {

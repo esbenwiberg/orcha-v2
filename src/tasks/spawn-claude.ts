@@ -21,6 +21,8 @@ export interface SpawnClaudeResult {
   resultText: string;
   eventCount: number;
   timedOut: boolean;
+  /** Last non-JSON stderr lines (diagnostic output from Claude CLI). */
+  stderrTail: string;
 }
 
 /**
@@ -48,9 +50,10 @@ export function spawnClaude(opts: SpawnClaudeOptions): Promise<SpawnClaudeResult
   let seq = 0;
   let lastResultText = '';
   let timedOut = false;
+  const stderrLines: string[] = [];
 
-  /** Parse a line from either stream — JSON events get recorded, non-JSON ignored. */
-  const handleLine = (line: string) => {
+  /** Parse a JSON line — events get recorded, non-JSON passed to fallback. */
+  const handleJsonLine = (line: string) => {
     if (!line.trim()) return;
     try {
       const event = JSON.parse(line) as Record<string, unknown>;
@@ -74,16 +77,26 @@ export function spawnClaude(opts: SpawnClaudeOptions): Promise<SpawnClaudeResult
           lastResultText = ((raw as Record<string, unknown>)['text'] as string) ?? '';
         }
       }
+      return true;
     } catch {
-      // Non-JSON line — ignore (verbose diagnostic output, etc.)
+      return false;
+    }
+  };
+
+  const handleStdout = (line: string) => { handleJsonLine(line); };
+  const handleStderr = (line: string) => {
+    if (!handleJsonLine(line) && line.trim()) {
+      // Non-JSON stderr — keep last few lines for diagnostics
+      stderrLines.push(line);
+      if (stderrLines.length > 20) stderrLines.shift();
     }
   };
 
   // Read JSON events from BOTH stdout and stderr.
   const rlOut = createInterface({ input: proc.stdout! });
   const rlErr = createInterface({ input: proc.stderr! });
-  rlOut.on('line', handleLine);
-  rlErr.on('line', handleLine);
+  rlOut.on('line', handleStdout);
+  rlErr.on('line', handleStderr);
 
   // Timeout guard — kill the process if it runs too long
   const timer = setTimeout(() => {
@@ -113,10 +126,15 @@ export function spawnClaude(opts: SpawnClaudeOptions): Promise<SpawnClaudeResult
 
       const exitCode = code ?? 1;
 
+      const stderrTail = stderrLines.join('\n');
+
       console.log('[spawn-claude] TASK-%d %s exited: code=%d events=%d resultLen=%d timedOut=%s',
         displayId, phase, exitCode, seq, lastResultText.length, timedOut);
+      if (exitCode !== 0 && stderrTail) {
+        console.error('[spawn-claude] TASK-%d %s stderr tail:\n%s', displayId, phase, stderrTail.slice(0, 1000));
+      }
 
-      resolve({ exitCode, resultText: lastResultText, eventCount: seq, timedOut });
+      resolve({ exitCode, resultText: lastResultText, eventCount: seq, timedOut, stderrTail });
     });
   });
 }

@@ -263,7 +263,7 @@
             </summary>
             <div
               hx-get="/api/tasks/<%= it.task.id %>/transcript/<%= phase %>"
-              hx-trigger="toggle"
+              hx-trigger="toggle from:closest details once"
               hx-swap="innerHTML"
               class="mt-1"
             ></div>
