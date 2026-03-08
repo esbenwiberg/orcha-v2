@@ -93,14 +93,45 @@ export async function execute(ctx: ExecuteContext): Promise<ActiveSession> {
   return session;
 }
 
+/** Default execution timeout: 30 minutes. */
+const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
+
 /**
  * Listen for a session to exit and resolve/reject accordingly.
  * Returns the exit code when the session's PTY exits.
+ *
+ * Handles the race where the PTY may have already exited before we attach
+ * the listener (exitCode is already set). Also enforces a timeout so the
+ * task processor doesn't hang forever on a stuck session.
  */
-export function waitForSessionExit(session: ActiveSession): Promise<number> {
-  return new Promise<number>((resolve) => {
+export function waitForSessionExit(
+  session: ActiveSession,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
+    // If the terminal already exited before we started listening, resolve immediately
+    if (session.terminal.exitCode !== undefined) {
+      resolve(session.terminal.exitCode);
+      return;
+    }
+
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        // Kill the session so it doesn't linger
+        try { session.terminal.kill(); } catch { /* best-effort */ }
+        reject(new Error(`Execution timed out after ${Math.round(timeoutMs / 60_000)} minutes`));
+      }
+    }, timeoutMs);
+
     session.terminal.on('exit', (code: number) => {
-      resolve(code);
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(code);
+      }
     });
   });
 }

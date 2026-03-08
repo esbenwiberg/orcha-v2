@@ -224,6 +224,15 @@ export class TaskProcessor {
       task.displayId, worktree ? worktree.path : 'new', 'ANTHROPIC_API_KEY' in env, 'GH_TOKEN' in env, homeDir ?? 'none');
 
     try {
+      // Re-read the task before transitioning — guard against the task being
+      // cancelled/retried between the time we started setup and now
+      const freshTask = this.#taskStore.getTask(task.id);
+      if (!freshTask || freshTask.status !== 'queued') {
+        console.log('[task-processor] TASK-%d status changed during setup (now=%s) — aborting execution',
+          task.displayId, freshTask?.status ?? 'deleted');
+        return;
+      }
+
       this.#taskStore.transition(task.id, 'executing', 'Starting execution session');
       this.#publishStatus(task.id, 'executing');
 
