@@ -52,7 +52,7 @@
     "postcss-import": "^16.1.1",
     "prettier": "^3.8.1",
     "tailwindcss": "^3.4.19",
-    "tool-design-system": "file:../tool-design-system",
+    "tool-design-system": "file:./vendor/tool-design-system",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",

@@ -1,0 +1,26 @@
+{
+  "name": "tool-design-system",
+  "version": "0.1.0",
+  "description": "Dark-mode design system for hive-style tools — Tailwind CSS preset + component library",
+  "main": "preset.js",
+  "exports": {
+    ".": "./preset.js",
+    "./preset": "./preset.js",
+    "./base.css": "./src/base.css",
+    "./components.css": "./src/components.css"
+  },
+  "scripts": {
+    "build:docs": "npx tailwindcss -c tailwind.config.js -i docs/src/input.css -o docs/dist/styles.css --minify",
+    "dev:docs": "npx tailwindcss -c tailwind.config.js -i docs/src/input.css -o docs/dist/styles.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  },
+  "keywords": [
+    "tailwind",
+    "design-system",
+    "dark-mode",
+    "ui"
+  ],
+  "license": "MIT"
+}
