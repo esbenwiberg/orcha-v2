@@ -422,11 +422,18 @@
     background-color: #111;
     border-top: 1px solid var(--color-border);
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  /* Hide scrollbar but keep scrollability */
+  .mobile-keys::-webkit-scrollbar {
+    display: none;
   }
 
   .mobile-key {
     @apply shrink-0 cursor-pointer;
-    padding: 6px 10px;
+    padding: 5px 8px;
     font-size: 11px;
     font-family: var(--font-mono);
     font-weight: 500;
@@ -466,13 +473,28 @@
   }
 
   .mobile-key--copy {
-    @apply ml-auto;
     background: color-mix(in srgb, var(--color-accent) 20%, var(--color-surface-raised));
     color: var(--color-accent);
     border-color: var(--color-accent);
   }
 
   .mobile-key--copy:active {
+    background: var(--color-accent);
+    color: #fff;
+  }
+
+  .mobile-key--enter {
+    @apply ml-auto;
+    padding: 10px 14px;
+    margin-top: -8px;
+    position: relative;
+    z-index: 1;
+    background: color-mix(in srgb, var(--color-accent) 25%, var(--color-surface-raised));
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  .mobile-key--enter:active {
     background: var(--color-accent);
     color: #fff;
   }
