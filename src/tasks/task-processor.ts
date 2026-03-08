@@ -1,4 +1,6 @@
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 import type Database from 'better-sqlite3';
 import { TaskStore } from '../db/task-store.js';
 import { RepoStore } from '../db/repo-store.js';
@@ -294,7 +296,12 @@ export class TaskProcessor {
     };
   }
 
-  /** Resolve model config env vars for a task (ANTHROPIC_API_KEY etc). */
+  /**
+   * Resolve model config into env vars for the spawned claude process.
+   * For API-key providers: sets ANTHROPIC_API_KEY.
+   * For Max/Pro (OAuth): creates a temp HOME with .credentials.json so
+   * claude --print can authenticate non-interactively.
+   */
   #resolveModelEnv(task: Task): Record<string, string> {
     if (!task.modelConfigId) return {};
     const mc = this.#modelConfigStore.getConfig(task.modelConfigId);
@@ -305,6 +312,31 @@ export class TaskProcessor {
     for (const [k, v] of Object.entries(raw)) {
       if (v !== ENV_DELETE) env[k] = v;
     }
+
+    // For Max/Pro OAuth: set up a temp HOME with credentials
+    if (mc.credentialsJson) {
+      const taskHome = `/tmp/orcha-task-home-${task.id}`;
+      const claudeDir = join(taskHome, '.claude');
+      mkdirSync(claudeDir, { recursive: true });
+
+      // Write OAuth credentials
+      writeFileSync(join(claudeDir, '.credentials.json'), mc.credentialsJson, 'utf8');
+
+      // Seed settings.json (theme=dark to skip first-run picker)
+      const sharedSettings = join(homedir(), '.claude', 'settings.json');
+      let settings: Record<string, unknown> = { theme: 'dark' };
+      if (existsSync(sharedSettings)) {
+        try { settings = { ...JSON.parse(readFileSync(sharedSettings, 'utf8')) as Record<string, unknown>, theme: 'dark' }; } catch { /* ignore */ }
+      }
+      writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
+
+      // Skip onboarding
+      writeFileSync(join(claudeDir, '.config.json'), JSON.stringify({ hasCompletedOnboarding: true }), 'utf8');
+
+      env['HOME'] = taskHome;
+      console.log('[task-processor] TASK-%d using OAuth credentials (HOME=%s)', task.displayId, taskHome);
+    }
+
     return env;
   }
 
