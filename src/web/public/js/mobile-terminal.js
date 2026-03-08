@@ -781,16 +781,19 @@ window._openMobileHostShell = async function (sessionId) {
     if (termLayer) {
       termLayer.innerHTML = `<div id="terminal-frame" data-session-id="${shellId}" data-ws-url="${wsUrl}">
         <div id="xterm-container" class="xterm-container"></div>
+        <!-- Keep in sync with mobile-terminal-frame.html -->
         <div id="mobile-keys" class="mobile-keys">
-          <button class="mobile-key" data-key="esc">Esc</button>
-          <button class="mobile-key" data-key="tab">Tab</button>
-          <button class="mobile-key" data-key="ctrl-c">Ctrl+C</button>
-          <button class="mobile-key" data-key="ctrl-o">Ctrl+O</button>
-          <button class="mobile-key" data-key="enter">Enter</button>
-          <button class="mobile-key" data-key="arrow-up">&uarr;</button>
-          <button class="mobile-key" data-key="arrow-down">&darr;</button>
-          <button class="mobile-key mobile-key--mic no-speech-api-hide" data-key="mic">Mic</button>
-          <button class="mobile-key" data-key="copy">Copy</button>
+          <div class="mobile-keys__scroll">
+            <button class="mobile-key" data-key="esc">Esc</button>
+            <button class="mobile-key" data-key="tab">Tab</button>
+            <button class="mobile-key" data-key="ctrl-c">Ctrl+C</button>
+            <button class="mobile-key" data-key="ctrl-o">Ctrl+O</button>
+            <button class="mobile-key mobile-key--arrow" data-key="arrow-up">&uarr;</button>
+            <button class="mobile-key mobile-key--arrow" data-key="arrow-down">&darr;</button>
+            <button class="mobile-key mobile-key--mic no-speech-api-hide" data-key="mic">Mic</button>
+            <button class="mobile-key mobile-key--copy" data-key="copy">Copy</button>
+          </div>
+          <button class="mobile-key mobile-key--enter" data-key="enter">Enter</button>
         </div>
       </div>`;
 
