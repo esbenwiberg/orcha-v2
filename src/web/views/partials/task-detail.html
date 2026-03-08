@@ -277,7 +277,7 @@
         hx-swap="none"
       >Force Queue</button>
     <% } %>
-    <% if (it.task.status === 'failed') { %>
+    <% if (it.task.status === 'failed' || it.task.status === 'cancelled') { %>
       <button class="btn btn-xs btn-primary"
         hx-post="/api/tasks/<%= it.task.id %>/retry"
         hx-swap="none"

@@ -242,7 +242,7 @@ export class TaskStore {
       .run(result.improvedDescription, JSON.stringify(result), id);
   }
 
-  setWorktreePath(id: string, worktreePath: string): void {
+  setWorktreePath(id: string, worktreePath: string | null): void {
     this.#db
       .prepare("UPDATE tasks SET worktree_path = ?, updated_at = datetime('now') WHERE id = ?")
       .run(worktreePath, id);

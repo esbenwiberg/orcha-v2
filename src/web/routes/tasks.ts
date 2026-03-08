@@ -191,9 +191,10 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         res.status(404).send('Task not found');
         return;
       }
-      // Reset error and re-enter the pipeline
+      // Reset error and worktree path, re-enter the pipeline from the start
       taskStore.updateTask(task.id, { errorMessage: '' });
-      taskStore.transition(task.id, 'queued', 'Retried by user — re-entering queue');
+      taskStore.setWorktreePath(task.id, null);
+      taskStore.transition(task.id, 'draft', 'Retried by user — restarting from draft');
       res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
