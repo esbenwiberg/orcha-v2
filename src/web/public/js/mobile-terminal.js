@@ -1192,29 +1192,6 @@ document.addEventListener('htmx:afterSwap', (event) => {
 });
 
 /* -----------------------------------------------------------------------
-   Preset chip loading state — disable button while request is in flight
-   ----------------------------------------------------------------------- */
-document.addEventListener('htmx:beforeRequest', (event) => {
-  const elt = event.detail?.elt;
-  if (elt && elt.classList.contains('preset-chip')) {
-    elt.disabled = true;
-    elt.dataset.origText = elt.textContent;
-    elt.textContent = 'Launching\u2026';
-  }
-});
-
-document.addEventListener('htmx:afterRequest', (event) => {
-  const elt = event.detail?.elt;
-  if (elt && elt.classList.contains('preset-chip')) {
-    elt.disabled = false;
-    if (elt.dataset.origText) {
-      elt.textContent = elt.dataset.origText;
-      delete elt.dataset.origText;
-    }
-  }
-});
-
-/* -----------------------------------------------------------------------
    Visibility change — reconnect WebSocket when returning from background.
    On mobile, browsers suspend background tabs and the WS often dies
    silently. When the user returns, reconnect immediately instead of

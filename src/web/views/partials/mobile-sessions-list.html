@@ -1,6 +1,14 @@
 <div id="sessions-panel" class="sessions-panel" hx-ext="sse" sse-connect="/api/events">
-  <h2 class="sessions-panel__heading">Sessions</h2>
-  <%~ it.presetBarHtml %>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+    <h2 class="sessions-panel__heading" style="margin:0;">Sessions</h2>
+    <button
+      class="btn btn-ghost btn-sm"
+      hx-get="/api/presets/picker"
+      hx-target="#form-panel-slot"
+      hx-swap="innerHTML"
+      onclick="document.getElementById('form-panel').classList.add('is-open')"
+    >From Preset</button>
+  </div>
   <ul class="session-list" id="session-list">
     <%~ it.sessionItemsHtml %>
   </ul>

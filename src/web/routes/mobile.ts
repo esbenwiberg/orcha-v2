@@ -1,38 +1,16 @@
 import { Router } from 'express';
-import { randomUUID } from 'node:crypto';
-import { homedir } from 'node:os';
-import { mkdirSync, writeFileSync, existsSync, readFileSync, copyFileSync, appendFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
-import { PresetStore } from '../../db/preset-store.js';
 import { RepoStore } from '../../db/repo-store.js';
-import { ModelConfigStore } from '../../db/model-config-store.js';
-import { McpServerStore } from '../../db/mcp-server-store.js';
-import { GlobalSettingsStore } from '../../db/global-settings-store.js';
-import { readSettingsFromDb } from './claude-settings-db.js';
-import { buildSessionClaudeMd } from './claude-files.js';
-import { credentialManager } from '../../credentials/credential-manager.js';
-import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
-import { eventBus } from '../services/event-bus.js';
-import { ensureSdksInstalled } from '../../sdk-installer.js';
-import { getStoragePaths } from '../../storage/paths.js';
-
-/** Allowed characters for a git branch name (simplified). */
-const BRANCH_RE = /^[a-zA-Z0-9/_.-]+$/;
 
 export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new SessionStore(deps.db);
   const credStore = new CredentialStore(deps.db);
-  const presetStore = new PresetStore(deps.db);
   const repoStore = new RepoStore(deps.db);
-  const modelConfigStore = new ModelConfigStore(deps.db);
-  const mcpServerStore = new McpServerStore(deps.db);
-  const globalSettingsStore = new GlobalSettingsStore(deps.db);
 
   // GET / — mobile shell with bottom-tab navigation
   router.get('/', (_req, res, next) => {
@@ -74,13 +52,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
         )
         .join('');
 
-      // Render preset bar if presets exist
-      const presets = presetStore.listPresets();
-      const presetBarHtml = presets.length > 0
-        ? eta.render('partials/mobile-preset-bar', { presets })
-        : '';
-
-      const html = eta.render('partials/mobile-sessions-list', { sessionItemsHtml, presetBarHtml });
+      const html = eta.render('partials/mobile-sessions-list', { sessionItemsHtml });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -148,253 +120,6 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
       const active = deps.sessionEngine.getSessionByDbId(sessionId);
       const modelProvider = active?.modelProvider;
       const html = eta.render('partials/mobile-terminal-frame', { sessionId, wsUrl, ...(modelProvider !== undefined ? { modelProvider } : {}) });
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.status(200).send(html);
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  // POST /launch-preset/:presetId — create a session from a preset and connect
-  router.post('/launch-preset/:presetId', async (req, res, next) => {
-    try {
-      const presetId = req.params['presetId'] ?? '';
-      const preset = presetStore.getPreset(presetId);
-      if (preset === undefined) {
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(404).send('<div class="connecting-msg connecting-msg--error">Preset not found.</div>');
-        return;
-      }
-
-      // Validate repo
-      const repo = preset.repoId ? repoStore.getRepo(preset.repoId) : undefined;
-      if (!repo || repo.status !== 'ready') {
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(422).send('<div class="connecting-msg connecting-msg--error">Repo not ready.</div>');
-        return;
-      }
-
-      // Validate model config
-      const modelConfig = preset.modelConfigId ? modelConfigStore.getConfig(preset.modelConfigId) : undefined;
-      if (!modelConfig) {
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.status(422).send('<div class="connecting-msg connecting-msg--error">Model config not found.</div>');
-        return;
-      }
-
-      // Provision credentials if a profile was selected
-      const env: Record<string, string> = {};
-      let provisionedCreds: import('../../credentials/credential-manager.js').ProvisionResult | undefined;
-
-      if (preset.credentialProfileId) {
-        const profile = credStore.getProfile(preset.credentialProfileId);
-        if (profile) {
-          try {
-            provisionedCreds = await credentialManager.provision(profile);
-            Object.assign(env, provisionedCreds.env);
-          } catch (err) {
-            console.warn('[mobile] Credential provisioning failed, continuing with ambient credentials:', err);
-          }
-        }
-      }
-
-      // Build model env vars
-      const deleteEnvKeys: string[] = [];
-      const modelEnv = buildModelEnv(modelConfig);
-      for (const [key, value] of Object.entries(modelEnv)) {
-        if (value === ENV_DELETE) {
-          deleteEnvKeys.push(key);
-        } else {
-          env[key] = value;
-        }
-      }
-
-      // Per-session isolated HOME for credential injection
-      const sessionId = randomUUID();
-      let mcpServers: Record<string, unknown> = {};
-      if (modelConfig.credentialsJson) {
-        try {
-          const sessionHome = join('/tmp', `orcha-home-${sessionId}`);
-          const claudeDir = join(sessionHome, '.claude');
-          mkdirSync(claudeDir, { recursive: true });
-
-          // Copy global .gitconfig so git works on Azure File Share (fileMode + safe.directory)
-          const srcGitconfig = join(homedir(), '.gitconfig');
-          if (existsSync(srcGitconfig)) {
-            copyFileSync(srcGitconfig, join(sessionHome, '.gitconfig'));
-          }
-
-          // Generate .git-credentials from session env so git push/pull can authenticate
-          const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'];
-          if (ghToken) {
-            writeFileSync(join(sessionHome, '.git-credentials'), `https://oauth2:${ghToken}@github.com\n`);
-          }
-
-          // Append git user identity from global settings (avoids "Author identity unknown")
-          const gitUserName = globalSettingsStore.get('git.user.name');
-          const gitUserEmail = globalSettingsStore.get('git.user.email');
-          if (gitUserName || gitUserEmail) {
-            let section = '\n[user]\n';
-            if (gitUserName) section += `\tname = ${gitUserName}\n`;
-            if (gitUserEmail) section += `\temail = ${gitUserEmail}\n`;
-            appendFileSync(join(sessionHome, '.gitconfig'), section);
-          }
-
-          const settings: Record<string, unknown> = readSettingsFromDb(globalSettingsStore);
-          if (!('theme' in settings)) settings['theme'] = 'dark';
-
-          // Build MCP servers map — injected into both settings.json and .config.json
-          mcpServers = {};
-          if (preset.mcpServerIds.length > 0) {
-            const entries = mcpServerStore.getSettingsEntries(preset.mcpServerIds);
-            Object.assign(mcpServers, entries);
-          }
-
-          // Inject MCP validation server config (type 'http' = StreamableHTTP)
-          const orchaPort = process.env['PORT'] ?? '3000';
-          mcpServers['validate'] = {
-            type: 'http',
-            url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
-          };
-          settings['mcpServers'] = mcpServers;
-
-          // Deny web tools when preset has web access disabled
-          if (!preset.webAccess) {
-            const perms = (settings['permissions'] ?? {}) as Record<string, unknown>;
-            const deny = Array.isArray(perms['deny']) ? [...perms['deny']] : [];
-            if (!deny.includes('WebFetch')) deny.push('WebFetch');
-            if (!deny.includes('WebSearch')) deny.push('WebSearch');
-            perms['deny'] = deny;
-            settings['permissions'] = perms;
-          }
-
-          writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
-          writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
-
-          // Write .config.json — MCP servers at top level, trust under projects key
-          const mobileWorktreePath = join(getStoragePaths().worktreeBaseDir, sessionId);
-          const mobileConfig: Record<string, unknown> = {
-            hasCompletedOnboarding: true,
-            theme: 'dark',
-            mcpServers,
-            projects: {
-              [mobileWorktreePath]: {
-                hasTrustDialogAccepted: true,
-                allowedTools: [],
-              },
-            },
-          };
-          if (modelConfig.apiKey) {
-            const keyFingerprint = modelConfig.apiKey.slice(-20);
-            mobileConfig['customApiKeyResponses'] = {
-              approved: [keyFingerprint],
-              rejected: [],
-            };
-          }
-          writeFileSync(join(claudeDir, '.config.json'), JSON.stringify(mobileConfig), 'utf8');
-
-          // Inject merged CLAUDE.md (includes soul.md content inline)
-          const mergedClaudeMd = buildSessionClaudeMd(globalSettingsStore);
-          if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
-
-          env['HOME'] = sessionHome;
-        } catch (err) {
-          console.warn('[mobile] Failed to create per-session home dir:', err);
-        }
-      }
-
-      // Use user-supplied branch name if valid, otherwise auto-generate
-      const rawBranch = typeof req.body?.branch === 'string' ? req.body.branch.trim() : '';
-      let branch: string;
-      if (rawBranch.length > 0 && BRANCH_RE.test(rawBranch)) {
-        branch = rawBranch;
-      } else {
-        const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        branch = `${preset.name.replace(/\s+/g, '-').toLowerCase()}/${ts}`;
-      }
-
-      // Ensure repo-level SDKs are installed before spawning
-      if (repo.sdks.length > 0) {
-        try {
-          ensureSdksInstalled(repo.sdks);
-        } catch (err) {
-          console.warn(`[mobile] SDK install failed for repo ${repo.id}:`, err);
-        }
-      }
-
-      // Fetch latest refs from the bare repo before creating the worktree
-      let sourceBranch: string | undefined;
-      if (repo.barePath !== null) {
-        try {
-          await deps.worktreeManager.fetchBareRepo(repo.barePath);
-        } catch (err) {
-          console.warn(`[mobile] fetchBareRepo failed for ${repo.id}:`, err);
-        }
-        // Resolve default branch so worktree starts from latest remote HEAD
-        try {
-          const defaultBranch = await deps.worktreeManager.getDefaultBranch(repo.barePath);
-          if (defaultBranch) {
-            sourceBranch = `origin/${defaultBranch}`;
-          }
-        } catch {
-          // Best-effort; addWorktree safety net will also try to resolve
-        }
-      }
-
-      const sessionHome = env['HOME'];
-      const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
-        sessionId,
-        branch,
-        command: 'claude',
-        args: [],
-        env,
-        sandbox: false,
-        ...(deleteEnvKeys.length > 0 ? { deleteEnv: deleteEnvKeys } : {}),
-        ...(sessionHome !== undefined ? { homeDir: sessionHome } : {}),
-        ...(preset.modelConfigId ? { modelConfigId: preset.modelConfigId } : {}),
-        ...(modelConfig !== undefined ? { modelProvider: modelConfig.provider } : {}),
-        ...(preset.mcpServerIds.length > 0 ? { mcpServerIds: preset.mcpServerIds } : {}),
-        ...(sourceBranch !== undefined ? { sourceBranch } : {}),
-      };
-      if (repo.barePath !== null) {
-        createOpts.repoRoot = repo.barePath;
-      }
-
-      const activeSession = await deps.sessionEngine.createSession(createOpts);
-
-      // Persist credential records
-      if (provisionedCreds && activeSession.dbSessionId) {
-        try {
-          const { activeCreds } = provisionedCreds;
-          credStore.createSessionCredentials({
-            sessionId: activeSession.dbSessionId,
-            profileId: activeCreds.profileId,
-            profileName: activeCreds.profileName,
-            expiresAt: activeCreds.expiresAt,
-            ...(activeCreds.azureSpName !== undefined ? { azureSpName: activeCreds.azureSpName } : {}),
-            ...(activeCreds.azureAppId !== undefined ? { azureAppId: activeCreds.azureAppId } : {}),
-            ...(activeCreds.githubPatId !== undefined ? { githubPatId: activeCreds.githubPatId } : {}),
-            ...(activeCreds.devopsPatId !== undefined ? { devopsPatId: activeCreds.devopsPatId } : {}),
-          });
-        } catch (err) {
-          console.warn('[mobile] Failed to persist credential record to DB:', err);
-        }
-      }
-
-      eventBus.publish({ sessionId: activeSession.sessionId, type: 'created' });
-
-      // Set mobile session cookie and return terminal frame
-      const dbSessionId = activeSession.dbSessionId ?? sessionId;
-      res.setHeader(
-        'Set-Cookie',
-        `mobile-session-id=${dbSessionId}; SameSite=Strict; Path=/mobile`,
-      );
-
-      const proto = req.protocol === 'https' ? 'wss' : 'ws';
-      const wsUrl = `${proto}://${req.get('host') ?? 'localhost'}/ws/terminal/${activeSession.sessionId}`;
-
-      const launchModelProvider = modelConfig?.provider;
-      const html = eta.render('partials/mobile-terminal-frame', { sessionId: dbSessionId, wsUrl, ...(launchModelProvider !== undefined ? { modelProvider: launchModelProvider } : {}) });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {

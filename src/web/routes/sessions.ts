@@ -475,9 +475,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         ? store.getSession(activeSession.dbSessionId)
         : undefined;
 
-      // Redirect to home so the session grid is always visible regardless of
-      // which page the user is on when they submit the form.
-      res.setHeader('HX-Redirect', '/');
+      // Redirect to the appropriate page — /mobile if submitted from mobile, / otherwise.
+      const referer = req.get('referer') ?? '';
+      const isMobile = referer.includes('/mobile');
+      res.setHeader('HX-Redirect', isMobile ? '/mobile' : '/');
       res.status(201).send('');
     } catch (err) {
       next(err);
