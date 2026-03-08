@@ -55,21 +55,9 @@ export async function enrich(ctx: EnrichContext): Promise<EnrichmentResult> {
 }
 
 function parseEnrichmentResult(text: string): EnrichmentResult {
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) ?? [null, text];
-  const jsonStr = (jsonMatch[1] ?? text).trim();
-
-  try {
-    const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
-    return {
-      improvedDescription: (parsed['improvedDescription'] as string) ?? '',
-      affectedFiles: (parsed['affectedFiles'] as EnrichmentResult['affectedFiles']) ?? [],
-      approach: (parsed['approach'] as EnrichmentResult['approach']) ?? [],
-      risks: (parsed['risks'] as EnrichmentResult['risks']) ?? [],
-      complexity: (parsed['complexity'] as EnrichmentResult['complexity']) ?? 'medium',
-      acceptanceCriteria: (parsed['acceptanceCriteria'] as string[]) ?? [],
-      relatedCode: (parsed['relatedCode'] as EnrichmentResult['relatedCode']) ?? [],
-    };
-  } catch {
+  const parsed = extractJson(text);
+  if (!parsed) {
+    console.warn('[enrich] failed to parse enrichment JSON, text starts with: %s', text.slice(0, 200));
     return {
       improvedDescription: text.slice(0, 2000),
       affectedFiles: [],
@@ -80,4 +68,51 @@ function parseEnrichmentResult(text: string): EnrichmentResult {
       relatedCode: [],
     };
   }
+
+  return {
+    improvedDescription: (parsed['improvedDescription'] as string) ?? '',
+    affectedFiles: (parsed['affectedFiles'] as EnrichmentResult['affectedFiles']) ?? [],
+    approach: (parsed['approach'] as EnrichmentResult['approach']) ?? [],
+    risks: (parsed['risks'] as EnrichmentResult['risks']) ?? [],
+    complexity: (parsed['complexity'] as EnrichmentResult['complexity']) ?? 'medium',
+    acceptanceCriteria: (parsed['acceptanceCriteria'] as string[]) ?? [],
+    relatedCode: (parsed['relatedCode'] as EnrichmentResult['relatedCode']) ?? [],
+  };
+}
+
+/**
+ * Try multiple strategies to extract a JSON object from Claude's result text:
+ * 1. Direct parse (clean JSON output)
+ * 2. Markdown fenced code block extraction
+ * 3. Find outermost { ... } braces
+ */
+function extractJson(text: string): Record<string, unknown> | null {
+  const trimmed = text.trim();
+
+  // Strategy 1: direct parse
+  try {
+    const obj = JSON.parse(trimmed);
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
+  } catch { /* continue */ }
+
+  // Strategy 2: extract from markdown fences (```json ... ``` or ``` ... ```)
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch?.[1]) {
+    try {
+      const obj = JSON.parse(fenceMatch[1].trim());
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
+    } catch { /* continue */ }
+  }
+
+  // Strategy 3: find the outermost { ... } (skips preamble/suffix text from Claude)
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      const obj = JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
+    } catch { /* continue */ }
+  }
+
+  return null;
 }

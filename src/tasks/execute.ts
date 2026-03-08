@@ -16,6 +16,14 @@ export interface ExecuteContext {
   db: import('better-sqlite3').Database;
   /** Pre-existing worktree to reuse (from investigation/enrichment). */
   existingWorktree?: WorktreeInfo;
+  /** Extra env vars for the session (API key, HOME, etc. from model config). */
+  env?: Record<string, string>;
+  /** Env keys to delete from the spawned process (e.g. unset ANTHROPIC_API_KEY for OAuth). */
+  deleteEnv?: string[];
+  /** Per-session isolated HOME directory (for OAuth credential injection). */
+  homeDir?: string;
+  /** Model provider type (e.g. 'max', 'anthropic'). */
+  modelProvider?: string;
 }
 
 /** Slugify a task title into a git branch name. */
@@ -63,6 +71,10 @@ export async function execute(ctx: ExecuteContext): Promise<ActiveSession> {
     ...(mcpServerIds !== undefined ? { mcpServerIds } : {}),
     ...(task.modelConfigId ? { modelConfigId: task.modelConfigId } : {}),
     ...(ctx.existingWorktree !== undefined ? { existingWorktree: ctx.existingWorktree } : {}),
+    ...(ctx.env !== undefined ? { env: ctx.env } : {}),
+    ...(ctx.deleteEnv !== undefined ? { deleteEnv: ctx.deleteEnv } : {}),
+    ...(ctx.homeDir !== undefined ? { homeDir: ctx.homeDir } : {}),
+    ...(ctx.modelProvider !== undefined ? { modelProvider: ctx.modelProvider } : {}),
   });
 
   // Store execution metadata on the task

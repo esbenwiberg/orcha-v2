@@ -179,8 +179,22 @@ export class TaskProcessor {
     // Resolve existing worktree (if any) for reuse
     const worktree = task.worktreePath ? await this.#resolveWorktree(task) : undefined;
 
-    console.log('[task-processor] TASK-%d execution starting (worktree=%s)',
-      task.displayId, worktree ? worktree.path : 'new');
+    // Resolve model config env (API key, OAuth HOME, etc.) — same as investigation/enrichment
+    const modelEnv = this.#resolveModelEnv(task);
+    const env: Record<string, string> = {};
+    const deleteEnv: string[] = [];
+    for (const [k, v] of Object.entries(modelEnv)) {
+      if (v === ENV_DELETE) {
+        deleteEnv.push(k);
+      } else {
+        env[k] = v;
+      }
+    }
+    const homeDir = env['HOME'];
+    const mc = task.modelConfigId ? this.#modelConfigStore.getConfig(task.modelConfigId) : undefined;
+
+    console.log('[task-processor] TASK-%d execution starting (worktree=%s hasApiKey=%s homeDir=%s)',
+      task.displayId, worktree ? worktree.path : 'new', 'ANTHROPIC_API_KEY' in env, homeDir ?? 'none');
 
     try {
       this.#taskStore.transition(task.id, 'executing', 'Starting execution session');
@@ -194,6 +208,10 @@ export class TaskProcessor {
         mcpServerStore: this.#mcpServerStore,
         db: this.#db,
         ...(worktree !== undefined ? { existingWorktree: worktree } : {}),
+        ...(Object.keys(env).length > 0 ? { env } : {}),
+        ...(deleteEnv.length > 0 ? { deleteEnv } : {}),
+        ...(homeDir !== undefined ? { homeDir } : {}),
+        ...(mc !== undefined ? { modelProvider: mc.provider } : {}),
       });
 
       console.log('[task-processor] TASK-%d execution session created: sessionId=%s',
@@ -203,6 +221,9 @@ export class TaskProcessor {
       const exitCode = await waitForSessionExit(session);
 
       console.log('[task-processor] TASK-%d execution session exited: code=%d', task.displayId, exitCode);
+
+      // Persist refreshed OAuth credentials (if any)
+      this.#persistRefreshedCredentials(task);
 
       // Extract PR URL and preview URL from terminal output
       const prUrl = extractPrUrl(session);

@@ -42,7 +42,7 @@ export function createEventsRouter(eta: Eta): Router {
           rejected: 'badge-error',
           enriching: 'badge-warning badge-dot badge-pulse',
           queued: 'badge-accent',
-          executing: 'badge-success badge-dot badge-pulse',
+          executing: 'badge-info badge-dot badge-pulse',
           done: 'badge-success',
           failed: 'badge-error',
           cancelled: 'badge-neutral',

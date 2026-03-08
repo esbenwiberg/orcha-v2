@@ -55,22 +55,9 @@ export async function investigate(ctx: InvestigateContext): Promise<Investigatio
 }
 
 function parseInvestigationResult(text: string): InvestigationResult {
-  // Try to extract JSON from the text (may be wrapped in markdown fences)
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) ?? [null, text];
-  const jsonStr = (jsonMatch[1] ?? text).trim();
-
-  try {
-    const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
-    return {
-      rating: (parsed['rating'] as InvestigationResult['rating']) ?? 'weak',
-      summary: (parsed['summary'] as string) ?? '',
-      reasoning: (parsed['reasoning'] as string) ?? '',
-      pros: (parsed['pros'] as string[]) ?? [],
-      cons: (parsed['cons'] as string[]) ?? [],
-      filesExamined: (parsed['filesExamined'] as string[]) ?? [],
-      ...(parsed['webResearch'] !== undefined ? { webResearch: parsed['webResearch'] as string } : {}),
-    };
-  } catch {
+  const parsed = extractJson(text);
+  if (!parsed) {
+    console.warn('[investigate] failed to parse investigation JSON, text starts with: %s', text.slice(0, 200));
     return {
       rating: 'weak',
       summary: 'Failed to parse structured investigation result.',
@@ -80,4 +67,51 @@ function parseInvestigationResult(text: string): InvestigationResult {
       filesExamined: [],
     };
   }
+
+  return {
+    rating: (parsed['rating'] as InvestigationResult['rating']) ?? 'weak',
+    summary: (parsed['summary'] as string) ?? '',
+    reasoning: (parsed['reasoning'] as string) ?? '',
+    pros: (parsed['pros'] as string[]) ?? [],
+    cons: (parsed['cons'] as string[]) ?? [],
+    filesExamined: (parsed['filesExamined'] as string[]) ?? [],
+    ...(parsed['webResearch'] !== undefined ? { webResearch: parsed['webResearch'] as string } : {}),
+  };
+}
+
+/**
+ * Try multiple strategies to extract a JSON object from Claude's result text:
+ * 1. Direct parse (clean JSON output)
+ * 2. Markdown fenced code block extraction
+ * 3. Find outermost { ... } braces
+ */
+function extractJson(text: string): Record<string, unknown> | null {
+  const trimmed = text.trim();
+
+  // Strategy 1: direct parse
+  try {
+    const obj = JSON.parse(trimmed);
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
+  } catch { /* continue */ }
+
+  // Strategy 2: extract from markdown fences
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch?.[1]) {
+    try {
+      const obj = JSON.parse(fenceMatch[1].trim());
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
+    } catch { /* continue */ }
+  }
+
+  // Strategy 3: find the outermost { ... }
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      const obj = JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
+    } catch { /* continue */ }
+  }
+
+  return null;
 }
