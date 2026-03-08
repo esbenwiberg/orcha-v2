@@ -59,6 +59,40 @@
     </div>
   </div>
 
+  <!-- Actions (top, always visible) -->
+  <div class="flex gap-2 pb-2 border-b border-slate-700/50">
+    <% if (it.task.status === 'rejected') { %>
+      <button class="btn btn-xs btn-primary"
+        hx-post="/api/tasks/<%= it.task.id %>/force-enrich"
+        hx-swap="none"
+      >Force Enrich</button>
+      <button class="btn btn-xs btn-ghost"
+        hx-post="/api/tasks/<%= it.task.id %>/force-queue"
+        hx-swap="none"
+      >Force Queue</button>
+    <% } %>
+    <% if (it.task.status === 'failed' || it.task.status === 'cancelled') { %>
+      <button class="btn btn-xs btn-primary"
+        hx-post="/api/tasks/<%= it.task.id %>/retry"
+        hx-swap="none"
+      >Retry</button>
+    <% } %>
+    <% if (it.task.status !== 'done' && it.task.status !== 'cancelled' && it.task.status !== 'failed') { %>
+      <button class="btn btn-xs btn-ghost text-red-400"
+        hx-post="/api/tasks/<%= it.task.id %>/cancel"
+        hx-swap="none"
+        hx-confirm="Cancel this task?"
+      >Cancel</button>
+    <% } %>
+    <% if (it.task.status === 'done' || it.task.status === 'cancelled' || it.task.status === 'failed') { %>
+      <button class="btn btn-xs btn-ghost text-red-400"
+        hx-delete="/api/tasks/<%= it.task.id %>"
+        hx-swap="none"
+        hx-confirm="Delete this task permanently?"
+      >Delete</button>
+    <% } %>
+  </div>
+
   <!-- Original Idea -->
   <div class="task-card">
     <div class="task-card__header">Original Idea</div>
@@ -265,37 +299,4 @@
   </div>
   <% } %>
 
-  <!-- Actions -->
-  <div class="flex gap-2 pt-2 border-t border-slate-700/50">
-    <% if (it.task.status === 'rejected') { %>
-      <button class="btn btn-xs btn-primary"
-        hx-post="/api/tasks/<%= it.task.id %>/force-enrich"
-        hx-swap="none"
-      >Force Enrich</button>
-      <button class="btn btn-xs btn-ghost"
-        hx-post="/api/tasks/<%= it.task.id %>/force-queue"
-        hx-swap="none"
-      >Force Queue</button>
-    <% } %>
-    <% if (it.task.status === 'failed' || it.task.status === 'cancelled') { %>
-      <button class="btn btn-xs btn-primary"
-        hx-post="/api/tasks/<%= it.task.id %>/retry"
-        hx-swap="none"
-      >Retry</button>
-    <% } %>
-    <% if (it.task.status !== 'done' && it.task.status !== 'cancelled' && it.task.status !== 'failed') { %>
-      <button class="btn btn-xs btn-ghost text-red-400"
-        hx-post="/api/tasks/<%= it.task.id %>/cancel"
-        hx-swap="none"
-        hx-confirm="Cancel this task?"
-      >Cancel</button>
-    <% } %>
-    <% if (it.task.status === 'done' || it.task.status === 'cancelled' || it.task.status === 'failed') { %>
-      <button class="btn btn-xs btn-ghost text-red-400"
-        hx-delete="/api/tasks/<%= it.task.id %>"
-        hx-swap="none"
-        hx-confirm="Delete this task permanently?"
-      >Delete</button>
-    <% } %>
-  </div>
 </div>
