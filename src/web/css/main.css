@@ -35,3 +35,38 @@
   --accent-900: #1e3a8a;
   --accent-950: #172554;
 }
+
+/* ─── Legacy color tokens ────────────────────────────────────────────── *
+ * The orcha-layout / orcha-components / orcha-mobile CSS files reference
+ * these --color-* custom properties (carried over from the pre-Tailwind
+ * tokens.css).  Values are Tailwind slate palette equivalents.
+ * ──────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Accent (maps to the blue override above) */
+  --color-accent: var(--accent-600);
+  --color-accent-hover: var(--accent-700);
+  --color-accent-dim: rgba(37, 99, 235, 0.1);
+
+  /* Background / surface */
+  --color-bg: #0f172a;           /* slate-900 */
+  --color-bg-secondary: #1a1a2e;
+  --color-surface: #1e293b;      /* slate-800 */
+  --color-surface-raised: #334155; /* slate-700 */
+  --color-border: #334155;       /* slate-700 */
+
+  /* Text */
+  --color-text: #e2e8f0;        /* slate-200 */
+  --color-text-primary: #f8fafc; /* slate-50 */
+  --color-text-secondary: #cbd5e1; /* slate-300 */
+  --color-text-muted: #94a3b8;  /* slate-400 */
+  --color-text-hover: #f8fafc;  /* slate-50 */
+
+  /* Semantic */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
