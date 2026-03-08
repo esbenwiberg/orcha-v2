@@ -305,8 +305,8 @@ async function _copyLastOutput() {
 function _showTerminalLayer() {
   const termLayer = document.getElementById('mobile-terminal-layer');
   const contentLayer = document.getElementById('mobile-content-layer');
-  if (termLayer) termLayer.classList.remove('hidden');
-  if (contentLayer) contentLayer.classList.add('hidden');
+  if (termLayer) termLayer.style.display = '';
+  if (contentLayer) contentLayer.style.display = 'none';
 }
 window._showTerminalLayer = _showTerminalLayer;
 
@@ -314,8 +314,8 @@ window._showTerminalLayer = _showTerminalLayer;
 function _showContentLayer() {
   const termLayer = document.getElementById('mobile-terminal-layer');
   const contentLayer = document.getElementById('mobile-content-layer');
-  if (termLayer) termLayer.classList.add('hidden');
-  if (contentLayer) contentLayer.classList.remove('hidden');
+  if (termLayer) termLayer.style.display = 'none';
+  if (contentLayer) contentLayer.style.display = '';
 }
 window._showContentLayer = _showContentLayer;
 
