@@ -141,10 +141,23 @@ export class WorktreeManager {
     const safeBranch = WorktreeManager.sanitiseBranchName(branch);
     const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
     const cwd = repoRootOverride ?? undefined;
+
+    // In a bare repo, HEAD points to the commit at clone time and is never
+    // updated by fetchBareRepo (which only writes refs/remotes/origin/*).
+    // If no explicit startPoint is given, resolve the default branch and use
+    // the remote-tracking ref so the worktree gets the latest fetched commit.
+    let resolvedStartPoint = startPoint;
+    if (resolvedStartPoint === undefined && repoRootOverride !== undefined) {
+      const defaultBranch = await this.getDefaultBranch(repoRootOverride);
+      if (defaultBranch) {
+        resolvedStartPoint = `origin/${defaultBranch}`;
+      }
+    }
+
     const args = ['worktree', 'add', '-b', safeBranch, worktreePath];
-    if (startPoint !== undefined) {
-      WorktreeManager.assertNoInjection(startPoint, 'startPoint');
-      args.push(startPoint);
+    if (resolvedStartPoint !== undefined) {
+      WorktreeManager.assertNoInjection(resolvedStartPoint, 'startPoint');
+      args.push(resolvedStartPoint);
     }
     await this.execGit(args, cwd);
     const commitShaRaw = await this.execGit(['rev-parse', 'HEAD'], worktreePath);

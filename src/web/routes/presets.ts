@@ -316,6 +316,24 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       ).join('');
       const branch = `feature/${randomSuffix}`;
 
+      // Eagerly fetch and resolve branches so the form is pre-populated
+      // instead of lazy-loading on focus (which can miss if user doesn't click)
+      const repo = preset.repoId ? repoStore.getRepo(preset.repoId) : undefined;
+      let branches: { name: string; isDefault: boolean }[] = [];
+      let defaultBranch: string | undefined;
+      if (repo?.barePath) {
+        try {
+          await deps.worktreeManager.fetchBareRepo(repo.barePath);
+          const branchNames = await deps.worktreeManager.listRemoteBranches(repo.barePath);
+          defaultBranch = await deps.worktreeManager.getDefaultBranch(repo.barePath);
+          branches = branchNames
+            .filter((b) => b !== 'HEAD')
+            .map((b) => ({ name: b, isDefault: b === defaultBranch }));
+        } catch (err) {
+          console.warn(`[presets] branch fetch failed for repo ${preset.repoId}:`, err);
+        }
+      }
+
       const html = eta.render('partials/new-session-form', {
         repoId: preset.repoId,
         credentialProfileId: preset.credentialProfileId,
@@ -326,6 +344,8 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         modelConfigs,
         mcpServers,
         branch,
+        branches,
+        defaultBranch,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

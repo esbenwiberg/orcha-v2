@@ -322,6 +322,25 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
+      // Fetch latest refs from the bare repo before creating the worktree
+      let sourceBranch: string | undefined;
+      if (repo.barePath !== null) {
+        try {
+          await deps.worktreeManager.fetchBareRepo(repo.barePath);
+        } catch (err) {
+          console.warn(`[mobile] fetchBareRepo failed for ${repo.id}:`, err);
+        }
+        // Resolve default branch so worktree starts from latest remote HEAD
+        try {
+          const defaultBranch = await deps.worktreeManager.getDefaultBranch(repo.barePath);
+          if (defaultBranch) {
+            sourceBranch = `origin/${defaultBranch}`;
+          }
+        } catch {
+          // Best-effort; addWorktree safety net will also try to resolve
+        }
+      }
+
       const sessionHome = env['HOME'];
       const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
         sessionId,
@@ -335,6 +354,7 @@ export function createMobileRouter(eta: Eta, deps: AppDeps): Router {
         ...(preset.modelConfigId ? { modelConfigId: preset.modelConfigId } : {}),
         ...(modelConfig !== undefined ? { modelProvider: modelConfig.provider } : {}),
         ...(preset.mcpServerIds.length > 0 ? { mcpServerIds: preset.mcpServerIds } : {}),
+        ...(sourceBranch !== undefined ? { sourceBranch } : {}),
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;
