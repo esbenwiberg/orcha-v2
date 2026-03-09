@@ -14,7 +14,6 @@ import { credentialManager } from '../credentials/credential-manager.js';
 import { readSettingsFromDb } from '../web/routes/claude-settings-db.js';
 import { buildSessionClaudeMd } from '../web/routes/claude-files.js';
 import { loadSkills } from '../web/routes/skills.js';
-import { getStoragePaths } from '../storage/paths.js';
 import type { SessionManager } from '../terminal/session-manager.js';
 import type { WorktreeManager, WorktreeInfo } from '../terminal/worktree-manager.js';
 import type { Task } from '../domain/task-types.js';
@@ -196,9 +195,10 @@ export class TaskProcessor {
   }
 
   async #runExecution(task: Task): Promise<void> {
-    // Resolve existing worktree (if any) for reuse
-    const worktree = task.worktreePath ? await this.#resolveWorktree(task) : undefined;
-    const worktreePath = worktree?.path ?? join(getStoragePaths().worktreeBaseDir, `task-${task.id}`);
+    // Ensure worktree exists (creates or recovers from stale branch/path conflicts)
+    const worktree = await this.#ensureWorktree(task);
+    if (!worktree) return; // #ensureWorktree already called #fail
+    const worktreePath = worktree.path;
 
     // Generate a stable session ID upfront so the MCP validate URL in settings.json
     // matches the session ID that SessionManager will use (avoids session-not-found errors).
@@ -208,7 +208,7 @@ export class TaskProcessor {
     const { env, deleteEnv, homeDir, modelProvider } = await this.#setupExecutionEnv(task, worktreePath, sessionId);
 
     console.log('[task-processor] TASK-%d execution starting (worktree=%s hasApiKey=%s hasGhToken=%s homeDir=%s)',
-      task.displayId, worktree ? worktree.path : 'new', 'ANTHROPIC_API_KEY' in env, 'GH_TOKEN' in env, homeDir ?? 'none');
+      task.displayId, worktree.path, 'ANTHROPIC_API_KEY' in env, 'GH_TOKEN' in env, homeDir ?? 'none');
 
     try {
       // Re-read the task before transitioning — guard against the task being
