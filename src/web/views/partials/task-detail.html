@@ -51,6 +51,9 @@
       <% if (it.task.enrichmentResult) { %>
         <span class="badge <%= _complexityMap[it.task.enrichmentResult.complexity] || 'badge-neutral' %>"><%= it.task.enrichmentResult.complexity %></span>
       <% } %>
+      <% if (it.task.prMerged) { %>
+        <span class="badge badge-success">merged</span>
+      <% } %>
     </div>
     <h2 class="text-[15px] font-bold text-slate-50 m-0 tracking-tight"><%= it.task.title %></h2>
     <div class="text-xs text-slate-500">

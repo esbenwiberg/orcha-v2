@@ -84,6 +84,7 @@ export interface Task {
   // PR review
   prCommentWatermark: string | null;
   reviewFeedback: string | null;
+  prMerged: boolean;
 
   // Lifecycle
   createdAt: Date;

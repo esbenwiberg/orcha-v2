@@ -46,6 +46,7 @@
       sse-swap="task-status-<%= it.task.id %>"
       hx-swap="outerHTML"
     ><%= it.task.status %></span>
+    <% if (it.task.prMerged) { %><span class="badge badge-success badge-sm ml-1">merged</span><% } %>
   </td>
   <td>
     <% if (it.task.investigationRating) { %>

@@ -311,11 +311,20 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         fetchNewComments(pr, ghToken, since),
       ]);
 
+      // Persist merged status so it shows in the task header without re-checking
+      if (prStatus.merged && !task.prMerged) {
+        taskStore.setPrMerged(task.id, true);
+      }
+
       const html = eta.render('partials/task-pr-review', {
         taskId: task.id,
         prStatus,
         comments,
       });
+      // Re-render the status badge via HX-Trigger so the header updates
+      if (prStatus.merged && !task.prMerged) {
+        res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      }
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
