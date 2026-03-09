@@ -230,6 +230,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const repo = repoStore.getRepo(repoId)!;
+      const sessionId = randomUUID();
 
       // Provision credentials if a profile was selected
       const env: Record<string, string> = {
@@ -276,7 +277,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // Per-session isolated HOME: every session gets its own /tmp/orcha-home-<id>/
       // so concurrent sessions with different credentials don't overwrite each other,
       // and each session gets its own MCP server config for validation tools.
-      const sessionId = randomUUID();
       // Hoisted so it's accessible after createSession() for project-level injection
       let mcpServers: Record<string, unknown> = {};
       {
