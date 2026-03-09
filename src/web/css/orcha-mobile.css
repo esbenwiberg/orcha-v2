@@ -419,6 +419,8 @@
     @apply shrink-0 flex items-end overflow-hidden;
     gap: 6px;
     padding: 6px 8px;
+    max-width: 100%;
+    width: 100%;
     background-color: #111;
     border-top: 1px solid var(--color-border);
     position: relative;
@@ -493,19 +495,19 @@
 
   .mobile-key--enter {
     @apply shrink-0;
-    height: 46px;
+    height: 56px;
     padding: 0 16px;
-    margin-top: -16px;
+    margin-top: -26px;
     font-size: 13px;
     font-weight: 600;
     border-radius: 6px;
-    background: var(--color-accent);
+    background: #22c55e;
     color: #fff;
-    border-color: var(--color-accent);
+    border-color: #22c55e;
   }
 
   .mobile-key--enter:active {
-    background: color-mix(in srgb, var(--color-accent) 80%, #000);
+    background: color-mix(in srgb, #22c55e 80%, #000);
     color: #fff;
   }
 
