@@ -232,7 +232,9 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const repo = repoStore.getRepo(repoId)!;
 
       // Provision credentials if a profile was selected
-      const env: Record<string, string> = {};
+      const env: Record<string, string> = {
+        ORCHA_SESSION_ID: sessionId,
+      };
 
       // 1. Repo-level env vars (lowest priority — overridable by credentials + model config)
       if (repo.envVars) {
@@ -318,11 +320,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             Object.assign(mcpServers, entries);
           }
 
-          // Inject MCP validation server config (type 'http' = StreamableHTTP)
+          // Inject built-in MCP servers (type 'http' = StreamableHTTP)
           const orchaPort = process.env['PORT'] ?? '3000';
           mcpServers['validate'] = {
             type: 'http',
             url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
+          };
+          mcpServers['orcha'] = {
+            type: 'http',
+            url: `http://localhost:${orchaPort}/mcp/orcha`,
           };
           settings['mcpServers'] = mcpServers;
 
@@ -748,6 +754,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           reopenMcpServers['validate'] = {
             type: 'http',
             url: `http://localhost:${orchaPort}/mcp/validate/${id}`,
+          };
+          reopenMcpServers['orcha'] = {
+            type: 'http',
+            url: `http://localhost:${orchaPort}/mcp/orcha`,
           };
           settings['mcpServers'] = reopenMcpServers;
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');

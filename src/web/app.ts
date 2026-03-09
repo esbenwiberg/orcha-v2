@@ -33,6 +33,7 @@ import { createTasksRouter } from './routes/tasks.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
+import { createOrchaMcpRouter } from '../mcp/orcha-mcp.js';
 import { ValidationManager } from '../validation/validation-manager.js';
 import { createValidateProxy } from './routes/validate-proxy.js';
 import { loadDeployConfig, Deployer } from '../deploy/index.js';
@@ -73,12 +74,13 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
     cache: process.env['NODE_ENV'] === 'production',
   });
 
-  // MCP validation endpoint — mounted BEFORE body parsers because the MCP SDK's
+  // MCP endpoints — mounted BEFORE body parsers because the MCP SDK's
   // StreamableHTTPServerTransport reads the raw request stream. express.json()
   // would consume the stream first, causing the transport to see an empty body.
   if (deps.validationManager) {
     app.use(createValidateMcpRouter(deps.db, deps.validationManager));
   }
+  app.use(createOrchaMcpRouter(deps.db));
 
   // Parse JSON request bodies — skip /validate/ proxy routes so the raw body
   // is forwarded intact to the proxied app.
