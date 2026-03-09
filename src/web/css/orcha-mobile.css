@@ -416,12 +416,11 @@
      =================================================================== */
 
   .mobile-keys {
-    @apply shrink-0 flex overflow-x-auto;
+    @apply shrink-0 flex flex-wrap;
     gap: 6px;
     padding: 6px 8px;
     background-color: #111;
     border-top: 1px solid var(--color-border);
-    -webkit-overflow-scrolling: touch;
   }
 
   .mobile-key {
@@ -442,6 +441,21 @@
     background: var(--color-accent);
     color: #fff;
     border-color: var(--color-accent);
+  }
+
+  .mobile-key--enter {
+    @apply ml-auto;
+    order: 99;
+    min-height: 48px;
+    margin-top: -8px;
+    background: color-mix(in srgb, var(--color-accent) 25%, var(--color-surface-raised));
+    color: var(--color-accent);
+    border-color: var(--color-accent);
+  }
+
+  .mobile-key--enter:active {
+    background: var(--color-accent);
+    color: #fff;
   }
 
   .mobile-key--arrow {
@@ -466,7 +480,7 @@
   }
 
   .mobile-key--copy {
-    @apply ml-auto;
+    order: 98;
     background: color-mix(in srgb, var(--color-accent) 20%, var(--color-surface-raised));
     color: var(--color-accent);
     border-color: var(--color-accent);
