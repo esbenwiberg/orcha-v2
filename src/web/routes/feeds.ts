@@ -7,7 +7,7 @@ const DB_KEY = 'feeds.devops';
 
 export interface DevOpsFeedConfig {
   org: string;
-  project: string;
+  project?: string;
   pat: string;
   feeds: string[];
 }
@@ -56,7 +56,7 @@ export function createFeedsRouter(eta: Eta, db: Database.Database): Router {
       const feeds = feedsRaw.split(',').map((s) => s.trim()).filter(Boolean);
 
       if (org && feeds.length > 0 && pat) {
-        const config: DevOpsFeedConfig = { org, project, pat, feeds };
+        const config: DevOpsFeedConfig = { org, pat, feeds, ...(project ? { project } : {}) };
         store.set(DB_KEY, JSON.stringify(config));
       } else if (!org && feeds.length === 0 && !pat) {
         // Clear config if all fields are empty

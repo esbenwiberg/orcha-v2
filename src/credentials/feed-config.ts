@@ -13,11 +13,11 @@ function getOrgName(org: string): string {
 export interface FeedConfigInput {
   /** DevOps org URL or name */
   org: string;
-  /** DevOps project name */
-  project: string;
+  /** DevOps project name (optional — omit for org-scoped feeds) */
+  project?: string;
   /** Feed names (e.g. ["my-npm-feed", "my-nuget-feed"]) */
   feeds: string[];
-  /** The session-scoped PAT (plain text) */
+  /** The packaging PAT (plain text) */
   pat: string;
 }
 
@@ -33,7 +33,8 @@ function generateNpmrc(input: FeedConfigInput): string {
   const lines: string[] = [];
 
   for (const feed of input.feeds) {
-    const prefix = `pkgs.dev.azure.com/${orgName}/${input.project}/_packaging/${feed}`;
+    const scope = input.project ? `${orgName}/${input.project}` : orgName;
+    const prefix = `pkgs.dev.azure.com/${scope}/_packaging/${feed}`;
     lines.push(
       `; ${feed}`,
       `//${prefix}/npm/registry/:username=${orgName}`,
@@ -60,7 +61,8 @@ function generateNugetConfig(input: FeedConfigInput): string {
   const creds: string[] = [];
 
   for (const feed of input.feeds) {
-    const url = `https://pkgs.dev.azure.com/${orgName}/${input.project}/_packaging/${feed}/nuget/v3/index.json`;
+    const scope = input.project ? `${orgName}/${input.project}` : orgName;
+    const url = `https://pkgs.dev.azure.com/${scope}/_packaging/${feed}/nuget/v3/index.json`;
     // XML-safe key: replace spaces/special chars
     const key = feed.replace(/[^a-zA-Z0-9_-]/g, '_');
     sources.push(`    <add key="${key}" value="${url}" />`);
