@@ -14,6 +14,7 @@
    so layer ordering is correct regardless of import position) */
 @import './orcha-layout.css';
 @import './orcha-components.css';
+@import './orcha-kanban.css';
 @import './orcha-mobile.css';
 
 /* Tailwind layers */

@@ -81,6 +81,7 @@
     "openid-client": "^6.8.2",
     "passport": "^0.7.0",
     "playwright": "^1.58.2",
+    "sortablejs": "^1.15.7",
     "supertest": "^7.2.2",
     "ws": "^8.19.0",
     "xterm-addon-web-links": "^0.9.0",

@@ -20,6 +20,7 @@ const copies = [
   ['node_modules/xterm/lib/xterm.js', 'xterm.js'],
   ['node_modules/xterm/css/xterm.css', 'xterm.css'],
   ['node_modules/@xterm/addon-fit/lib/addon-fit.js', 'addon-fit.js'],
+  ['node_modules/sortablejs/Sortable.min.js', 'sortablejs.min.js'],
 ];
 
 for (const [src, name] of copies) {

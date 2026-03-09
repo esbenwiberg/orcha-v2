@@ -1,0 +1,106 @@
+<%
+  // Column definitions with status groupings
+  const columns = [
+    { id: 'inbox', title: 'Inbox', statuses: ['draft'] },
+    { id: 'investigating', title: 'Investigating', statuses: ['investigating'] },
+    { id: 'review', title: 'Review', statuses: ['rejected'] },
+    { id: 'pipeline', title: 'Pipeline', statuses: ['enriching', 'queued', 'executing'] },
+    { id: 'done', title: 'Done', statuses: ['done'] },
+    { id: 'failed', title: 'Failed', statuses: ['failed', 'cancelled'] },
+  ];
+
+  // Group tasks into columns
+  const grouped = {};
+  for (const col of columns) {
+    grouped[col.id] = [];
+  }
+  for (const task of (it.tasks || [])) {
+    for (const col of columns) {
+      if (col.statuses.includes(task.status)) {
+        grouped[col.id].push(task);
+        break;
+      }
+    }
+  }
+
+  // Sort: Inbox newest-first, all others oldest-first (FIFO)
+  grouped['inbox'].sort((a, b) => b.createdAt - a.createdAt);
+  for (const colId of ['investigating', 'review', 'pipeline', 'done', 'failed']) {
+    grouped[colId].sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  // Cap Done/Failed to 10
+  const doneCapped = grouped['done'].length > 10;
+  const failedCapped = grouped['failed'].length > 10;
+  const doneTotal = grouped['done'].length;
+  const failedTotal = grouped['failed'].length;
+  if (doneCapped) grouped['done'] = grouped['done'].slice(0, 10);
+  if (failedCapped) grouped['failed'] = grouped['failed'].slice(0, 10);
+%>
+
+<div class="kanban-board" id="kanban-board">
+  <% for (const col of columns) { %>
+    <%
+      const tasks = grouped[col.id];
+      const count = col.id === 'done' ? doneTotal : col.id === 'failed' ? failedTotal : tasks.length;
+      const isTerminal = col.id === 'done' || col.id === 'failed';
+      const defaultCollapsed = isTerminal && count > 0;
+    %>
+    <div class="kanban-column kanban-column--<%= col.id %><%= defaultCollapsed ? ' kanban-column--collapsed' : '' %>"
+      data-column="<%= col.id %>"
+      id="kanban-col-<%= col.id %>"
+    >
+      <div class="kanban-column__header">
+        <span class="kanban-column__header-title"><%= col.title %></span>
+        <span class="kanban-column__count" id="kanban-count-<%= col.id %>"><%= count %></span>
+        <button class="kanban-column__collapse-btn"
+          onclick="toggleColumn('<%= col.id %>')"
+          title="<%= defaultCollapsed ? 'Expand' : 'Collapse' %>"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M3 5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="kanban-column__body" data-column="<%= col.id %>">
+        <% if (tasks.length === 0) { %>
+          <div class="kanban-column__empty">No tasks</div>
+        <% } else { %>
+          <% for (const task of tasks) { %>
+            <%~ include('kanban-card', { task, repos: it.repos }) %>
+          <% } %>
+          <% if ((col.id === 'done' && doneCapped) || (col.id === 'failed' && failedCapped)) { %>
+            <div class="kanban-column__show-all" onclick="switchToTable()">View all in table &rarr;</div>
+          <% } %>
+        <% } %>
+      </div>
+    </div>
+  <% } %>
+</div>
+
+<script>
+function toggleColumn(colId) {
+  var col = document.getElementById('kanban-col-' + colId);
+  if (!col) return;
+  col.classList.toggle('kanban-column--collapsed');
+  // Persist to localStorage
+  var collapsed = JSON.parse(localStorage.getItem('kanban-collapsed') || '{}');
+  collapsed[colId] = col.classList.contains('kanban-column--collapsed');
+  localStorage.setItem('kanban-collapsed', JSON.stringify(collapsed));
+}
+
+// Restore collapse state from localStorage
+(function() {
+  var collapsed = JSON.parse(localStorage.getItem('kanban-collapsed') || '{}');
+  for (var colId in collapsed) {
+    var col = document.getElementById('kanban-col-' + colId);
+    if (!col) continue;
+    if (collapsed[colId]) {
+      col.classList.add('kanban-column--collapsed');
+    } else {
+      col.classList.remove('kanban-column--collapsed');
+    }
+  }
+})();
+</script>

@@ -1,0 +1,158 @@
+<div class="modal-panel__header">
+  <div>
+    <h2 class="text-[15px] font-bold text-slate-50 m-0 tracking-tight">New Task</h2>
+    <p class="text-xs text-slate-500 m-0 mt-0.5">Submit a rough idea for autonomous investigation, enrichment, and execution.</p>
+  </div>
+  <button class="modal-panel__close" onclick="closeModal()" aria-label="Close">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </button>
+</div>
+
+<div class="modal-panel__body">
+  <form
+    hx-post="/api/tasks"
+    hx-target="#modal-slot .modal-panel"
+    hx-swap="innerHTML"
+    hx-on::after-request="if(event.detail.successful){ closeModal(); }"
+    class="flex flex-col gap-5"
+  >
+    <div class="form-group">
+      <label class="form-label" for="ntm-repo">Repository</label>
+      <select class="form-select" id="ntm-repo" name="repoId" required>
+        <option value="">Select a repository...</option>
+        <% if (it.repos) { for (const r of it.repos) { %>
+          <option value="<%= r.id %>"><%= r.displayName %></option>
+        <% } } %>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="ntm-title">Title</label>
+      <input
+        class="form-input"
+        id="ntm-title"
+        type="text"
+        name="title"
+        required
+        placeholder="Fix race condition in auth middleware"
+        autocomplete="off"
+      />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="ntm-description">Description</label>
+      <textarea
+        class="form-input"
+        id="ntm-description"
+        name="description"
+        required
+        rows="5"
+        placeholder="Describe your idea... rough is fine, the agent will investigate and enrich it."
+      ></textarea>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="ntm-branch">
+        Branch Name
+        <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional)</span>
+      </label>
+      <input
+        class="form-input"
+        id="ntm-branch"
+        type="text"
+        name="branch"
+        placeholder="task/fix-auth-race"
+        autocomplete="off"
+      />
+    </div>
+
+    <!-- Options -->
+    <div class="flex flex-col gap-3">
+      <label class="flex items-center gap-2.5 cursor-pointer select-none">
+        <input type="checkbox" name="autoEnrich" value="1" id="ntm-auto-enrich" class="sr-only" checked />
+        <button type="button" role="switch"
+          class="toggle active"
+          aria-checked="true"
+          onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+        ><span class="toggle-knob"></span></button>
+        <span class="text-xs text-slate-300">
+          Auto-investigate & enrich
+          <span class="text-slate-500 ml-0.5">(agent evaluates feasibility first)</span>
+        </span>
+      </label>
+
+      <label class="flex items-center gap-2.5 cursor-pointer select-none">
+        <input type="checkbox" name="selfValidate" value="1" id="ntm-self-validate" class="sr-only" />
+        <button type="button" role="switch"
+          class="toggle"
+          aria-checked="false"
+          onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+        ><span class="toggle-knob"></span></button>
+        <span class="text-xs text-slate-300">
+          Self-validate
+          <span class="text-slate-500 ml-0.5">(agent hosts & previews after implementing)</span>
+        </span>
+      </label>
+    </div>
+
+    <!-- Advanced (collapsible) -->
+    <details>
+      <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300">Advanced options</summary>
+      <div class="flex flex-col gap-4 mt-3">
+        <div class="form-group">
+          <label class="form-label" for="ntm-cred-profile">Credential Profile</label>
+          <select class="form-select" id="ntm-cred-profile" name="credentialProfileId">
+            <option value="">None &mdash; use ambient credentials</option>
+            <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
+              <option value="<%= p.id %>"><%= p.name %> (<%= p.durationHours %>h)</option>
+            <% } } %>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="ntm-model-config">Model Config</label>
+          <select class="form-select" id="ntm-model-config" name="modelConfigId">
+            <option value="">None &mdash; use ambient config</option>
+            <% if (it.modelConfigs) { for (const mc of it.modelConfigs) { %>
+              <option value="<%= mc.id %>"><%= mc.name %> (<%= mc.provider === 'max' ? 'MAX/PRO' : mc.provider %>)</option>
+            <% } } %>
+          </select>
+        </div>
+
+        <% if (it.mcpServers && it.mcpServers.length > 0) { %>
+        <div class="form-group">
+          <label class="form-label">MCP Servers</label>
+          <div class="flex flex-col gap-1.5 mt-1">
+            <% for (const srv of it.mcpServers) { %>
+              <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                <input type="checkbox" name="mcpServerIds" value="<%= srv.id %>" class="form-checkbox" />
+                <span><%= srv.name %></span>
+                <span class="badge badge-info badge-sm"><%= srv.type %></span>
+              </label>
+            <% } %>
+          </div>
+        </div>
+        <% } %>
+      </div>
+    </details>
+
+    <div class="flex gap-2 pt-1 border-t border-slate-700/50">
+      <button type="submit" class="btn btn-primary flex-1" aria-busy="false"
+        hx-on::before-request="this.setAttribute('aria-busy','true'); this.disabled=true;"
+        hx-on::after-request="this.setAttribute('aria-busy','false'); this.disabled=false;"
+      >
+        <svg class="btn-icon-default" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg class="btn-icon-loading hidden animate-spin" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20" stroke-dashoffset="5" stroke-linecap="round"/>
+        </svg>
+        <span class="btn-label-default">Create Task</span>
+        <span class="btn-label-loading hidden">Creating...</span>
+      </button>
+      <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>
+  </form>
+</div>

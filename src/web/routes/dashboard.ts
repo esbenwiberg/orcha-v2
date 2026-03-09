@@ -191,10 +191,7 @@ export function createDashboardRouter(eta: Eta): Router {
         activeNav: 'tasks',
         headerActions: `<button
           class="btn btn-primary"
-          hx-get="/api/tasks/new-form"
-          hx-target="#form-panel-slot"
-          hx-swap="innerHTML"
-          onclick="document.getElementById('form-panel').classList.add('is-open')"
+          onclick="openModal('/api/tasks/new-modal')"
         >+ New Task</button>`,
         body,
       });

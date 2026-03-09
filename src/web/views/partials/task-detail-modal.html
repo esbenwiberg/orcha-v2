@@ -1,0 +1,337 @@
+<%
+  const _statusMap = {
+    draft: 'badge-neutral',
+    investigating: 'badge-warning badge-dot badge-pulse',
+    rejected: 'badge-error',
+    enriching: 'badge-warning badge-dot badge-pulse',
+    queued: 'badge-accent',
+    executing: 'badge-info badge-dot badge-pulse',
+    done: 'badge-success',
+    failed: 'badge-error',
+    cancelled: 'badge-neutral',
+  };
+  const _ratingMap = {
+    reject: 'badge-error',
+    weak: 'badge-warning',
+    viable: 'badge-accent',
+    good: 'badge-success',
+    excellent: 'badge-success',
+  };
+  const _complexityMap = {
+    trivial: 'badge-success',
+    small: 'badge-success',
+    medium: 'badge-accent',
+    large: 'badge-warning',
+  };
+  const _severityMap = {
+    low: 'text-green-400',
+    medium: 'text-yellow-400',
+    high: 'text-red-400',
+  };
+  const _changeIcon = {
+    modify: '~',
+    create: '+',
+    delete: '-',
+  };
+%>
+
+<div class="modal-panel__header">
+  <div class="flex flex-col gap-1 min-w-0 flex-1 mr-4">
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="text-xs text-slate-500 font-mono">TASK-<%= it.task.displayId %></span>
+      <span class="badge <%= _statusMap[it.task.status] || 'badge-neutral' %>"
+        id="modal-task-badge-<%= it.task.id %>"
+        sse-swap="task-status-<%= it.task.id %>"
+        hx-swap="outerHTML"
+      ><%= it.task.status %></span>
+      <% if (it.task.investigationRating) { %>
+        <span class="badge <%= _ratingMap[it.task.investigationRating] || 'badge-neutral' %>"><%= it.task.investigationRating %></span>
+      <% } %>
+      <% if (it.task.enrichmentResult) { %>
+        <span class="badge <%= _complexityMap[it.task.enrichmentResult.complexity] || 'badge-neutral' %>"><%= it.task.enrichmentResult.complexity %></span>
+      <% } %>
+      <% if (it.task.prMerged) { %>
+        <span class="badge badge-success">merged</span>
+      <% } %>
+    </div>
+    <h2 class="text-[15px] font-bold text-slate-50 m-0 tracking-tight truncate"><%= it.task.title %></h2>
+    <div class="text-xs text-slate-500">
+      Repo: <%= it.repo ? it.repo.displayName : it.task.repoId.slice(0, 8) %>
+      <% if (it.task.branch) { %> &middot; Branch: <code class="text-slate-400"><%= it.task.branch %></code><% } %>
+    </div>
+  </div>
+  <button class="modal-panel__close" onclick="closeModal()" aria-label="Close">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </button>
+</div>
+
+<div class="modal-panel__body flex flex-col gap-5">
+  <!-- Actions -->
+  <div class="flex gap-2 flex-wrap pb-2 border-b border-slate-700/50">
+    <% if (it.task.status === 'rejected') { %>
+      <button class="btn btn-xs btn-primary"
+        hx-post="/api/tasks/<%= it.task.id %>/force-enrich"
+        hx-swap="none"
+      >Force Enrich</button>
+      <button class="btn btn-xs btn-ghost"
+        hx-post="/api/tasks/<%= it.task.id %>/force-queue"
+        hx-swap="none"
+      >Force Queue</button>
+    <% } %>
+    <% if (it.task.status === 'failed' || it.task.status === 'cancelled') { %>
+      <button class="btn btn-xs btn-primary"
+        hx-post="/api/tasks/<%= it.task.id %>/retry"
+        hx-swap="none"
+      >Retry</button>
+    <% } %>
+    <% if (it.task.status === 'failed') { %>
+      <button class="btn btn-xs btn-success"
+        hx-post="/api/tasks/<%= it.task.id %>/mark-done"
+        hx-swap="none"
+      >Mark Done</button>
+    <% } %>
+    <% if ((it.task.status === 'done' || it.task.status === 'failed') && it.task.enrichmentResult) { %>
+      <button class="btn btn-xs btn-ghost"
+        hx-post="/api/tasks/<%= it.task.id %>/retry-execute"
+        hx-swap="none"
+        hx-confirm="Re-run execution? Investigation and enrichment results will be preserved."
+      >Retry Execute</button>
+    <% } %>
+    <% if ((it.task.status === 'done' || it.task.status === 'failed') && it.task.prUrl) { %>
+      <button class="btn btn-xs btn-accent"
+        hx-post="/api/tasks/<%= it.task.id %>/check-pr"
+        hx-target="#modal-pr-review-<%= it.task.id %>"
+        hx-swap="innerHTML"
+      >Check PR</button>
+      <button class="btn btn-xs btn-ghost"
+        hx-post="/api/tasks/<%= it.task.id %>/address-feedback"
+        hx-swap="none"
+      >Address Feedback</button>
+    <% } %>
+    <% if (it.task.status !== 'done' && it.task.status !== 'cancelled' && it.task.status !== 'failed') { %>
+      <button class="btn btn-xs btn-ghost text-red-400"
+        hx-post="/api/tasks/<%= it.task.id %>/cancel"
+        hx-swap="none"
+        hx-confirm="Cancel this task?"
+      >Cancel</button>
+    <% } %>
+    <% if (it.task.status === 'done' || it.task.status === 'cancelled' || it.task.status === 'failed') { %>
+      <button class="btn btn-xs btn-ghost text-red-400"
+        hx-delete="/api/tasks/<%= it.task.id %>"
+        hx-swap="none"
+        hx-confirm="Delete this task permanently?"
+      >Delete</button>
+    <% } %>
+  </div>
+
+  <!-- Original Idea -->
+  <div class="task-card">
+    <div class="task-card__header">Original Idea</div>
+    <div class="task-card__body text-xs text-slate-300 whitespace-pre-wrap"><%= it.task.description %></div>
+  </div>
+
+  <!-- Investigation -->
+  <% if (it.task.investigationResult) { %>
+  <div class="task-card">
+    <div class="task-card__header">
+      Investigation
+      <span class="badge badge-sm <%= _ratingMap[it.task.investigationRating] || 'badge-neutral' %> ml-2"><%= it.task.investigationRating %></span>
+    </div>
+    <div class="task-card__body">
+      <p class="text-xs text-slate-300 mb-2"><%= it.task.investigationResult.summary %></p>
+
+      <% if (it.task.investigationResult.pros.length > 0) { %>
+        <div class="mb-2">
+          <% for (const pro of it.task.investigationResult.pros) { %>
+            <div class="text-xs text-green-400">+ <%= pro %></div>
+          <% } %>
+        </div>
+      <% } %>
+
+      <% if (it.task.investigationResult.cons.length > 0) { %>
+        <div class="mb-2">
+          <% for (const con of it.task.investigationResult.cons) { %>
+            <div class="text-xs text-red-400">- <%= con %></div>
+          <% } %>
+        </div>
+      <% } %>
+
+      <% if (it.task.investigationResult.filesExamined.length > 0) { %>
+        <div class="text-xs text-slate-500 mt-2">
+          Files examined: <%= it.task.investigationResult.filesExamined.join(', ') %>
+        </div>
+      <% } %>
+
+      <% if (it.task.investigationResult.webResearch) { %>
+        <div class="text-xs text-slate-400 mt-2 border-t border-slate-700/50 pt-2">
+          <strong>Web research:</strong> <%= it.task.investigationResult.webResearch %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Enriched Description -->
+  <% if (it.task.enrichedDescription) { %>
+  <div class="task-card">
+    <div class="task-card__header">Enriched Description</div>
+    <div class="task-card__body text-xs text-slate-300 whitespace-pre-wrap"><%= it.task.enrichedDescription %></div>
+  </div>
+  <% } %>
+
+  <!-- Affected Files -->
+  <% if (it.task.enrichmentResult && it.task.enrichmentResult.affectedFiles.length > 0) { %>
+  <div class="task-card">
+    <div class="task-card__header">Affected Files</div>
+    <div class="task-card__body">
+      <% for (const f of it.task.enrichmentResult.affectedFiles) { %>
+        <div class="flex gap-2 text-xs py-0.5">
+          <span class="font-mono w-4 text-center <%= f.changeType === 'create' ? 'text-green-400' : f.changeType === 'delete' ? 'text-red-400' : 'text-yellow-400' %>"><%= _changeIcon[f.changeType] %></span>
+          <code class="text-slate-300"><%= f.path %></code>
+          <span class="text-slate-500"><%= f.reason %></span>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Implementation Approach -->
+  <% if (it.task.enrichmentResult && it.task.enrichmentResult.approach.length > 0) { %>
+  <div class="task-card">
+    <div class="task-card__header">Implementation Approach</div>
+    <div class="task-card__body">
+      <% for (const s of it.task.enrichmentResult.approach) { %>
+        <div class="flex gap-2 text-xs py-1 border-b border-slate-700/30 last:border-0">
+          <span class="text-slate-500 font-mono w-4 shrink-0"><%= s.step %>.</span>
+          <div>
+            <div class="text-slate-300"><%= s.description %></div>
+            <div class="text-slate-500 text-[10px] mt-0.5"><%= s.files.join(', ') %></div>
+          </div>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Risks -->
+  <% if (it.task.enrichmentResult && it.task.enrichmentResult.risks.length > 0) { %>
+  <div class="task-card">
+    <div class="task-card__header">Risks</div>
+    <div class="task-card__body">
+      <% for (const r of it.task.enrichmentResult.risks) { %>
+        <div class="text-xs py-1 border-b border-slate-700/30 last:border-0">
+          <span class="<%= _severityMap[r.severity] || 'text-slate-400' %> font-medium"><%= r.severity.toUpperCase() %></span>
+          <span class="text-slate-300 ml-1"><%= r.description %></span>
+          <div class="text-slate-500 mt-0.5">Mitigation: <%= r.mitigation %></div>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Acceptance Criteria -->
+  <% if (it.task.enrichmentResult && it.task.enrichmentResult.acceptanceCriteria.length > 0) { %>
+  <div class="task-card">
+    <div class="task-card__header">Acceptance Criteria</div>
+    <div class="task-card__body">
+      <% for (const c of it.task.enrichmentResult.acceptanceCriteria) { %>
+        <div class="text-xs text-slate-300 py-0.5 flex gap-1.5">
+          <span class="text-slate-600"><%= it.task.status === 'done' ? '[x]' : '[ ]' %></span>
+          <%= c %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Execution Info -->
+  <% if (it.task.sessionId) { %>
+  <div class="task-card">
+    <div class="task-card__header">Execution</div>
+    <div class="task-card__body text-xs">
+      <div class="flex gap-2 text-slate-400 mb-1">
+        <span>Session: <span class="text-slate-300"><%= it.task.sessionId.slice(0, 8) %></span></span>
+        <% if (it.task.branch) { %>
+          <span>Branch: <code class="text-slate-300"><%= it.task.branch %></code></span>
+        <% } %>
+      </div>
+      <% if (it.task.prUrl) { %>
+        <div class="mb-1">PR: <a href="<%= it.task.prUrl %>" target="_blank" class="text-blue-400 hover:underline"><%= it.task.prUrl %></a></div>
+      <% } %>
+      <% if (it.task.previewUrl) { %>
+        <div class="mb-1">Preview: <a href="<%= it.task.previewUrl %>" target="_blank" class="text-blue-400 hover:underline"><%= it.task.previewUrl %></a></div>
+      <% } %>
+      <% if (it.sessionActive) { %>
+        <a href="/#<%= it.task.sessionId %>" class="btn btn-xs btn-primary mt-1">Open Terminal</a>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- PR Review (populated by Check PR button) -->
+  <div id="modal-pr-review-<%= it.task.id %>"></div>
+
+  <!-- Error -->
+  <% if (it.task.errorMessage) { %>
+  <div class="task-card task-card--error">
+    <div class="task-card__header text-red-400">Error</div>
+    <div class="task-card__body text-xs text-red-300 whitespace-pre-wrap"><%= it.task.errorMessage %></div>
+  </div>
+  <% } %>
+
+  <!-- Transcript -->
+  <div class="task-card">
+    <div class="task-card__header">Transcript</div>
+    <div class="task-card__body">
+      <% const phases = ['investigate', 'enrich', 'execute']; %>
+      <% for (const phase of phases) { %>
+        <% const count = it.transcript[phase].count; %>
+        <% if (count > 0) { %>
+          <details class="mb-1">
+            <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300 py-1">
+              <%= phase.charAt(0).toUpperCase() + phase.slice(1) %>
+              <span class="text-slate-600">(<%= count %> events)</span>
+              <% if (it.task.status === phase.replace('investigate', 'investigating').replace('enrich', 'enriching').replace('execute', 'executing')) { %>
+                <span class="badge badge-success badge-dot badge-pulse badge-sm ml-1">LIVE</span>
+              <% } %>
+            </summary>
+            <div
+              hx-get="/api/tasks/<%= it.task.id %>/transcript/<%= phase %>"
+              hx-trigger="toggle from:closest details once"
+              hx-swap="innerHTML"
+              class="mt-1"
+            ></div>
+          </details>
+        <% } else { %>
+          <div class="text-xs text-slate-600 py-1"><%= phase.charAt(0).toUpperCase() + phase.slice(1) %> &mdash; no events</div>
+        <% } %>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Event Log -->
+  <% if (it.events && it.events.length > 0) { %>
+  <div class="task-card">
+    <div class="task-card__header">Event Log</div>
+    <div class="task-card__body" style="max-height: 240px; overflow-y: auto; font-family: monospace;">
+      <% for (const ev of it.events) { %>
+        <div class="text-[11px] py-0.5 border-b border-slate-800/50 last:border-0 flex gap-2">
+          <span class="text-slate-600 shrink-0 w-[130px]"><%= new Date(ev.occurredAt).toISOString().replace('T', ' ').slice(0, 19) %></span>
+          <span class="shrink-0">
+            <% if (ev.fromStatus) { %>
+              <span class="text-slate-500"><%= ev.fromStatus %></span>
+              <span class="text-slate-600">&rarr;</span>
+            <% } %>
+            <span class="<%= ev.toStatus === 'failed' || ev.toStatus === 'rejected' ? 'text-red-400' : ev.toStatus === 'done' ? 'text-green-400' : 'text-slate-300' %>"><%= ev.toStatus %></span>
+          </span>
+          <% if (ev.note) { %>
+            <span class="text-slate-500 truncate"><%= ev.note %></span>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+</div>

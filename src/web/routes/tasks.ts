@@ -18,7 +18,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
   const modelConfigStore = new ModelConfigStore(deps.db);
   const mcpServerStore = new McpServerStore(deps.db);
 
-  // GET /tasks — list all tasks (HTMX partial)
+  // GET /tasks — list all tasks (HTMX partial — table view)
   router.get('/tasks', (req, res, next) => {
     try {
       const statusFilter = req.query['status'] as TaskStatus | undefined;
@@ -36,7 +36,40 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
-  // GET /tasks/new-form — render task creation form
+  // GET /tasks/board — kanban board (HTMX partial)
+  router.get('/tasks/board', (_req, res, next) => {
+    try {
+      const tasks = taskStore.listTasks({});
+      const repos = repoStore.listRepos();
+      const html = eta.render('partials/kanban-board', { tasks, repos });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /tasks/new-modal — render new task form inside modal
+  router.get('/tasks/new-modal', (_req, res, next) => {
+    try {
+      const repos = repoStore.listRepos().filter((r) => r.status === 'ready');
+      const credentialProfiles = credentialStore.listProfiles();
+      const modelConfigs = modelConfigStore.listConfigs();
+      const mcpServers = mcpServerStore.listServers();
+      const html = eta.render('partials/new-task-modal', {
+        repos,
+        credentialProfiles,
+        modelConfigs,
+        mcpServers,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /tasks/new-form — render task creation form (slide-in panel, backwards compat)
   router.get('/tasks/new-form', (_req, res, next) => {
     try {
       const repos = repoStore.listRepos().filter((r) => r.status === 'ready');
@@ -143,6 +176,58 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       const html = eta.render('partials/task-detail', { task, repo, transcript, sessionActive, events });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /tasks/:id/modal — task detail in modal format
+  router.get('/tasks/:id/modal', (req, res, next) => {
+    try {
+      const task = taskStore.getTask(req.params['id']!);
+      if (!task) {
+        res.status(404).send('Task not found');
+        return;
+      }
+      const repo = repoStore.getRepo(task.repoId);
+      const transcript = {
+        investigate: {
+          count: taskStore.getTranscriptCount(task.id, 'investigate'),
+        },
+        enrich: {
+          count: taskStore.getTranscriptCount(task.id, 'enrich'),
+        },
+        execute: {
+          count: taskStore.getTranscriptCount(task.id, 'execute'),
+        },
+      };
+      const sessionActive = task.sessionId
+        ? deps.sessionEngine.getSessionByDbId(task.sessionId) !== undefined
+        : false;
+      const events = taskStore.getEvents(task.id);
+      const html = eta.render('partials/task-detail-modal', { task, repo, transcript, sessionActive, events });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /tasks/:id/start-investigate — transition draft → investigating
+  router.post('/tasks/:id/start-investigate', (req, res, next) => {
+    try {
+      const task = taskStore.getTask(req.params['id']!);
+      if (!task) {
+        res.status(404).send('Task not found');
+        return;
+      }
+      if (task.status !== 'draft') {
+        res.status(422).send('Task must be in draft status to start investigation');
+        return;
+      }
+      taskStore.transition(task.id, 'investigating', 'Investigation started manually via kanban drag');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.status(204).send('');
     } catch (err) {
       next(err);
     }

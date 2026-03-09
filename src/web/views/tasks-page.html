@@ -1,5 +1,18 @@
-<div class="page-section">
-  <div class="flex gap-2 mb-4">
+<div class="page-section" style="display: flex; flex-direction: column; height: 100%;">
+  <div class="flex items-center gap-3 mb-4">
+    <!-- View toggle -->
+    <div class="view-toggle" id="task-view-toggle">
+      <button class="view-toggle__btn view-toggle__btn--active" data-view="board" onclick="switchView('board')">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="3.5" height="12" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="5.25" y="1" width="3.5" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/><rect x="9.5" y="1" width="3.5" height="10" rx="1" stroke="currentColor" stroke-width="1.2"/></svg>
+        Board
+      </button>
+      <button class="view-toggle__btn" data-view="table" onclick="switchView('table')">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h10M2 10h10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        Table
+      </button>
+    </div>
+
+    <!-- Status filter (table view only) -->
     <select class="form-select form-select-sm" id="task-status-filter"
       hx-get="/api/tasks"
       hx-target="#task-list-slot"
@@ -7,6 +20,7 @@
       hx-trigger="change"
       hx-include="this"
       name="status"
+      style="display: none;"
     >
       <option value="">All statuses</option>
       <option value="draft">Draft</option>
@@ -21,13 +35,143 @@
     </select>
   </div>
 
-  <div id="task-list-slot"
-    hx-get="/api/tasks"
+  <!-- Board view -->
+  <div id="task-board-slot"
+    hx-get="/api/tasks/board"
     hx-trigger="load, refresh"
     hx-swap="innerHTML"
+    style="display: flex; flex: 1; min-height: 0;"
   >
-    <div class="skeleton skeleton-row"></div>
-    <div class="skeleton skeleton-row mt-2"></div>
-    <div class="skeleton skeleton-row mt-2"></div>
+    <div class="skeleton skeleton-row" style="width: 100%;"></div>
+  </div>
+
+  <!-- Table view (hidden by default) -->
+  <div id="task-list-slot"
+    hx-get="/api/tasks"
+    hx-trigger="refresh"
+    hx-swap="innerHTML"
+    style="display: none;"
+  >
   </div>
 </div>
+
+<!-- Modal slot (tasks page only) -->
+<div id="modal-slot">
+  <div class="modal-overlay" id="task-modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal-panel" onclick="event.stopPropagation()"></div>
+  </div>
+</div>
+
+<script>
+// View switching
+function switchView(view) {
+  var boardSlot = document.getElementById('task-board-slot');
+  var listSlot = document.getElementById('task-list-slot');
+  var filter = document.getElementById('task-status-filter');
+  var btns = document.querySelectorAll('#task-view-toggle .view-toggle__btn');
+
+  btns.forEach(function(btn) {
+    btn.classList.toggle('view-toggle__btn--active', btn.getAttribute('data-view') === view);
+  });
+
+  if (view === 'board') {
+    boardSlot.style.display = 'flex';
+    listSlot.style.display = 'none';
+    filter.style.display = 'none';
+    // Trigger refresh to load board if not yet loaded
+    htmx.trigger(boardSlot, 'refresh');
+  } else {
+    boardSlot.style.display = 'none';
+    listSlot.style.display = 'block';
+    filter.style.display = '';
+    // Trigger refresh to load table if not yet loaded
+    htmx.trigger(listSlot, 'refresh');
+  }
+
+  localStorage.setItem('task-view', view);
+}
+
+function switchToTable() {
+  switchView('table');
+}
+
+// Modal functions
+function openModal(url) {
+  var overlay = document.getElementById('task-modal-overlay');
+  var panel = overlay.querySelector('.modal-panel');
+  // Fetch content via HTMX
+  htmx.ajax('GET', url, { target: panel, swap: 'innerHTML' }).then(function() {
+    overlay.classList.add('is-open');
+    // Process HTMX attributes in new content
+    htmx.process(panel);
+  });
+}
+
+function closeModal() {
+  var overlay = document.getElementById('task-modal-overlay');
+  overlay.classList.remove('is-open');
+  // Clear content after transition
+  setTimeout(function() {
+    overlay.querySelector('.modal-panel').innerHTML = '';
+  }, 200);
+}
+
+// Card context menu
+function toggleCardMenu(btn) {
+  closeCardMenus();
+  var menu = btn.parentElement.querySelector('.kanban-card__menu');
+  if (menu) {
+    menu.classList.toggle('is-open');
+    // Process HTMX attributes when menu opens
+    htmx.process(menu);
+  }
+}
+
+function closeCardMenus() {
+  document.querySelectorAll('.kanban-card__menu.is-open').forEach(function(m) {
+    m.classList.remove('is-open');
+  });
+}
+
+// Close menus when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.kanban-card__menu-btn') && !e.target.closest('.kanban-card__menu')) {
+    closeCardMenus();
+  }
+});
+
+// Escape key closes modal
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var overlay = document.getElementById('task-modal-overlay');
+    if (overlay && overlay.classList.contains('is-open')) {
+      closeModal();
+    }
+  }
+});
+
+// Restore view preference
+(function() {
+  var saved = localStorage.getItem('task-view');
+  if (saved === 'table') {
+    switchView('table');
+  }
+})();
+
+// Refresh board and modal after task actions (HX-Trigger-After-Swap: refresh-task-list)
+document.body.addEventListener('refresh-task-list', function() {
+  var boardSlot = document.getElementById('task-board-slot');
+  if (boardSlot && boardSlot.style.display !== 'none') {
+    htmx.trigger(boardSlot, 'refresh');
+  }
+  var listSlot = document.getElementById('task-list-slot');
+  if (listSlot && listSlot.style.display !== 'none') {
+    htmx.trigger(listSlot, 'refresh');
+  }
+  // Close modal after destructive actions
+  var overlay = document.getElementById('task-modal-overlay');
+  if (overlay && overlay.classList.contains('is-open')) {
+    closeModal();
+  }
+});
+</script>

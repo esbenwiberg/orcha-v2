@@ -1,0 +1,107 @@
+<%
+  const _statusMap = {
+    draft: 'badge-neutral',
+    investigating: 'badge-warning badge-dot badge-pulse',
+    rejected: 'badge-error',
+    enriching: 'badge-warning badge-dot badge-pulse',
+    queued: 'badge-accent',
+    executing: 'badge-info badge-dot badge-pulse',
+    done: 'badge-success',
+    failed: 'badge-error',
+    cancelled: 'badge-neutral',
+  };
+  const _ratingMap = {
+    reject: 'badge-error',
+    weak: 'badge-warning',
+    viable: 'badge-accent',
+    good: 'badge-success',
+    excellent: 'badge-success',
+  };
+  const _complexityMap = {
+    trivial: 'badge-success',
+    small: 'badge-success',
+    medium: 'badge-accent',
+    large: 'badge-warning',
+  };
+  const repo = it.repos ? it.repos.find(r => r.id === it.task.repoId) : null;
+  const repoName = repo ? repo.displayName : it.task.repoId.slice(0, 8);
+
+  function timeAgo(d) {
+    const secs = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (secs < 60) return secs + 's ago';
+    if (secs < 3600) return Math.floor(secs / 60) + 'm ago';
+    if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
+    return Math.floor(secs / 86400) + 'd ago';
+  }
+
+  const complexity = it.task.enrichmentResult ? it.task.enrichmentResult.complexity : null;
+%>
+<div
+  class="kanban-card"
+  data-task-id="<%= it.task.id %>"
+  data-task-status="<%= it.task.status %>"
+  onclick="openModal('/api/tasks/<%= it.task.id %>/modal')"
+  tabindex="0"
+  role="button"
+  onkeydown="if(event.key==='Enter')openModal('/api/tasks/<%= it.task.id %>/modal')"
+>
+  <div class="kanban-card__header">
+    <span class="kanban-card__id">#<%= it.task.displayId %></span>
+    <div style="position:relative">
+      <button class="kanban-card__menu-btn" onclick="event.stopPropagation();toggleCardMenu(this)" title="Actions">&#x22EF;</button>
+      <div class="kanban-card__menu">
+        <% if (it.task.status === 'failed' || it.task.status === 'cancelled') { %>
+          <button class="kanban-card__menu-item"
+            hx-post="/api/tasks/<%= it.task.id %>/retry"
+            hx-swap="none"
+            onclick="event.stopPropagation();closeCardMenus()"
+          >Retry</button>
+        <% } %>
+        <% if (it.task.status !== 'done' && it.task.status !== 'cancelled' && it.task.status !== 'failed') { %>
+          <button class="kanban-card__menu-item kanban-card__menu-item--danger"
+            hx-post="/api/tasks/<%= it.task.id %>/cancel"
+            hx-swap="none"
+            hx-confirm="Cancel this task?"
+            onclick="event.stopPropagation();closeCardMenus()"
+          >Cancel</button>
+        <% } %>
+        <% if (it.task.status === 'done' || it.task.status === 'cancelled' || it.task.status === 'failed') { %>
+          <button class="kanban-card__menu-item kanban-card__menu-item--danger"
+            hx-delete="/api/tasks/<%= it.task.id %>"
+            hx-swap="none"
+            hx-confirm="Delete this task permanently?"
+            onclick="event.stopPropagation();closeCardMenus()"
+          >Delete</button>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="kanban-card__title"><%= it.task.title %></div>
+
+  <div class="kanban-card__badges">
+    <span class="badge badge-sm badge-neutral"><%= repoName %></span>
+    <% if (it.task.investigationRating) { %>
+      <span class="badge badge-sm <%= _ratingMap[it.task.investigationRating] || 'badge-neutral' %>"><%= it.task.investigationRating %></span>
+    <% } %>
+    <% if (complexity) { %>
+      <span class="badge badge-sm <%= _complexityMap[complexity] || 'badge-neutral' %>"><%= complexity %></span>
+    <% } %>
+  </div>
+
+  <div class="kanban-card__meta">
+    <div class="kanban-card__meta-left">
+      <span class="badge badge-sm <%= _statusMap[it.task.status] || 'badge-neutral' %>"
+        id="kanban-badge-<%= it.task.id %>"
+        sse-swap="task-status-<%= it.task.id %>"
+        hx-swap="outerHTML"
+      ><%= it.task.status %></span>
+      <% if (it.task.prUrl) { %>
+        <a href="<%= it.task.prUrl %>" target="_blank" class="badge badge-sm <%= it.task.prMerged ? 'badge-success' : 'badge-info' %>"
+          onclick="event.stopPropagation()"
+        ><%= it.task.prMerged ? 'merged' : 'PR' %></a>
+      <% } %>
+    </div>
+    <span class="kanban-card__meta-right"><%= timeAgo(it.task.createdAt) %></span>
+  </div>
+</div>
