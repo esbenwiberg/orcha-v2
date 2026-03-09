@@ -344,6 +344,32 @@ export class TaskStore {
     return (this.#db.prepare(sql).get(...params) as { cnt: number }).cnt;
   }
 
+  /** Batch-fetch transcript counts + latest event type for multiple tasks. */
+  getTranscriptSummaries(
+    taskIds: string[],
+  ): Map<string, { count: number; latestType: string | null }> {
+    const result = new Map<string, { count: number; latestType: string | null }>();
+    if (taskIds.length === 0) return result;
+
+    const placeholders = taskIds.map(() => '?').join(',');
+    const rows = this.#db
+      .prepare(
+        `SELECT tt.task_id,
+                COUNT(*) AS cnt,
+                (SELECT event_type FROM task_transcript t2
+                 WHERE t2.task_id = tt.task_id ORDER BY t2.id DESC LIMIT 1) AS latest_type
+         FROM task_transcript tt
+         WHERE tt.task_id IN (${placeholders})
+         GROUP BY tt.task_id`,
+      )
+      .all(...taskIds) as Array<{ task_id: string; cnt: number; latest_type: string | null }>;
+
+    for (const row of rows) {
+      result.set(row.task_id, { count: row.cnt, latestType: row.latest_type });
+    }
+    return result;
+  }
+
   // --- Events ---
 
   getEvents(taskId: string): TaskEvent[] {

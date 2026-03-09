@@ -21,6 +21,10 @@ module.exports = {
     'badge-sm',
     'badge-dot',
     'badge-pulse',
+    // Activity indicator states (built dynamically from activityState in kanban-card.html)
+    'kanban-card__activity--working',
+    'kanban-card__activity--queued',
+    'kanban-card__activity--review',
   ],
   theme: {
     extend: {},

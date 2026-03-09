@@ -219,6 +219,47 @@
     gap: 0.25rem;
   }
 
+  /* Activity indicator (investigating/enriching/executing progress) */
+  .kanban-card__activity {
+    @apply text-[10px] mt-1.5 rounded px-1.5 py-1;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    background: color-mix(in srgb, var(--color-surface-raised) 40%, transparent);
+    color: var(--color-text-muted);
+  }
+
+  .kanban-card__activity--working {
+    color: #f59e0b;
+  }
+
+  .kanban-card__activity--queued {
+    color: var(--color-text-muted);
+    opacity: 0.7;
+  }
+
+  .kanban-card__activity--review {
+    color: #3b82f6;
+  }
+
+  .kanban-card__activity-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: activityPulse 1.5s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes activityPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .kanban-card__activity-text {
+    @apply font-mono truncate;
+  }
+
   /* SortableJS drag states */
   .sortable-ghost {
     opacity: 0.4;

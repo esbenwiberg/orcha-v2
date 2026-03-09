@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, appendFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type Database from 'better-sqlite3';
@@ -15,6 +15,7 @@ import { credentialManager } from '../credentials/credential-manager.js';
 import { readSettingsFromDb } from '../web/routes/claude-settings-db.js';
 import { buildSessionClaudeMd } from '../web/routes/claude-files.js';
 import { loadSkills } from '../web/routes/skills.js';
+import { getStoragePaths } from '../storage/paths.js';
 import type { SessionManager } from '../terminal/session-manager.js';
 import type { WorktreeManager, WorktreeInfo } from '../terminal/worktree-manager.js';
 import type { Task } from '../domain/task-types.js';
@@ -339,13 +340,28 @@ export class TaskProcessor {
       } catch (addErr) {
         // Branch or directory already exists from a previous attempt — clean up and restore
         if (String(addErr).includes('already exists')) {
-          console.log('[task-processor] TASK-%d conflict detected, removing stale worktree and restoring', task.displayId);
+          console.log('[task-processor] TASK-%d conflict detected, cleaning up stale worktree/branch', task.displayId);
+
+          // 1. Remove stale git worktree entry (may fail if git doesn't track it)
           try {
             await this.#worktreeManager.removeWorktree(worktreeId, repo.barePath);
-          } catch {
-            // May fail if git doesn't track it — that's fine, we'll prune below
+          } catch { /* not tracked */ }
+
+          // 2. Physically delete the directory — removeWorktree may have failed,
+          //    leaving a broken .git reference that blocks restoreWorktree
+          const worktreeFsPath = join(getStoragePaths().worktreeBaseDir, worktreeId);
+          if (existsSync(worktreeFsPath)) {
+            rmSync(worktreeFsPath, { recursive: true, force: true });
           }
-          worktree = await this.#worktreeManager.restoreWorktree(worktreeId, branch, repo.barePath);
+
+          // 3. Try restoring from existing branch (preserves prior commits)
+          try {
+            worktree = await this.#worktreeManager.restoreWorktree(worktreeId, branch, repo.barePath);
+          } catch {
+            // Branch may not exist — delete it and start fresh
+            try { await this.#worktreeManager.deleteBranch(branch, repo.barePath); } catch { /* ignore */ }
+            worktree = await this.#worktreeManager.addWorktree(worktreeId, branch, repo.barePath);
+          }
         } else {
           throw addErr;
         }

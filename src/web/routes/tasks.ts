@@ -41,7 +41,18 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
     try {
       const tasks = taskStore.listTasks({});
       const repos = repoStore.listRepos();
-      const html = eta.render('partials/kanban-board', { tasks, repos });
+
+      // Fetch transcript summaries for tasks in active processing states
+      const activeTaskIds = tasks
+        .filter((t) =>
+          (t.status === 'investigating' && !t.investigationRating) ||
+          (t.status === 'enriching' && !t.enrichmentResult) ||
+          t.status === 'executing',
+        )
+        .map((t) => t.id);
+      const transcriptSummaries = taskStore.getTranscriptSummaries(activeTaskIds);
+
+      const html = eta.render('partials/kanban-board', { tasks, repos, transcriptSummaries });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {

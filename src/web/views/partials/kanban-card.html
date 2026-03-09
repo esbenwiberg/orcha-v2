@@ -35,6 +35,39 @@
   }
 
   const complexity = it.task.enrichmentResult ? it.task.enrichmentResult.complexity : null;
+
+  // Activity indicator for active processing states
+  const summaries = it.transcriptSummaries;
+  const summary = summaries ? summaries.get(it.task.id) : undefined;
+  let activityText = null;
+  let activityState = null; // 'working' | 'queued' | 'review'
+  if (it.task.status === 'investigating') {
+    if (it.task.investigationRating) {
+      activityText = 'Awaiting review';
+      activityState = 'review';
+    } else if (summary && summary.count > 0) {
+      activityText = 'Working\u2026 (' + summary.count + ')';
+      activityState = 'working';
+    } else {
+      activityText = 'Queued';
+      activityState = 'queued';
+    }
+  } else if (it.task.status === 'enriching') {
+    if (it.task.enrichmentResult) {
+      activityText = null; // enrichment done, will transition soon
+    } else if (summary && summary.count > 0) {
+      activityText = 'Enriching\u2026 (' + summary.count + ')';
+      activityState = 'working';
+    } else {
+      activityText = 'Queued';
+      activityState = 'queued';
+    }
+  } else if (it.task.status === 'executing') {
+    if (summary && summary.count > 0) {
+      activityText = 'Running\u2026 (' + summary.count + ')';
+      activityState = 'working';
+    }
+  }
 %>
 <div
   class="kanban-card"
@@ -104,4 +137,19 @@
     </div>
     <span class="kanban-card__meta-right"><%= timeAgo(it.task.createdAt) %></span>
   </div>
+
+  <% if (activityText) { %>
+    <div class="kanban-card__activity kanban-card__activity--<%= activityState %>"
+      id="kanban-activity-<%= it.task.id %>"
+      data-event-count="<%= summary ? summary.count : 0 %>"
+    >
+      <% if (activityState === 'working') { %><span class="kanban-card__activity-dot"></span><% } %>
+      <span class="kanban-card__activity-text"><%= activityText %></span>
+    </div>
+  <% } else { %>
+    <div class="kanban-card__activity" id="kanban-activity-<%= it.task.id %>" style="display:none" data-event-count="0">
+      <span class="kanban-card__activity-dot"></span>
+      <span class="kanban-card__activity-text"></span>
+    </div>
+  <% } %>
 </div>

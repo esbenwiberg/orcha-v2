@@ -34,6 +34,8 @@
 
         if (event.type === 'task-status') {
           handleTaskStatus(event);
+        } else if (event.type === 'task-transcript') {
+          handleTaskTranscript(event);
         } else if (event.type === 'task-updated') {
           // Investigation completed or card data changed — refresh the board
           var boardSlot = document.getElementById('task-board-slot');
@@ -62,6 +64,54 @@
         }
       }, 3000);
     };
+  }
+
+  var EVENT_TYPE_LABELS = {
+    system: 'Starting\u2026',
+    assistant: 'Thinking\u2026',
+    content_block_start: 'Thinking\u2026',
+    content_block_delta: 'Thinking\u2026',
+    tool_use: 'Using tools\u2026',
+    tool_result: 'Analyzing\u2026',
+    result: 'Finishing\u2026',
+  };
+
+  function handleTaskTranscript(event) {
+    var taskId = event.taskId;
+    if (!taskId) return;
+
+    var activityEl = document.getElementById('kanban-activity-' + taskId);
+    if (!activityEl) return;
+
+    // Increment event count
+    var count = parseInt(activityEl.getAttribute('data-event-count') || '0', 10) + 1;
+    activityEl.setAttribute('data-event-count', String(count));
+
+    // Determine friendly label
+    var eventType = event.event && event.event.type ? event.event.type : '';
+    var label = EVENT_TYPE_LABELS[eventType] || 'Working\u2026';
+    var phasePrefix = event.phase === 'enrich' ? 'Enriching' : event.phase === 'execute' ? 'Running' : '';
+    if (phasePrefix && label === 'Working\u2026') {
+      label = phasePrefix + '\u2026';
+    }
+
+    // Update the activity element
+    var textEl = activityEl.querySelector('.kanban-card__activity-text');
+    if (textEl) {
+      textEl.textContent = label + ' (' + count + ')';
+    }
+
+    // Ensure visible + working state
+    activityEl.style.display = '';
+    activityEl.className = 'kanban-card__activity kanban-card__activity--working';
+
+    // Ensure the dot is present
+    var dot = activityEl.querySelector('.kanban-card__activity-dot');
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'kanban-card__activity-dot';
+      activityEl.insertBefore(dot, activityEl.firstChild);
+    }
   }
 
   function handleTaskStatus(event) {

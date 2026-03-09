@@ -68,7 +68,7 @@
           <div class="kanban-column__empty">No tasks</div>
         <% } else { %>
           <% for (const task of tasks) { %>
-            <%~ include('kanban-card', { task, repos: it.repos }) %>
+            <%~ include('kanban-card', { task, repos: it.repos, transcriptSummaries: it.transcriptSummaries }) %>
           <% } %>
           <% if ((col.id === 'done' && doneCapped) || (col.id === 'failed' && failedCapped)) { %>
             <div class="kanban-column__show-all" onclick="switchToTable()">View all in table &rarr;</div>
