@@ -34,6 +34,12 @@
 
         if (event.type === 'task-status') {
           handleTaskStatus(event);
+        } else if (event.type === 'task-updated') {
+          // Investigation completed or card data changed — refresh the board
+          var boardSlot = document.getElementById('task-board-slot');
+          if (boardSlot && boardSlot.style.display !== 'none') {
+            htmx.trigger(boardSlot, 'refresh');
+          }
         }
       } catch (_) {
         // Ignore parse errors (keepalive comments, etc.)

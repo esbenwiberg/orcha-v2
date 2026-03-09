@@ -14,6 +14,7 @@
 
   var VALID_DROPS = {
     inbox: ['investigating', 'pipeline'],
+    investigating: ['review', 'pipeline'],
     review: ['inbox', 'pipeline'],
     failed: ['inbox', 'pipeline', 'done'],
   };
@@ -22,6 +23,8 @@
   var DROP_ACTIONS = {
     'inbox->investigating': { url: '/api/tasks/{id}/start-investigate', method: 'POST' },
     'inbox->pipeline': { url: '/api/tasks/{id}/force-queue', method: 'POST' },
+    'investigating->review': { url: '/api/tasks/{id}/reject-investigate', method: 'POST' },
+    'investigating->pipeline': { url: '/api/tasks/{id}/force-queue', method: 'POST' },
     'review->inbox': { url: '/api/tasks/{id}/retry', method: 'POST' },
     'review->pipeline': { url: '/api/tasks/{id}/force-queue', method: 'POST' },
     'failed->inbox': { url: '/api/tasks/{id}/retry', method: 'POST' },

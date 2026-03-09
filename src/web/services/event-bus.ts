@@ -6,7 +6,7 @@ export type SessionSseEvent = {
 };
 
 export type TaskSseEvent = {
-  type: 'task-status' | 'task-transcript';
+  type: 'task-status' | 'task-transcript' | 'task-updated';
   taskId: string;
   status?: string;
   phase?: string;

@@ -44,7 +44,7 @@
       const tasks = grouped[col.id];
       const count = col.id === 'done' ? doneTotal : col.id === 'failed' ? failedTotal : tasks.length;
       const isTerminal = col.id === 'done' || col.id === 'failed';
-      const defaultCollapsed = isTerminal && count > 0;
+      const defaultCollapsed = false;
     %>
     <div class="kanban-column kanban-column--<%= col.id %><%= defaultCollapsed ? ' kanban-column--collapsed' : '' %>"
       data-column="<%= col.id %>"

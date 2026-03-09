@@ -181,12 +181,13 @@ export class TaskStore {
     this.#db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
   }
 
-  /** Get the oldest actionable task (draft, investigating, enriching, or queued). */
+  /** Get the oldest actionable task (investigating without results, enriching, or queued). */
   getNextActionable(): Task | undefined {
     const row = this.#db
       .prepare(
         `SELECT * FROM tasks
-         WHERE status IN ('draft', 'investigating', 'enriching', 'queued')
+         WHERE (status = 'investigating' AND investigation_result IS NULL)
+            OR status IN ('enriching', 'queued')
          ORDER BY created_at ASC
          LIMIT 1`,
       )

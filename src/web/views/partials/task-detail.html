@@ -237,12 +237,14 @@
   <% } %>
 
   <!-- Execution Info -->
-  <% if (it.task.sessionId) { %>
+  <% if (it.task.sessionId || it.task.prUrl || it.task.branch || it.task.previewUrl) { %>
   <div class="task-card">
     <div class="task-card__header">Execution</div>
     <div class="task-card__body text-xs">
       <div class="flex gap-2 text-slate-400 mb-1">
-        <span>Session: <span class="text-slate-300"><%= it.task.sessionId.slice(0, 8) %></span></span>
+        <% if (it.task.sessionId) { %>
+          <span>Session: <span class="text-slate-300"><%= it.task.sessionId.slice(0, 8) %></span></span>
+        <% } %>
         <% if (it.task.branch) { %>
           <span>Branch: <code class="text-slate-300"><%= it.task.branch %></code></span>
         <% } %>

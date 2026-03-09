@@ -245,6 +245,22 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // POST /tasks/:id/reject-investigate — manually reject after investigation
+  router.post('/tasks/:id/reject-investigate', (req, res, next) => {
+    try {
+      const task = taskStore.getTask(req.params['id']!);
+      if (!task) {
+        res.status(404).send('Task not found');
+        return;
+      }
+      taskStore.transition(task.id, 'rejected', 'Manually rejected after investigation');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.status(204).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // POST /tasks/:id/cancel
   router.post('/tasks/:id/cancel', (req, res, next) => {
     try {
@@ -469,7 +485,8 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       taskStore.updateTask(task.id, { errorMessage: '' });
       taskStore.transition(task.id, 'queued', `Addressing ${comments.length} review comment(s)`);
 
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      // Use HX-Trigger (not HX-Trigger-After-Swap) because buttons use hx-swap="none"
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);

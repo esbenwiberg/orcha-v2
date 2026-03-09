@@ -122,9 +122,6 @@ export class TaskProcessor {
       console.log('[task-processor] picked up TASK-%d (%s) status=%s', task.displayId, task.id.slice(0, 8), task.status);
 
       switch (task.status) {
-        case 'draft':
-          await this.#handleDraft(task);
-          break;
         case 'investigating':
           await this.#runInvestigation(task);
           break;
@@ -139,22 +136,6 @@ export class TaskProcessor {
       console.error('[task-processor] tick error:', err);
     } finally {
       this.#processing = false;
-    }
-  }
-
-  async #handleDraft(task: Task): Promise<void> {
-    // Create worktree up front — shared across investigate, enrich, and execute
-    const worktree = await this.#ensureWorktree(task);
-    if (!worktree) return; // #ensureWorktree already called #fail
-
-    if (task.autoEnrich) {
-      this.#taskStore.transition(task.id, 'investigating', 'Auto-enrich enabled — starting investigation');
-      this.#publishStatus(task.id, 'investigating');
-      const updated = this.#taskStore.getTask(task.id)!;
-      await this.#runInvestigation(updated);
-    } else {
-      this.#taskStore.transition(task.id, 'queued', 'Auto-enrich disabled — skipping to queue');
-      this.#publishStatus(task.id, 'queued');
     }
   }
 
@@ -178,15 +159,9 @@ export class TaskProcessor {
       console.log('[task-processor] TASK-%d investigation complete: rating=%s summary=%s',
         task.displayId, result.rating, result.summary.slice(0, 100));
 
-      if (result.rating === 'reject' || result.rating === 'weak') {
-        this.#taskStore.transition(task.id, 'rejected', `Investigation rated: ${result.rating}`);
-        this.#publishStatus(task.id, 'rejected');
-      } else {
-        this.#taskStore.transition(task.id, 'enriching', `Investigation rated: ${result.rating}`);
-        this.#publishStatus(task.id, 'enriching');
-        const updated = this.#taskStore.getTask(task.id)!;
-        await this.#runEnrichment(updated);
-      }
+      // Stay in investigating — human reviews the result and decides next step
+      // Publish update event so the UI refreshes the card (shows rating badge)
+      eventBus.publish({ type: 'task-updated', taskId: task.id });
     } catch (err) {
       this.#fail(task.id, `Investigation error: ${String(err)}`);
     }

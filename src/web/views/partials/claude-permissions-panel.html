@@ -1,67 +1,60 @@
 <div id="claude-permissions-panel">
-  <div class="grid grid-cols-2 gap-6">
-    <!-- Allow rules -->
-    <div>
-      <div class="perm-section-title perm-section-title--allow">Allow</div>
-      <% if (it.allow && it.allow.length > 0) { for (const rule of it.allow) { %>
-        <div class="perm-rule perm-rule--allow">
-          <code class="text-xs font-mono"><%= rule %></code>
-          <button
-            class="btn btn-xs text-red-400 shrink-0"
-            hx-delete="/api/claude-permissions/allow/<%= encodeURIComponent(rule) %>"
-            hx-target="#claude-permissions-panel"
-            hx-swap="outerHTML"
-          >×</button>
-        </div>
-      <% } } else { %>
-        <p class="text-xs text-muted">None</p>
-      <% } %>
-      <form
-        hx-post="/api/claude-permissions/allow"
-        hx-target="#claude-permissions-panel"
-        hx-swap="outerHTML"
-        class="flex gap-2 mt-3"
-      >
-        <input
-          name="rule"
-          placeholder="Bash(git *)"
-          class="form-input text-xs flex-1 min-w-0"
-        />
-        <button class="btn btn-xs btn-primary">Add</button>
-      </form>
-    </div>
-
-    <!-- Deny rules -->
-    <div>
-      <div class="perm-section-title perm-section-title--deny">Deny</div>
-      <% if (it.deny && it.deny.length > 0) { for (const rule of it.deny) { %>
-        <div class="perm-rule perm-rule--deny">
-          <code class="text-xs font-mono"><%= rule %></code>
-          <button
-            class="btn btn-xs text-red-400 shrink-0"
-            hx-delete="/api/claude-permissions/deny/<%= encodeURIComponent(rule) %>"
-            hx-target="#claude-permissions-panel"
-            hx-swap="outerHTML"
-          >×</button>
-        </div>
-      <% } } else { %>
-        <p class="text-xs text-muted">None</p>
-      <% } %>
-      <form
-        hx-post="/api/claude-permissions/deny"
-        hx-target="#claude-permissions-panel"
-        hx-swap="outerHTML"
-        class="flex gap-2 mt-3"
-      >
-        <input
-          name="rule"
-          placeholder="Bash(rm -rf *)"
-          class="form-input text-xs flex-1 min-w-0"
-        />
+  <!-- All rules as tagged chips -->
+  <div class="perm-chip-list">
+    <% if (it.allow && it.allow.length > 0) { for (const rule of it.allow) { %>
+      <span class="perm-chip perm-chip--allow">
+        <code><%= rule %></code>
         <button
-          class="btn btn-xs bg-red-500/20 text-red-400 hover:bg-red-500/30"
-        >Add</button>
-      </form>
-    </div>
+          hx-delete="/api/claude-permissions/allow/<%= encodeURIComponent(rule) %>"
+          hx-target="#claude-permissions-panel"
+          hx-swap="outerHTML"
+          title="Remove rule"
+        >&times;</button>
+      </span>
+    <% } } %>
+    <% if (it.deny && it.deny.length > 0) { for (const rule of it.deny) { %>
+      <span class="perm-chip perm-chip--deny">
+        <code><%= rule %></code>
+        <button
+          hx-delete="/api/claude-permissions/deny/<%= encodeURIComponent(rule) %>"
+          hx-target="#claude-permissions-panel"
+          hx-swap="outerHTML"
+          title="Remove rule"
+        >&times;</button>
+      </span>
+    <% } } %>
+    <% if ((!it.allow || it.allow.length === 0) && (!it.deny || it.deny.length === 0)) { %>
+      <p class="text-xs text-muted">No rules configured</p>
+    <% } %>
+  </div>
+
+  <!-- Add forms -->
+  <div class="perm-add-forms">
+    <form
+      hx-post="/api/claude-permissions/allow"
+      hx-target="#claude-permissions-panel"
+      hx-swap="outerHTML"
+      class="perm-add-row"
+    >
+      <input
+        name="rule"
+        placeholder="Bash(git *)"
+        class="form-input text-xs flex-1 min-w-0"
+      />
+      <button class="btn btn-xs perm-add-btn perm-add-btn--allow">+ Allow</button>
+    </form>
+    <form
+      hx-post="/api/claude-permissions/deny"
+      hx-target="#claude-permissions-panel"
+      hx-swap="outerHTML"
+      class="perm-add-row"
+    >
+      <input
+        name="rule"
+        placeholder="Bash(rm -rf *)"
+        class="form-input text-xs flex-1 min-w-0"
+      />
+      <button class="btn btn-xs perm-add-btn perm-add-btn--deny">+ Deny</button>
+    </form>
   </div>
 </div>
