@@ -80,6 +80,9 @@ export async function execute(ctx: ExecuteContext): Promise<ActiveSession> {
     ...(ctx.modelProvider !== undefined ? { modelProvider: ctx.modelProvider } : {}),
   });
 
+  // Mark as task-owned so validation env survives session exit
+  session.taskOwned = true;
+
   // Store execution metadata on the task
   taskStore.setExecution(task.id, {
     sessionId: session.dbSessionId ?? session.sessionId,

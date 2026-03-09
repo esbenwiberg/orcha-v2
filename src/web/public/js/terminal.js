@@ -414,7 +414,8 @@ async function handlePaste(sessionId) {
               entry.ws.send(JSON.stringify({ type: 'input', data: path }));
               showToast(`Image saved: ${path}`);
             } else {
-              showToast('Image upload failed', 'error');
+              const errBody = await resp.text().catch(() => '');
+              showToast(`Image upload failed (${resp.status}): ${errBody || resp.statusText}`, 'error');
             }
           } catch {
             showToast('Image upload failed', 'error');
