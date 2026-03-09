@@ -241,8 +241,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       };
 
       // 1. Repo-level env vars (lowest priority — overridable by credentials + model config)
-      if (repo.envVars) {
+      const repoEnvKeys = Object.keys(repo.envVars);
+      if (repoEnvKeys.length > 0) {
         Object.assign(env, repo.envVars);
+        console.log(`[sessions] injected ${repoEnvKeys.length} repo env var(s): ${repoEnvKeys.join(', ')} sessionId=${sessionId}`);
       }
 
       let provisionedCreds: import('../../credentials/credential-manager.js').ProvisionResult | undefined;
@@ -423,6 +425,9 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           }
 
           env['HOME'] = sessionHome;
+          // Override DOTNET_CLI_HOME so dotnet finds NuGet.Config at $HOME/.nuget/
+          // (Dockerfile sets DOTNET_CLI_HOME=/tmp/dotnet-cli which shadows HOME)
+          env['DOTNET_CLI_HOME'] = sessionHome;
           console.log(`[sessions] per-session HOME=${sessionHome} sessionId=${sessionId}`);
         } catch (err) {
           console.warn('[sessions] Failed to create per-session home dir:', err);

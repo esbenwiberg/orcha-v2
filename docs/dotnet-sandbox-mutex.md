@@ -5,82 +5,86 @@
 Running `dotnet build` inside a Landlock-sandboxed Orcha session fails with:
 
 ```
-System.IO.IOException: The system cannot open the device or file specified. : 'NuGet-Migrations'
+System.IO.IOException: The system cannot open the device or file specified. : 'NuGet-Migrations'.
+One or more system calls failed: stat("/tmp/.dotnet/shm", ...) == -1; errno == ENOENT;
+  at System.Threading.Mutex.CreateMutexCore(...)
+  at NuGet.Common.Migrations.MigrationRunner.Run(...)
+  at Microsoft.DotNet.Configurer.DotnetFirstTimeUseConfigurer.Configure()
+```
+
+Also, without a writable `DOTNET_CLI_HOME`, dotnet fails earlier with:
+
+```
+System.UnauthorizedAccessException: Access to the path '/app/.dotnet' is denied.
 ```
 
 ## Root Cause
 
-.NET's named mutex implementation on Linux creates shared memory files at a **hardcoded** path:
+Two issues combine:
+
+### 1. Named mutex needs `/tmp/.dotnet/shm/` to exist
+
+.NET's named mutex implementation on Linux creates shared memory files at:
 
 ```
 /tmp/.dotnet/shm/session{SID}/NuGet-Migrations
 ```
 
-- Uses `open()` + `mmap()` + `pthread_mutex_init(PTHREAD_PROCESS_SHARED)` on regular files
-- Has nothing to do with `/dev/shm` (POSIX shared memory) — the "shm" directory name is just a convention
-- The base path `/tmp/` is hardcoded in the runtime (`SharedMemoryManager.Unix.cs` line 416). No env var changes it on Linux
-- `TMPDIR` does **not** affect named mutexes — intentionally hardcoded so cross-process mutexes use a well-known path
+Under Landlock, dotnet **cannot create** the `/tmp/.dotnet/shm/` directory at runtime — even though `/tmp` is granted full RW access. The `mkdir` syscall that dotnet uses to create the shm directory is blocked by Landlock (likely due to how the runtime creates it via a path that crosses the Landlock boundary).
 
-The `NuGet-Migrations` mutex is created by NuGet's `MigrationRunner.Run()` during dotnet's first-run experience.
+If the directory pre-exists before Landlock is applied, everything works fine.
 
-## Why Landlock Isn't the Problem
+### 2. `HOME=/app` is read-only
 
-`/tmp` is already granted full RW access in `sandbox/landlock-exec.c` (line 123). The sandbox config is not blocking file creation under `/tmp/.dotnet/shm/`.
+The orcha user's HOME is `/app` (the WORKDIR). Dotnet tries to create `$HOME/.dotnet/` for first-run config, but `/app` is read-only from the COPY steps.
 
-The likely failure cause is one of:
+## What Doesn't Work
 
-1. **Permission mismatch** — `/tmp/.dotnet/shm/` created by a different user (root vs orcha) and the session user can't access it
-2. **`HOME=/tmp` overlap** — setting `HOME=/tmp` may cause dotnet to conflict with its own `/tmp/.dotnet` paths
-3. **Stale lock files** — previous crashed sessions holding `flock()` locks on the shm files
-
-## Env Vars That Don't Help
-
-| Env Var | Why It Doesn't Work |
+| Approach | Why It Fails |
 |---|---|
+| `DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1` | Does NOT skip `MigrationRunner.Run()` — the stack trace shows it still calls `DotnetFirstTimeUseConfigurer.Configure()` → `MigrationRunner.Run()` which creates the mutex |
 | `TMPDIR` | Does not affect named mutex paths (hardcoded to `/tmp/`) |
 | `COMPlus_EnableDiagnostics=0` | Only disables diagnostic ports/sockets, not named mutexes |
-| `DOTNET_EnableDiagnostics=0` | Same as above |
 | `DOTNET_SHARED_MEMORY_APPLICATION_GROUP_ID` | Apple-only (macOS/iOS) |
 
-## Fix
+## Fix (Applied)
 
-**`DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1`** — skips `MigrationRunner.Run()` entirely, which is the code path that creates the `NuGet-Migrations` mutex. No mutex creation, no failure.
+Two changes in the Dockerfile:
 
-`DOTNET_NOLOGO=true` may also help by skipping first-run behavior.
+### Pre-create the shm directory (before Landlock is applied)
 
-## How to Verify
-
-Exec into the running container:
-
-```bash
-az containerapp exec \
-  --name orcha \
-  --resource-group orcha \
-  --container orcha \
-  --command "/bin/sh"
+```dockerfile
+RUN mkdir -p /tmp/.dotnet/shm && chown -R orcha:orcha /tmp/.dotnet/shm
 ```
 
-Then run diagnostics:
+This is the critical fix. The directory exists before any session starts, so dotnet's named mutex code finds it via `stat()` and proceeds without needing to `mkdir`.
 
-```bash
-# Check current state
-ls -la /tmp/.dotnet/
-stat /tmp/.dotnet/shm/ 2>/dev/null
-whoami
+### Set `DOTNET_CLI_HOME` to a writable location
 
-# Reproduce the failure
-HOME=/tmp dotnet build <project.csproj> --no-restore 2>&1 | tail -10
-
-# Test the fix
-DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 dotnet build <project.csproj> --no-restore 2>&1 | tail -10
+```dockerfile
+ENV DOTNET_CLI_HOME=/tmp/dotnet-cli \
+    DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 \
+    DOTNET_NOLOGO=true \
+    DOTNET_CLI_TELEMETRY_OPTOUT=1
 ```
 
-Or test locally with the same Docker image:
+- `DOTNET_CLI_HOME` redirects `.dotnet` data away from read-only `/app`
+- `DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1` suppresses welcome banner (but doesn't prevent mutex creation)
+- `DOTNET_NOLOGO=true` suppresses logo output
+- `DOTNET_CLI_TELEMETRY_OPTOUT=1` disables telemetry in sandboxed sessions
 
-```bash
-docker build -t orcha-test .
-docker run --rm -it orcha-test /bin/bash
-```
+## Verification (Tested 2026-03-09)
+
+Tested inside the running container via `az containerapp exec`:
+
+| Test | Condition | Result |
+|------|-----------|--------|
+| No fix, `HOME=/app` | Default | `UnauthorizedAccessException: /app/.dotnet` |
+| `DOTNET_CLI_HOME=/tmp/x` only | Writable CLI home | Works (no landlock) |
+| Landlock + writable HOME, shm pre-exists | Prior test created shm | Works |
+| Landlock + writable HOME, **no shm dir** | Clean `/tmp/.dotnet/` | **`IOException: NuGet-Migrations` mutex failure** |
+| `SKIP=1` + `CLI_HOME` under landlock, no shm | Env vars only | **Still fails** — SKIP doesn't prevent mutex |
+| Pre-create `/tmp/.dotnet/shm/` + landlock | Directory exists before sandbox | **Works** |
 
 ## References
 
@@ -92,4 +96,4 @@ docker run --rm -it orcha-test /bin/bash
 
 ## Status
 
-**Unresolved** — fix identified but not yet tested in the container. Needs verification via `az containerapp exec` before implementing.
+**Resolved** — fix applied in Dockerfile. Pre-creating `/tmp/.dotnet/shm/` at image build time ensures the directory exists before Landlock is enforced.

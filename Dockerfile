@@ -70,7 +70,10 @@ COPY --from=builder /build/src/db/migrations ./dist/db/migrations
 RUN mkdir -p /data /data/sdks && chown -R orcha:orcha /data
 # Pre-create the orcha user's ~/.claude so the landlock RW rule for it is applied on session start
 # Also create ~/.azure so `az login` works (HOME=/app which is otherwise read-only)
-RUN mkdir -p /app/.claude /app/.azure /app/.npm /app/.cache && chown -R orcha:orcha /app/.claude /app/.azure /app/.npm /app/.cache
+# Pre-create /tmp/.dotnet/shm so .NET named mutexes work under landlock
+# (landlock blocks the mkdir syscall dotnet uses to create this dir at runtime)
+RUN mkdir -p /app/.claude /app/.azure /app/.npm /app/.cache /tmp/.dotnet/shm \
+    && chown -R orcha:orcha /app/.claude /app/.azure /app/.npm /app/.cache /tmp/.dotnet/shm
 
 # Global git config for the orcha user — Azure File Share (SMB) reports all
 # files as 755 and presents them with a different UID, which confuses git.
@@ -87,6 +90,10 @@ ENV NODE_ENV=production \
     ORCHA_DATA_DIR=/data \
     SANDBOX_MODE=landlock \
     PLAYWRIGHT_BROWSERS_PATH=/app/.cache/ms-playwright \
+    DOTNET_CLI_HOME=/tmp/dotnet-cli \
+    DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 \
+    DOTNET_NOLOGO=true \
+    DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     COMMIT_SHA=${COMMIT_SHA}
 
 USER orcha

@@ -463,6 +463,12 @@ export class TaskProcessor {
     };
     const deleteEnv: string[] = [];
 
+    // 0. Repo-level env vars (lowest priority — overridable by credentials + model config)
+    const repo = this.#repoStore.getRepo(task.repoId);
+    if (repo?.envVars && Object.keys(repo.envVars).length > 0) {
+      Object.assign(env, repo.envVars);
+    }
+
     // Apply model config env vars (API key, base URL, etc.)
     if (mc) {
       const raw = buildModelEnv(mc);
