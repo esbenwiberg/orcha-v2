@@ -22,6 +22,14 @@ export interface FeedConfigInput {
 }
 
 /**
+ * Build the scope segment for feed URLs: "{org}/{project}" or just "{org}".
+ */
+function feedScope(input: FeedConfigInput): string {
+  const orgName = getOrgName(input.org);
+  return input.project ? `${orgName}/${input.project}` : orgName;
+}
+
+/**
  * Generate a user-level .npmrc with auth tokens for Azure DevOps feeds.
  *
  * Projects define their own registry URLs in their local .npmrc;
@@ -30,10 +38,10 @@ export interface FeedConfigInput {
 function generateNpmrc(input: FeedConfigInput): string {
   const orgName = getOrgName(input.org);
   const base64Pat = Buffer.from(input.pat).toString('base64');
+  const scope = feedScope(input);
   const lines: string[] = [];
 
   for (const feed of input.feeds) {
-    const scope = input.project ? `${orgName}/${input.project}` : orgName;
     const prefix = `pkgs.dev.azure.com/${scope}/_packaging/${feed}`;
     lines.push(
       `; ${feed}`,
@@ -53,18 +61,22 @@ function generateNpmrc(input: FeedConfigInput): string {
 /**
  * Generate a user-level NuGet.Config with package sources + credentials
  * for Azure DevOps feeds.
+ *
+ * Uses the feed name as-is for the source key (dots are valid in XML element
+ * names and commonly used by Azure Artifacts, e.g. "projectum.nuget").
  */
 function generateNugetConfig(input: FeedConfigInput): string {
   const orgName = getOrgName(input.org);
+  const scope = feedScope(input);
 
   const sources: string[] = [];
   const creds: string[] = [];
 
   for (const feed of input.feeds) {
-    const scope = input.project ? `${orgName}/${input.project}` : orgName;
     const url = `https://pkgs.dev.azure.com/${scope}/_packaging/${feed}/nuget/v3/index.json`;
-    // XML-safe key: replace spaces/special chars
-    const key = feed.replace(/[^a-zA-Z0-9_-]/g, '_');
+    // Keep dots — they're valid in XML element names and likely match the
+    // project's nuget.config source key. Only strip truly illegal chars.
+    const key = feed.replace(/[^a-zA-Z0-9._-]/g, '_');
     sources.push(`    <add key="${key}" value="${url}" />`);
     creds.push(
       `    <${key}>`,
@@ -89,11 +101,32 @@ function generateNugetConfig(input: FeedConfigInput): string {
 }
 
 /**
- * Write .npmrc and NuGet.Config into the per-session HOME directory.
- * Call this after the HOME dir is created and the DevOps PAT is available.
+ * Build the VSS_NUGET_EXTERNAL_FEED_ENDPOINTS JSON for the Azure Artifacts
+ * Credential Provider. This env var is a fallback — it works when the
+ * credential provider plugin is installed, regardless of source key names.
  */
-export function writeFeedConfigs(sessionHome: string, input: FeedConfigInput): void {
-  if (input.feeds.length === 0) return;
+function buildVssEndpoints(input: FeedConfigInput): string {
+  const scope = feedScope(input);
+  const endpoints = input.feeds.map((feed) => ({
+    endpoint: `https://pkgs.dev.azure.com/${scope}/_packaging/${feed}/nuget/v3/index.json`,
+    password: input.pat,
+  }));
+  return JSON.stringify({ endpointCredentials: endpoints });
+}
+
+export interface FeedConfigResult {
+  /** Additional env vars to merge into the session environment. */
+  env: Record<string, string>;
+}
+
+/**
+ * Write .npmrc and NuGet.Config into the per-session HOME directory and
+ * return any extra env vars to inject into the session.
+ *
+ * Call this after the HOME dir is created.
+ */
+export function writeFeedConfigs(sessionHome: string, input: FeedConfigInput): FeedConfigResult {
+  if (input.feeds.length === 0) return { env: {} };
 
   // ~/.npmrc
   const npmrc = generateNpmrc(input);
@@ -104,4 +137,13 @@ export function writeFeedConfigs(sessionHome: string, input: FeedConfigInput): v
   mkdirSync(nugetDir, { recursive: true });
   const nugetConfig = generateNugetConfig(input);
   writeFileSync(join(nugetDir, 'NuGet.Config'), nugetConfig, 'utf8');
+
+  // VSS_NUGET_EXTERNAL_FEED_ENDPOINTS — belt-and-suspenders for when
+  // the Azure Artifacts Credential Provider is installed. Works regardless
+  // of source key naming in the project's nuget.config.
+  const env: Record<string, string> = {
+    VSS_NUGET_EXTERNAL_FEED_ENDPOINTS: buildVssEndpoints(input),
+  };
+
+  return { env };
 }

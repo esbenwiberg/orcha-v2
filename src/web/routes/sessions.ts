@@ -414,7 +414,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           if (privateFeeds) {
             const feedConfig = loadFeedConfig(globalSettingsStore);
             if (feedConfig) {
-              writeFeedConfigs(sessionHome, feedConfig);
+              const feedResult = writeFeedConfigs(sessionHome, feedConfig);
+              Object.assign(env, feedResult.env);
               console.log(`[sessions] feed configs written sessionId=${sessionId} feeds=${feedConfig.feeds.join(',')}`);
             } else {
               console.warn(`[sessions] privateFeeds enabled but no feed config in settings sessionId=${sessionId}`);
@@ -822,7 +823,9 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           if (existing.config.privateFeeds) {
             const feedConfig = loadFeedConfig(globalSettingsStore);
             if (feedConfig) {
-              writeFeedConfigs(sessionHome, feedConfig);
+              const feedResult = writeFeedConfigs(sessionHome, feedConfig);
+              // Merge feed env vars into the original env so reopen picks them up
+              Object.assign(originalEnv, feedResult.env);
               console.log(`[sessions] feed configs rebuilt for reopen id=${id} feeds=${feedConfig.feeds.join(',')}`);
             }
           }
