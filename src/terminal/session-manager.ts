@@ -66,6 +66,8 @@ export interface ActiveSession {
     deleteEnv?: string[];
     extraRwPaths?: string[];
   };
+  /** When true, skip validation teardown on exit (let auto-timeout handle it). */
+  taskOwned?: boolean;
 }
 
 export interface DebugShell {
@@ -302,8 +304,10 @@ export class SessionManager {
       }
     }
 
-    // Tear down any running validation environment for this session
-    if (this._validationManager && session?.dbSessionId) {
+    // Tear down any running validation environment for this session.
+    // For task-owned sessions, skip teardown — let the validation auto-timeout
+    // handle it so previews remain accessible for review after task completion.
+    if (this._validationManager && session?.dbSessionId && !session.taskOwned) {
       this._validationManager.stop(session.dbSessionId).catch((err) => {
         console.warn(`[session] validation teardown failed sessionId=${sessionId}:`, err);
       });

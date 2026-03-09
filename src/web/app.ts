@@ -82,7 +82,7 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
 
   // Parse JSON request bodies — skip /validate/ proxy routes so the raw body
   // is forwarded intact to the proxied app.
-  const jsonParser = express.json();
+  const jsonParser = express.json({ limit: '10mb' });
   const urlencodedParser = express.urlencoded({ extended: false });
   app.use((req, res, next) => {
     if (req.path.startsWith('/validate/')) return next();
