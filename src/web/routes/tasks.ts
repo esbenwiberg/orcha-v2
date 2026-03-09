@@ -287,12 +287,19 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
   });
 
   // POST /tasks/:id/retry — retry a failed task
-  router.post('/tasks/:id/retry', (req, res, next) => {
+  router.post('/tasks/:id/retry', async (req, res, next) => {
     try {
       const task = taskStore.getTask(req.params['id']!);
       if (!task) {
         res.status(404).send('Task not found');
         return;
+      }
+      // Stop old session if still alive
+      if (task.sessionId) {
+        const oldSession = deps.sessionEngine.getSessionByDbId(task.sessionId);
+        if (oldSession) {
+          try { await deps.sessionEngine.stopSession(oldSession.sessionId); } catch { /* best-effort */ }
+        }
       }
       // Reset error and worktree path, re-enter the pipeline from the start
       taskStore.updateTask(task.id, { errorMessage: '' });
@@ -306,12 +313,19 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
   });
 
   // POST /tasks/:id/retry-execute — re-run execution only (keeps investigation/enrichment)
-  router.post('/tasks/:id/retry-execute', (req, res, next) => {
+  router.post('/tasks/:id/retry-execute', async (req, res, next) => {
     try {
       const task = taskStore.getTask(req.params['id']!);
       if (!task) {
         res.status(404).send('Task not found');
         return;
+      }
+      // Stop old session if still alive
+      if (task.sessionId) {
+        const oldSession = deps.sessionEngine.getSessionByDbId(task.sessionId);
+        if (oldSession) {
+          try { await deps.sessionEngine.stopSession(oldSession.sessionId); } catch { /* best-effort */ }
+        }
       }
       // Clear error but keep enrichment/investigation results and worktree
       taskStore.updateTask(task.id, { errorMessage: '' });
@@ -468,8 +482,17 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       const comments = await fetchNewComments(pr, ghToken, since);
 
       if (comments.length === 0) {
-        res.status(422).send('<div class="text-xs text-slate-400 p-2">No new comments to address.</div>');
+        // Return 200 (not 422) — HTMX 2.0 doesn't swap on 4xx by default
+        res.send('<div class="text-xs text-slate-400 p-2">No new comments to address.</div>');
         return;
+      }
+
+      // Stop old session if still alive
+      if (task.sessionId) {
+        const oldSession = deps.sessionEngine.getSessionByDbId(task.sessionId);
+        if (oldSession) {
+          try { await deps.sessionEngine.stopSession(oldSession.sessionId); } catch { /* best-effort */ }
+        }
       }
 
       // Store feedback and update watermark
@@ -485,9 +508,8 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       taskStore.updateTask(task.id, { errorMessage: '' });
       taskStore.transition(task.id, 'queued', `Addressing ${comments.length} review comment(s)`);
 
-      // Use HX-Trigger (not HX-Trigger-After-Swap) because buttons use hx-swap="none"
-      res.setHeader('HX-Trigger', 'refresh-task-list');
-      res.status(204).send('');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.send('');
     } catch (err) {
       next(err);
     }

@@ -15,6 +15,56 @@
 @layer components {
 
   /* ===================================================================
+     Button variants (extending design system)
+     =================================================================== */
+
+  .btn-accent {
+    @apply text-white hover:brightness-110 focus-visible:ring-blue-400;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.3),
+      0 4px 12px -2px rgba(59, 130, 246, 0.25);
+  }
+  .btn-accent:hover {
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.3),
+      0 6px 20px -2px rgba(59, 130, 246, 0.35);
+    transform: translateY(-1px);
+  }
+  .btn-accent:active {
+    transform: translateY(0) scale(0.97);
+  }
+
+  .btn-success {
+    @apply text-white hover:brightness-110 focus-visible:ring-green-400;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.3),
+      0 4px 12px -2px rgba(34, 197, 94, 0.25);
+  }
+  .btn-success:hover {
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.3),
+      0 6px 20px -2px rgba(34, 197, 94, 0.35);
+    transform: translateY(-1px);
+  }
+  .btn-success:active {
+    transform: translateY(0) scale(0.97);
+  }
+
+  .btn-outline {
+    @apply border border-slate-600/80 text-slate-300 bg-transparent
+           hover:bg-slate-800 hover:text-slate-50 hover:border-slate-500
+           focus-visible:ring-slate-500;
+  }
+
+  .btn-outline-danger {
+    @apply border border-red-500/40 text-red-400 bg-transparent
+           hover:bg-red-500/10 hover:text-red-300 hover:border-red-500/60
+           focus-visible:ring-red-500;
+  }
+
+  /* ===================================================================
      Session Grid
      =================================================================== */
 

@@ -59,6 +59,11 @@
       Repo: <%= it.repo ? it.repo.displayName : it.task.repoId.slice(0, 8) %>
       <% if (it.task.branch) { %> &middot; Branch: <code class="text-slate-400"><%= it.task.branch %></code><% } %>
     </div>
+    <% if (it.task.prUrl) { %>
+      <div class="text-xs mt-0.5">
+        <a href="<%= it.task.prUrl %>" target="_blank" class="text-blue-400 hover:underline"><%= it.task.prUrl %></a>
+      </div>
+    <% } %>
   </div>
   <button class="modal-panel__close" onclick="closeModal()" aria-label="Close">
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -75,7 +80,7 @@
         hx-post="/api/tasks/<%= it.task.id %>/force-enrich"
         hx-swap="none"
       >Force Enrich</button>
-      <button class="btn btn-xs btn-ghost"
+      <button class="btn btn-xs btn-outline"
         hx-post="/api/tasks/<%= it.task.id %>/force-queue"
         hx-swap="none"
       >Force Queue</button>
@@ -93,7 +98,7 @@
       >Mark Done</button>
     <% } %>
     <% if ((it.task.status === 'done' || it.task.status === 'failed') && it.task.enrichmentResult) { %>
-      <button class="btn btn-xs btn-ghost"
+      <button class="btn btn-xs btn-outline"
         hx-post="/api/tasks/<%= it.task.id %>/retry-execute"
         hx-swap="none"
         hx-confirm="Re-run execution? Investigation and enrichment results will be preserved."
@@ -105,7 +110,7 @@
         hx-target="#modal-pr-review-<%= it.task.id %>"
         hx-swap="innerHTML"
       >Check PR</button>
-      <button class="btn btn-xs btn-ghost"
+      <button class="btn btn-xs btn-outline"
         hx-post="/api/tasks/<%= it.task.id %>/address-feedback"
         hx-target="#modal-pr-review-<%= it.task.id %>"
         hx-swap="innerHTML"
@@ -113,18 +118,21 @@
       >Address Feedback</button>
     <% } %>
     <% if (it.task.status !== 'done' && it.task.status !== 'cancelled' && it.task.status !== 'failed') { %>
-      <button class="btn btn-xs btn-ghost text-red-400"
+      <button class="btn btn-xs btn-outline-danger"
         hx-post="/api/tasks/<%= it.task.id %>/cancel"
         hx-swap="none"
         hx-confirm="Cancel this task?"
       >Cancel</button>
     <% } %>
     <% if (it.task.status === 'done' || it.task.status === 'cancelled' || it.task.status === 'failed') { %>
-      <button class="btn btn-xs btn-ghost text-red-400"
+      <button class="btn btn-xs btn-outline-danger"
         hx-delete="/api/tasks/<%= it.task.id %>"
         hx-swap="none"
         hx-confirm="Delete this task permanently?"
       >Delete</button>
+    <% } %>
+    <% if (it.sessionActive) { %>
+      <a href="/#<%= it.task.sessionId %>" class="btn btn-xs btn-primary ml-auto">Open Terminal</a>
     <% } %>
   </div>
 
@@ -261,14 +269,8 @@
           <span>Branch: <code class="text-slate-300"><%= it.task.branch %></code></span>
         <% } %>
       </div>
-      <% if (it.task.prUrl) { %>
-        <div class="mb-1">PR: <a href="<%= it.task.prUrl %>" target="_blank" class="text-blue-400 hover:underline"><%= it.task.prUrl %></a></div>
-      <% } %>
       <% if (it.task.previewUrl) { %>
         <div class="mb-1">Preview: <a href="<%= it.task.previewUrl %>" target="_blank" class="text-blue-400 hover:underline"><%= it.task.previewUrl %></a></div>
-      <% } %>
-      <% if (it.sessionActive) { %>
-        <a href="/#<%= it.task.sessionId %>" class="btn btn-xs btn-primary mt-1">Open Terminal</a>
       <% } %>
     </div>
   </div>

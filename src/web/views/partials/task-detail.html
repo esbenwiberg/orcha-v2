@@ -60,6 +60,11 @@
       Repo: <%= it.repo ? it.repo.displayName : it.task.repoId.slice(0, 8) %>
       <% if (it.task.branch) { %> · Branch: <code class="text-slate-400"><%= it.task.branch %></code><% } %>
     </div>
+    <% if (it.task.prUrl) { %>
+      <div class="text-xs mt-0.5">
+        <a href="<%= it.task.prUrl %>" target="_blank" class="text-blue-400 hover:underline"><%= it.task.prUrl %></a>
+      </div>
+    <% } %>
   </div>
 
   <!-- Actions (top, always visible) -->
@@ -113,6 +118,9 @@
         hx-swap="none"
         hx-confirm="Delete this task permanently?"
       >Delete</button>
+    <% } %>
+    <% if (it.sessionActive) { %>
+      <a href="/#<%= it.task.sessionId %>" class="btn btn-xs btn-primary ml-auto">Open Terminal</a>
     <% } %>
   </div>
 
@@ -249,14 +257,8 @@
           <span>Branch: <code class="text-slate-300"><%= it.task.branch %></code></span>
         <% } %>
       </div>
-      <% if (it.task.prUrl) { %>
-        <div class="mb-1">PR: <a href="<%= it.task.prUrl %>" target="_blank" class="text-blue-400 hover:underline"><%= it.task.prUrl %></a></div>
-      <% } %>
       <% if (it.task.previewUrl) { %>
         <div class="mb-1">Preview: <a href="<%= it.task.previewUrl %>" target="_blank" class="text-blue-400 hover:underline"><%= it.task.previewUrl %></a></div>
-      <% } %>
-      <% if (it.sessionActive) { %>
-        <a href="/#<%= it.task.sessionId %>" class="btn btn-xs btn-primary mt-1">Open Terminal</a>
       <% } %>
     </div>
   </div>
