@@ -55,6 +55,9 @@ export interface Task {
   description: string;
   status: TaskStatus;
 
+  // Attachments
+  screenshots: string[];
+
   // Toggles
   autoEnrich: boolean;
   selfValidate: boolean;
@@ -97,6 +100,7 @@ export interface CreateTaskInput {
   repoId: string;
   title: string;
   description: string;
+  screenshots?: string[];
   autoEnrich?: boolean;
   selfValidate?: boolean;
   mcpServerIds?: string[];
@@ -108,6 +112,7 @@ export interface CreateTaskInput {
 export interface UpdateTaskInput {
   title?: string;
   description?: string;
+  screenshots?: string[];
   autoEnrich?: boolean;
   selfValidate?: boolean;
   mcpServerIds?: string[];

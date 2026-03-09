@@ -140,6 +140,20 @@
   <div class="task-card">
     <div class="task-card__header">Original Idea</div>
     <div class="task-card__body text-xs text-slate-300 whitespace-pre-wrap"><%= it.task.description %></div>
+    <% if (it.task.screenshots && it.task.screenshots.length > 0) { %>
+      <div class="task-card__body flex flex-wrap gap-2 pt-2 border-t border-slate-700/30">
+        <% for (const s of it.task.screenshots) { %>
+          <a href="/uploads/images/<%= s.split('/').pop() %>" target="_blank" class="block">
+            <img
+              src="/uploads/images/<%= s.split('/').pop() %>"
+              class="max-w-[200px] max-h-[140px] object-contain rounded border border-slate-600 hover:border-slate-400 transition-colors"
+              alt="Screenshot"
+              loading="lazy"
+            />
+          </a>
+        <% } %>
+      </div>
+    <% } %>
   </div>
 
   <!-- Investigation -->

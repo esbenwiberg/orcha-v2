@@ -49,8 +49,10 @@
         name="description"
         required
         rows="5"
-        placeholder="Describe your idea... rough is fine, the agent will investigate and enrich it."
+        placeholder="Describe your idea... rough is fine, the agent will investigate and enrich it. Paste screenshots with Ctrl+V."
       ></textarea>
+      <!-- Screenshot thumbnails -->
+      <div id="ntm-screenshots" class="flex flex-wrap gap-2 mt-2"></div>
     </div>
 
     <div class="form-group">
@@ -156,3 +158,70 @@
     </div>
   </form>
 </div>
+
+<script>
+(function() {
+  const textarea = document.getElementById('ntm-description');
+  const container = document.getElementById('ntm-screenshots');
+  const form = textarea.closest('form');
+
+  textarea.addEventListener('paste', async function(e) {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (!item.type.startsWith('image/')) continue;
+      e.preventDefault();
+
+      const file = item.getAsFile();
+      if (!file) continue;
+
+      // Read as base64 data URL
+      const reader = new FileReader();
+      reader.onload = async function() {
+        const dataUrl = reader.result;
+
+        // Upload to server
+        try {
+          const resp = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: dataUrl, filename: file.name || 'paste.png' }),
+          });
+          if (!resp.ok) return;
+          const { path } = await resp.json();
+
+          // Add hidden input so the path is submitted with the form
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'screenshots';
+          input.value = path;
+          form.appendChild(input);
+
+          // Build thumbnail URL from server path (/tmp/orcha-images/foo.png → /uploads/images/foo.png)
+          const fname = path.split('/').pop();
+          const thumbUrl = '/uploads/images/' + fname;
+
+          // Render thumbnail with remove button
+          const wrapper = document.createElement('div');
+          wrapper.className = 'relative group';
+          wrapper.innerHTML =
+            '<img src="' + thumbUrl + '" class="w-20 h-20 object-cover rounded border border-slate-600" />' +
+            '<button type="button" class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500/90 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Remove screenshot">&times;</button>';
+
+          wrapper.querySelector('button').addEventListener('click', function() {
+            input.remove();
+            wrapper.remove();
+          });
+
+          container.appendChild(wrapper);
+        } catch (err) {
+          console.error('Screenshot upload failed:', err);
+        }
+      };
+      reader.readAsDataURL(file);
+      break; // only handle the first image item
+    }
+  });
+})();
+</script>

@@ -111,6 +111,11 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         : req.body['mcpServerIds']
           ? [req.body['mcpServerIds'] as string]
           : [];
+      const screenshots = Array.isArray(req.body['screenshots'])
+        ? (req.body['screenshots'] as string[]).filter(Boolean)
+        : req.body['screenshots']
+          ? [req.body['screenshots'] as string]
+          : [];
 
       if (!repoId || !title || !description) {
         const repos = repoStore.listRepos().filter((r) => r.status === 'ready');
@@ -144,6 +149,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         repoId,
         title,
         description,
+        ...(screenshots.length > 0 ? { screenshots } : {}),
         autoEnrich,
         selfValidate,
         mcpServerIds,

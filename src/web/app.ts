@@ -145,6 +145,9 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
   // Serve static assets from src/web/public
   app.use(express.static('src/web/public'));
 
+  // Serve uploaded screenshots so thumbnails load in the browser
+  app.use('/uploads/images', express.static('/tmp/orcha-images'));
+
   // SSE events router — must be mounted before compression can interfere
   app.use(createEventsRouter(eta));
 

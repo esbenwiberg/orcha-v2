@@ -1,5 +1,15 @@
 import type { Task } from '../domain/task-types.js';
 
+function screenshotSection(screenshots: string[]): string {
+  if (screenshots.length === 0) return '';
+  return `
+
+## Screenshots
+
+The following screenshots are attached — use your Read tool to view them:
+${screenshots.map((p) => `- ${p}`).join('\n')}`;
+}
+
 export function buildInvestigationPrompt(task: Task): string {
   return `You are an expert software engineer evaluating whether a proposed task is worth implementing.
 
@@ -8,7 +18,7 @@ export function buildInvestigationPrompt(task: Task): string {
 
 **Description**:
 ${task.description}
-
+${screenshotSection(task.screenshots)}
 ## Instructions
 
 1. Explore the codebase thoroughly — read relevant files, understand the architecture and conventions.
@@ -68,7 +78,7 @@ ${task.investigationResult.webResearch ? `\n**Web research**: ${task.investigati
 
 **Description**:
 ${task.description}
-${investigationContext}
+${screenshotSection(task.screenshots)}${investigationContext}
 
 ## Instructions
 
@@ -115,7 +125,8 @@ export function buildExecutionPrompt(task: Task): string {
   let prompt = `## Task
 **Title**: ${task.title}
 
-${description}`;
+${description}
+${screenshotSection(task.screenshots)}`;
 
   if (task.enrichmentResult) {
     const er = task.enrichmentResult;

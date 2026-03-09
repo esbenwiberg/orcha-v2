@@ -27,6 +27,7 @@ export class TaskStore {
       repoId: row['repo_id'] as string,
       title: row['title'] as string,
       description: row['description'] as string,
+      screenshots: row['screenshots'] ? (JSON.parse(row['screenshots'] as string) as string[]) : [],
       status: row['status'] as TaskStatus,
       autoEnrich: (row['auto_enrich'] as number) !== 0,
       selfValidate: (row['self_validate'] as number) !== 0,
@@ -70,10 +71,10 @@ export class TaskStore {
 
     this.#db
       .prepare(
-        `INSERT INTO tasks (id, display_id, repo_id, title, description, status,
+        `INSERT INTO tasks (id, display_id, repo_id, title, description, screenshots, status,
            auto_enrich, self_validate, mcp_server_ids, credential_profile_id, model_config_id,
            branch, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -81,6 +82,9 @@ export class TaskStore {
         input.repoId,
         input.title,
         input.description,
+        input.screenshots && input.screenshots.length > 0
+          ? JSON.stringify(input.screenshots)
+          : null,
         input.autoEnrich ? 1 : 0,
         input.selfValidate ? 1 : 0,
         input.mcpServerIds && input.mcpServerIds.length > 0
@@ -146,6 +150,7 @@ export class TaskStore {
 
     const title = patch.title ?? existing.title;
     const description = patch.description ?? existing.description;
+    const screenshots = patch.screenshots ?? existing.screenshots;
     const autoEnrich = patch.autoEnrich ?? existing.autoEnrich;
     const selfValidate = patch.selfValidate ?? existing.selfValidate;
     const mcpServerIds = patch.mcpServerIds ?? existing.mcpServerIds;
@@ -156,7 +161,7 @@ export class TaskStore {
 
     this.#db
       .prepare(
-        `UPDATE tasks SET title = ?, description = ?, auto_enrich = ?, self_validate = ?,
+        `UPDATE tasks SET title = ?, description = ?, screenshots = ?, auto_enrich = ?, self_validate = ?,
            mcp_server_ids = ?, credential_profile_id = ?, model_config_id = ?,
            branch = ?, error_message = ?, updated_at = datetime('now')
          WHERE id = ?`,
@@ -164,6 +169,7 @@ export class TaskStore {
       .run(
         title,
         description,
+        screenshots.length > 0 ? JSON.stringify(screenshots) : null,
         autoEnrich ? 1 : 0,
         selfValidate ? 1 : 0,
         mcpServerIds.length > 0 ? JSON.stringify(mcpServerIds) : null,
