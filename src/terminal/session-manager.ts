@@ -210,9 +210,8 @@ export class SessionManager {
     });
 
     // Step 4: Persist to DB
-    // Map terminal WorktreeInfo to domain WorktreeInfo for the store.
-    // The store generates its own UUID for the DB row; capture it so we can
-    // use it in subsequent updateStatus / updateSession calls.
+    // Pass sessionId so the DB row uses the same ID as the MCP URL
+    // (task-processor pre-generates the ID and embeds it in settings.json).
     let dbSessionId: string | undefined;
     try {
       const dbSession = this._sessionStore.createSession(
@@ -237,6 +236,7 @@ export class SessionManager {
           repoRoot: opts.repoRoot ?? worktree.path,
           createdAt: worktree.createdAt,
         },
+        sessionId,
       );
       dbSessionId = dbSession.id;
       // Transition to starting → running

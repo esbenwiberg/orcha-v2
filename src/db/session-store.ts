@@ -59,7 +59,7 @@ export class SessionStore {
     return session;
   }
 
-  createSession(config: SessionConfig, worktree: WorktreeInfo): Session {
+  createSession(config: SessionConfig, worktree: WorktreeInfo, id?: string): Session {
     const worktreeJson = JSON.stringify({
       worktreePath: worktree.worktreePath,
       branch: worktree.branch,
@@ -68,7 +68,7 @@ export class SessionStore {
       createdAt: worktree.createdAt.toISOString(),
     });
 
-    let id!: string;
+    const sessionId = id ?? crypto.randomUUID();
 
     this.#db.transaction(() => {
       const nextRow = this.#db
@@ -76,7 +76,6 @@ export class SessionStore {
         .get() as { next: number };
       const displayId = nextRow.next;
 
-      id = crypto.randomUUID();
       const now = new Date().toISOString();
 
       this.#db
@@ -85,10 +84,10 @@ export class SessionStore {
             (id, display_id, instance_id, status, config_json, worktree_json, repo_root, created_at, updated_at)
            VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
         )
-        .run(id, displayId, config.instanceId, encryptJson(config), worktreeJson, config.repoRoot, now, now);
+        .run(sessionId, displayId, config.instanceId, encryptJson(config), worktreeJson, config.repoRoot, now, now);
     })();
 
-    return this.getSession(id)!;
+    return this.getSession(sessionId)!;
   }
 
   getSession(id: string): Session | undefined {
