@@ -134,42 +134,42 @@ ${er.acceptanceCriteria.map((c) => `- [ ] ${c}`).join('\n')}
 ${er.risks.map((r) => `- **${r.severity}**: ${r.description} — Mitigation: ${r.mitigation}`).join('\n')}`;
   }
 
-  // PR creation instructions
+  // Verification suffix (always included)
   prompt += `
 
-## Pull Request
+## Self-Verification
 
-After completing the implementation:
-1. Commit all changes with a clear, descriptive commit message
-2. Push the branch to the remote
-3. Create a PR using \`gh pr create\` with:
-   - A concise title summarizing the change
-   - A description that explains what was done and why
-   - Reference the acceptance criteria in the PR body`;
+Before creating the PR, audit your own work:
 
-  // Self-validate suffix
+1. Re-read the task requirements (original + enriched description)
+2. Verify every acceptance criterion is met
+3. Run any relevant build/test commands
+4. Check for:
+   - Missing error handling at system boundaries
+   - Untested edge cases
+   - Files you changed but didn't save
+   - Import statements that reference non-existent modules
+5. If anything is incomplete, fix it before continuing`;
+
+  // Self-validate — runs BEFORE PR creation so the preview URL can be included
   if (task.selfValidate) {
     prompt += `
 
-## Post-Implementation Validation
+## Post-Implementation Validation (REQUIRED)
 
-After completing the implementation:
+You MUST validate the running application before creating the PR. This is not optional.
 
-1. Use the \`validate_start\` tool to host the application
-2. Use \`validate_browse\` to navigate to the main page and verify it loads
-3. Use \`validate_browse\` to navigate to any pages affected by your changes
-4. Use \`validate_screenshot\` to capture visual proof of the working implementation
-5. Note the preview URL from validate_start
+1. Call \`validate_start\` to host the application — note the preview URL it returns
+2. Call \`validate_browse\` with path "/" to verify the main page loads without errors
+3. Call \`validate_browse\` for each page affected by your changes
+4. Call \`validate_screenshot\` to capture visual proof of the working state
+5. If you find issues, fix them, re-build, and re-validate
 
-When creating the PR, include a "## Preview" section in the description with:
-- The preview URL for human validation
-- Screenshots of key pages
-- Any validation findings
-
+Save the preview URL — you will include it in the PR description below.
 Leave the validation environment running — it will auto-stop after timeout.`;
   }
 
-  // Review feedback — when addressing PR review comments
+  // PR creation instructions
   if (task.reviewFeedback) {
     prompt += `
 
@@ -186,24 +186,20 @@ ${task.reviewFeedback}
 3. Post a comment on the PR summarizing what you fixed using:
    \`gh pr comment ${task.prUrl?.match(/pull\/(\d+)/)?.[1] ?? ''} --body "your summary"\`
    Start the comment with a clear summary of changes made.`;
+  } else {
+    prompt += `
+
+## Pull Request
+
+After completing the implementation${task.selfValidate ? ' and validation' : ''}:
+1. Commit all changes with a clear, descriptive commit message
+2. Push the branch to the remote
+3. Create a PR using \`gh pr create\` with:
+   - A concise title summarizing the change
+   - A description that explains what was done and why
+   - Reference the acceptance criteria in the PR body${task.selfValidate ? `
+   - Include a "## Preview" section with the preview URL from validate_start and any validation findings` : ''}`;
   }
-
-  // Verification suffix (always included)
-  prompt += `
-
-## Self-Verification
-
-Before marking this task complete, audit your own work:
-
-1. Re-read the task requirements (original + enriched description)
-2. Verify every acceptance criterion is met
-3. Run any relevant build/test commands
-4. Check for:
-   - Missing error handling at system boundaries
-   - Untested edge cases
-   - Files you changed but didn't save
-   - Import statements that reference non-existent modules
-5. If anything is incomplete, fix it before finishing`;
 
   return prompt;
 }

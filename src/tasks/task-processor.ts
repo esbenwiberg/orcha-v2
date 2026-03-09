@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -199,8 +200,12 @@ export class TaskProcessor {
     const worktree = task.worktreePath ? await this.#resolveWorktree(task) : undefined;
     const worktreePath = worktree?.path ?? join(getStoragePaths().worktreeBaseDir, `task-${task.id}`);
 
+    // Generate a stable session ID upfront so the MCP validate URL in settings.json
+    // matches the session ID that SessionManager will use (avoids session-not-found errors).
+    const sessionId = randomUUID();
+
     // Build full execution environment (HOME dir, env vars, deleteEnv)
-    const { env, deleteEnv, homeDir, modelProvider } = await this.#setupExecutionEnv(task, worktreePath);
+    const { env, deleteEnv, homeDir, modelProvider } = await this.#setupExecutionEnv(task, worktreePath, sessionId);
 
     console.log('[task-processor] TASK-%d execution starting (worktree=%s hasApiKey=%s hasGhToken=%s homeDir=%s)',
       task.displayId, worktree ? worktree.path : 'new', 'ANTHROPIC_API_KEY' in env, 'GH_TOKEN' in env, homeDir ?? 'none');
@@ -225,6 +230,7 @@ export class TaskProcessor {
         repoStore: this.#repoStore,
         mcpServerStore: this.#mcpServerStore,
         db: this.#db,
+        sessionId,
         ...(worktree !== undefined ? { existingWorktree: worktree } : {}),
         ...(Object.keys(env).length > 0 ? { env } : {}),
         ...(deleteEnv.length > 0 ? { deleteEnv } : {}),
@@ -414,7 +420,7 @@ export class TaskProcessor {
    *   settings.json (permissions, MCP), .credentials.json, .gitconfig,
    *   .git-credentials, CLAUDE.md, skills
    */
-  async #setupExecutionEnv(task: Task, worktreePath: string): Promise<{
+  async #setupExecutionEnv(task: Task, worktreePath: string, sessionId: string): Promise<{
     env: Record<string, string>;
     deleteEnv: string[];
     homeDir: string | undefined;
@@ -500,11 +506,12 @@ export class TaskProcessor {
       const entries = this.#mcpServerStore.getSettingsEntries(task.mcpServerIds);
       Object.assign(mcpServers, entries);
     }
-    // Inject validate MCP server
+    // Inject validate MCP server — use the pre-generated sessionId so the MCP
+    // endpoint can look up the session in the DB (task.id would fail the lookup).
     const orchaPort = process.env['PORT'] ?? '3000';
     mcpServers['validate'] = {
       type: 'http',
-      url: `http://localhost:${orchaPort}/mcp/validate/${task.id}`,
+      url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
     };
     settings['mcpServers'] = mcpServers;
     writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');

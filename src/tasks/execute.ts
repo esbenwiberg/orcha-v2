@@ -24,6 +24,8 @@ export interface ExecuteContext {
   homeDir?: string;
   /** Model provider type (e.g. 'max', 'anthropic'). */
   modelProvider?: string;
+  /** Pre-generated session ID (must match the ID used in MCP URL setup). */
+  sessionId?: string;
 }
 
 /** Slugify a task title into a git branch name. */
@@ -63,6 +65,7 @@ export async function execute(ctx: ExecuteContext): Promise<ActiveSession> {
 
   // Create the session via SessionManager (handles worktree, PTY, DB record)
   const session = await sessionManager.createSession({
+    ...(ctx.sessionId !== undefined ? { sessionId: ctx.sessionId } : {}),
     branch,
     command: 'claude',
     args,
