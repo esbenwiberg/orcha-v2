@@ -154,7 +154,27 @@ export class WorktreeManager {
       }
     }
 
-    const args = ['worktree', 'add', '-b', safeBranch, worktreePath];
+    // Auto-suffix branch name if it already exists (e.g. fork from a completed session)
+    let finalBranch = safeBranch;
+    const existingBranches = new Set<string>();
+    try {
+      const raw = await this.execGit(['branch', '--list', '--no-color'], cwd);
+      for (const line of raw.split('\n')) {
+        const name = line.replace(/^\*?\s+/, '').trim();
+        if (name) existingBranches.add(name);
+      }
+    } catch {
+      // Non-fatal — if we can't list branches, just try the original name
+    }
+    if (existingBranches.has(finalBranch)) {
+      let suffix = 2;
+      while (existingBranches.has(`${safeBranch}-${suffix}`)) {
+        suffix++;
+      }
+      finalBranch = `${safeBranch}-${suffix}`;
+    }
+
+    const args = ['worktree', 'add', '-b', finalBranch, worktreePath];
     if (resolvedStartPoint !== undefined) {
       WorktreeManager.assertNoInjection(resolvedStartPoint, 'startPoint');
       args.push(resolvedStartPoint);
@@ -165,7 +185,7 @@ export class WorktreeManager {
     return {
       id: sessionId,
       path: worktreePath,
-      branch: safeBranch,
+      branch: finalBranch,
       commitSha,
       createdAt: new Date(),
     };
