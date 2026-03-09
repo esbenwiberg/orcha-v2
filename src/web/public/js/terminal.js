@@ -636,9 +636,15 @@ function showCloseMenu(sessionId, anchorBtn) {
         if (r.ok) {
           const card = document.getElementById(`session-${sessionId}`);
           if (card) card.remove();
+        } else {
+          r.text().then((body) => {
+            alert(`Failed to delete session: ${r.status} ${body || r.statusText}`);
+          });
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        alert(`Failed to delete session: ${err.message}`);
+      });
   });
   menu.appendChild(deleteItem);
 

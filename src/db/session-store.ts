@@ -271,6 +271,8 @@ export class SessionStore {
     }
 
     this.#db.transaction(() => {
+      // Clear FK reference from tasks before deleting the session
+      this.#db.prepare('UPDATE tasks SET session_id = NULL WHERE session_id = ?').run(id);
       this.#db.prepare('DELETE FROM session_credentials WHERE session_id = ?').run(id);
       this.#db.prepare('DELETE FROM status_events WHERE session_id = ?').run(id);
       this.#db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
