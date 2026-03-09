@@ -428,6 +428,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           // Override DOTNET_CLI_HOME so dotnet finds NuGet.Config at $HOME/.nuget/
           // (Dockerfile sets DOTNET_CLI_HOME=/tmp/dotnet-cli which shadows HOME)
           env['DOTNET_CLI_HOME'] = sessionHome;
+
+          // If repo/credential env vars set PATH, merge with (don't replace) the
+          // system PATH — otherwise tools like npm, node, git become unfindable.
+          if (env['PATH']) {
+            const systemPath = process.env['PATH'] ?? '';
+            env['PATH'] = `${env['PATH']}:${systemPath}`;
+            console.log(`[sessions] merged custom PATH with system PATH sessionId=${sessionId}`);
+          }
+
           console.log(`[sessions] per-session HOME=${sessionHome} sessionId=${sessionId}`);
         } catch (err) {
           console.warn('[sessions] Failed to create per-session home dir:', err);

@@ -595,6 +595,15 @@ export class TaskProcessor {
     }
 
     env['HOME'] = taskHome;
+    env['DOTNET_CLI_HOME'] = taskHome;
+
+    // If repo/credential env vars set PATH, merge with (don't replace) the
+    // system PATH — otherwise tools like npm, node, git become unfindable.
+    if (env['PATH']) {
+      const systemPath = process.env['PATH'] ?? '';
+      env['PATH'] = `${env['PATH']}:${systemPath}`;
+    }
+
     console.log('[task-processor] TASK-%d execution HOME=%s mcpServers=%s hasCredentials=%s',
       task.displayId, taskHome, Object.keys(mcpServers).join(','), !!mc?.credentialsJson);
 
