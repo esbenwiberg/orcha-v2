@@ -158,7 +158,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         ...(branch ? { branch } : {}),
       });
 
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);
@@ -243,7 +243,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
       taskStore.transition(task.id, 'investigating', 'Investigation started manually via kanban drag');
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);
@@ -271,7 +271,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
       taskStore.transition(task.id, 'rejected', 'Manually rejected after investigation');
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);
@@ -296,7 +296,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);
@@ -322,7 +322,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       taskStore.updateTask(task.id, { errorMessage: '' });
       taskStore.setWorktreePath(task.id, null);
       taskStore.transition(task.id, 'draft', 'Retried by user — restarting from draft');
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);
@@ -347,7 +347,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       // Clear error but keep enrichment/investigation results and worktree
       taskStore.updateTask(task.id, { errorMessage: '' });
       taskStore.transition(task.id, 'queued', 'Retry execution only — skipping investigation/enrichment');
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);
@@ -363,7 +363,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
       taskStore.transition(task.id, 'enriching', 'Force-enriched by user (overriding rejection)');
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);
@@ -379,7 +379,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
       taskStore.transition(task.id, 'queued', 'Force-queued by user (skipping enrichment)');
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);
@@ -396,7 +396,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       }
       taskStore.updateTask(task.id, { errorMessage: '' });
       taskStore.transition(task.id, 'done', 'Manually marked done by user');
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);
@@ -455,7 +455,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       });
       // Re-render the status badge via HX-Trigger so the header updates
       if (prStatus.merged && !task.prMerged) {
-        res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+        res.setHeader('HX-Trigger', 'refresh-task-list');
       }
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -525,7 +525,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       taskStore.updateTask(task.id, { errorMessage: '' });
       taskStore.transition(task.id, 'queued', `Addressing ${comments.length} review comment(s)`);
 
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.send('');
     } catch (err) {
       next(err);
@@ -536,7 +536,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
   router.delete('/tasks/:id', (req, res, next) => {
     try {
       taskStore.deleteTask(req.params['id']!);
-      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.setHeader('HX-Trigger', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {
       next(err);

@@ -158,7 +158,7 @@ document.addEventListener('keydown', function(e) {
   }
 })();
 
-// Refresh board and modal after task actions (HX-Trigger-After-Swap: refresh-task-list)
+// Refresh board and modal after task actions (HX-Trigger: refresh-task-list)
 document.body.addEventListener('refresh-task-list', function() {
   var boardSlot = document.getElementById('task-board-slot');
   if (boardSlot && boardSlot.style.display !== 'none') {
