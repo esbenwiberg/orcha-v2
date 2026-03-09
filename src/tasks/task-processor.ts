@@ -458,7 +458,9 @@ export class TaskProcessor {
     modelProvider: string | undefined;
   }> {
     const mc = task.modelConfigId ? this.#modelConfigStore.getConfig(task.modelConfigId) : undefined;
-    const env: Record<string, string> = {};
+    const env: Record<string, string> = {
+      ORCHA_SESSION_ID: sessionId,
+    };
     const deleteEnv: string[] = [];
 
     // Apply model config env vars (API key, base URL, etc.)
@@ -537,12 +539,16 @@ export class TaskProcessor {
       const entries = this.#mcpServerStore.getSettingsEntries(task.mcpServerIds);
       Object.assign(mcpServers, entries);
     }
-    // Inject validate MCP server — use the pre-generated sessionId so the MCP
-    // endpoint can look up the session in the DB (task.id would fail the lookup).
+    // Inject built-in MCP servers — use the pre-generated sessionId so the
+    // validate endpoint can look up the session in the DB.
     const orchaPort = process.env['PORT'] ?? '3000';
     mcpServers['validate'] = {
       type: 'http',
       url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
+    };
+    mcpServers['orcha'] = {
+      type: 'http',
+      url: `http://localhost:${orchaPort}/mcp/orcha`,
     };
     settings['mcpServers'] = mcpServers;
     writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
