@@ -68,7 +68,14 @@
   </div>
 
   <!-- Actions (top, always visible) -->
-  <div class="flex gap-2 pb-2 border-b border-slate-700/50">
+  <div class="flex gap-2 pb-2 border-b border-slate-700/50 flex-wrap">
+    <% if (['draft', 'rejected', 'failed', 'cancelled'].includes(it.task.status)) { %>
+      <button class="btn btn-xs btn-ghost"
+        hx-get="/api/tasks/<%= it.task.id %>/edit-modal"
+        hx-target="#modal-slot"
+        hx-swap="innerHTML"
+      >Edit</button>
+    <% } %>
     <% if (it.task.status === 'rejected') { %>
       <button class="btn btn-xs btn-primary"
         hx-post="/api/tasks/<%= it.task.id %>/force-enrich"
