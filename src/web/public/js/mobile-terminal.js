@@ -24,12 +24,6 @@ let _authPollInterval = null;
 let _bootedFrame = null;
 
 /* -----------------------------------------------------------------------
-   Rolling output buffer — stores the last chunk of terminal output for
-   the "Copy" button on the mobile key bar.
-   ----------------------------------------------------------------------- */
-let _lastOutputChunk = '';
-
-/* -----------------------------------------------------------------------
    Voice-to-text (Web Speech API)
    ----------------------------------------------------------------------- */
 
@@ -123,8 +117,6 @@ function _setMobileTranscript(text) {
   }
   overlay.textContent = text;
 }
-const MAX_OUTPUT_BUFFER = 8000;
-
 /* -----------------------------------------------------------------------
    Wake Lock — keeps the screen on while toggle is active.
    Auto-releases after 5 minutes of no terminal output.
@@ -279,24 +271,6 @@ function _showToast(message) {
 }
 
 /* -----------------------------------------------------------------------
-   Copy last output — copies the rolling output buffer to clipboard
-   ----------------------------------------------------------------------- */
-async function _copyLastOutput() {
-  if (!_lastOutputChunk) {
-    _showToast('Nothing to copy');
-    return;
-  }
-  try {
-    // Strip ANSI escape sequences for clean text
-    const clean = _lastOutputChunk.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    await navigator.clipboard.writeText(clean);
-    _showToast('Copied to clipboard');
-  } catch {
-    _showToast('Copy failed');
-  }
-}
-
-/* -----------------------------------------------------------------------
    Layer visibility helpers — terminal persists in one layer while
    sessions/info/diff content swaps in the other
    ----------------------------------------------------------------------- */
@@ -416,11 +390,6 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
       const msg = JSON.parse(event.data);
       if (msg.type === 'output' && typeof msg.data === 'string') {
         term.write(msg.data);
-        // Append to rolling output buffer
-        _lastOutputChunk += msg.data;
-        if (_lastOutputChunk.length > MAX_OUTPUT_BUFFER) {
-          _lastOutputChunk = _lastOutputChunk.slice(-MAX_OUTPUT_BUFFER);
-        }
         // Track last output time for idle detection
         _lastOutputTime = Date.now();
         // Reset wake lock idle timer on terminal activity
@@ -588,8 +557,6 @@ async function openMobileTerminal(_sessionId, wsUrl) {
   // Dispose any previously open terminal
   _disposeMobileTerminal();
 
-  // Reset output buffer for new session
-  _lastOutputChunk = '';
   _lastOutputTime = 0;
 
   // Store the base URL (without ticket) so we can reconnect later.
@@ -790,7 +757,6 @@ window._openMobileHostShell = async function (sessionId) {
           <button class="mobile-key" data-key="arrow-up">&uarr;</button>
           <button class="mobile-key" data-key="arrow-down">&darr;</button>
           <button class="mobile-key mobile-key--mic no-speech-api-hide" data-key="mic">Mic</button>
-          <button class="mobile-key" data-key="copy">Copy</button>
         </div>
       </div>`;
 
@@ -821,7 +787,6 @@ window._openMobileHostShell = async function (sessionId) {
           if (e.type === 'touchstart') { _touchHandled = true; e.preventDefault(); }
           else if (e.type === 'click' && _touchHandled) { _touchHandled = false; return; }
           const keyName = btn.dataset.key;
-          if (keyName === 'copy') { _copyLastOutput(); return; }
           if (keyName === 'mic') { _toggleMobileVoice(); return; }
           const data = KEY_MAP[keyName];
           if (data && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
@@ -1149,10 +1114,6 @@ document.addEventListener('htmx:afterSwap', (event) => {
             }
 
             const keyName = btn.dataset.key;
-            if (keyName === 'copy') {
-              _copyLastOutput();
-              return;
-            }
             if (keyName === 'mic') {
               _toggleMobileVoice();
               return;

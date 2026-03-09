@@ -479,18 +479,6 @@
     50% { opacity: 0.5; }
   }
 
-  .mobile-key--copy {
-    order: 98;
-    background: color-mix(in srgb, var(--color-accent) 20%, var(--color-surface-raised));
-    color: var(--color-accent);
-    border-color: var(--color-accent);
-  }
-
-  .mobile-key--copy:active {
-    background: var(--color-accent);
-    color: #fff;
-  }
-
   /* Voice transcript bar */
   .terminal-frame .voice-transcript {
     @apply shrink-0 whitespace-nowrap overflow-hidden;
