@@ -295,6 +295,10 @@ export class TaskProcessor {
       }
 
       if (exitCode === 0) {
+        // Clear review feedback after successful execution
+        if (task.reviewFeedback) {
+          this.#taskStore.setReviewFeedback(task.id, null);
+        }
         this.#taskStore.transition(task.id, 'done', `Session exited successfully${prUrl ? ` — PR: ${prUrl}` : ''}`);
         this.#publishStatus(task.id, 'done');
       } else {

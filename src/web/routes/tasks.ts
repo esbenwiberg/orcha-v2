@@ -6,6 +6,8 @@ import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import { McpServerStore } from '../../db/mcp-server-store.js';
+import { credentialManager } from '../../credentials/credential-manager.js';
+import { parsePrUrl, fetchPrStatus, fetchNewComments } from '../../tasks/github-pr.js';
 import type { TaskStatus } from '../../domain/task-types.js';
 
 export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
@@ -262,6 +264,117 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       }
       taskStore.updateTask(task.id, { errorMessage: '' });
       taskStore.transition(task.id, 'done', 'Manually marked done by user');
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.status(204).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /tasks/:id/check-pr — fetch PR status and new review comments
+  router.post('/tasks/:id/check-pr', async (req, res, next) => {
+    try {
+      const task = taskStore.getTask(req.params['id']!);
+      if (!task?.prUrl) {
+        res.status(404).send('Task not found or no PR URL');
+        return;
+      }
+
+      const pr = parsePrUrl(task.prUrl);
+      if (!pr) {
+        res.status(422).send('Could not parse PR URL');
+        return;
+      }
+
+      // Provision a GitHub token from the credential profile
+      let ghToken: string | undefined;
+      if (task.credentialProfileId) {
+        const profile = credentialStore.getProfile(task.credentialProfileId);
+        if (profile) {
+          const { env: credEnv } = await credentialManager.provision(profile);
+          ghToken = credEnv['GH_TOKEN'] ?? credEnv['GITHUB_TOKEN'];
+        }
+      }
+      // Fall back to ambient env
+      ghToken ??= process.env['GH_TOKEN'] ?? process.env['GITHUB_TOKEN'];
+
+      if (!ghToken) {
+        res.status(422).send('<div class="text-xs text-red-400 p-2">No GitHub token available. Configure a credential profile with GitHub access.</div>');
+        return;
+      }
+
+      // Use completedAt as default watermark (comments after initial execution)
+      const since = task.prCommentWatermark ?? task.completedAt?.toISOString() ?? null;
+
+      const [prStatus, comments] = await Promise.all([
+        fetchPrStatus(pr, ghToken),
+        fetchNewComments(pr, ghToken, since),
+      ]);
+
+      const html = eta.render('partials/task-pr-review', {
+        taskId: task.id,
+        prStatus,
+        comments,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /tasks/:id/address-feedback — re-queue execution with review feedback
+  router.post('/tasks/:id/address-feedback', async (req, res, next) => {
+    try {
+      const task = taskStore.getTask(req.params['id']!);
+      if (!task?.prUrl) {
+        res.status(404).send('Task not found or no PR URL');
+        return;
+      }
+
+      const pr = parsePrUrl(task.prUrl);
+      if (!pr) {
+        res.status(422).send('Could not parse PR URL');
+        return;
+      }
+
+      // Provision token and fetch the comments we're about to address
+      let ghToken: string | undefined;
+      if (task.credentialProfileId) {
+        const profile = credentialStore.getProfile(task.credentialProfileId);
+        if (profile) {
+          const { env: credEnv } = await credentialManager.provision(profile);
+          ghToken = credEnv['GH_TOKEN'] ?? credEnv['GITHUB_TOKEN'];
+        }
+      }
+      ghToken ??= process.env['GH_TOKEN'] ?? process.env['GITHUB_TOKEN'];
+
+      if (!ghToken) {
+        res.status(422).send('No GitHub token available');
+        return;
+      }
+
+      const since = task.prCommentWatermark ?? task.completedAt?.toISOString() ?? null;
+      const comments = await fetchNewComments(pr, ghToken, since);
+
+      if (comments.length === 0) {
+        res.status(422).send('<div class="text-xs text-slate-400 p-2">No new comments to address.</div>');
+        return;
+      }
+
+      // Store feedback and update watermark
+      const feedbackText = comments
+        .map((c) => {
+          const loc = c.path ? `[${c.path}] ` : '';
+          return `${loc}${c.body}`;
+        })
+        .join('\n\n---\n\n');
+
+      taskStore.setReviewFeedback(task.id, feedbackText);
+      taskStore.setPrCommentWatermark(task.id, new Date().toISOString());
+      taskStore.updateTask(task.id, { errorMessage: '' });
+      taskStore.transition(task.id, 'queued', `Addressing ${comments.length} review comment(s)`);
+
       res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
       res.status(204).send('');
     } catch (err) {

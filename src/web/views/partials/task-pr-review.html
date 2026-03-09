@@ -1,0 +1,39 @@
+<div class="task-card">
+  <div class="task-card__header">
+    PR Review
+    <% if (it.prStatus.merged) { %>
+      <span class="badge badge-sm badge-success ml-2">Merged</span>
+    <% } else if (it.prStatus.state === 'closed') { %>
+      <span class="badge badge-sm badge-error ml-2">Closed</span>
+    <% } else { %>
+      <span class="badge badge-sm badge-info ml-2">Open</span>
+    <% } %>
+  </div>
+  <div class="task-card__body">
+    <% if (it.comments.length === 0) { %>
+      <div class="text-xs text-slate-500 py-2">No new review comments since last check.</div>
+    <% } else { %>
+      <div class="text-xs text-slate-400 mb-2"><%= it.comments.length %> new comment<%= it.comments.length > 1 ? 's' : '' %></div>
+      <% for (const c of it.comments) { %>
+        <div class="text-xs py-2 border-b border-slate-700/30 last:border-0">
+          <% if (c.path) { %>
+            <div class="text-slate-500 font-mono text-[10px] mb-1"><%= c.path %></div>
+            <% if (c.diffHunk) { %>
+              <pre class="text-[10px] text-slate-600 bg-slate-800/50 rounded p-1 mb-1 overflow-x-auto" style="max-height: 80px;"><%= c.diffHunk.split('\n').slice(-4).join('\n') %></pre>
+            <% } %>
+          <% } %>
+          <div class="text-slate-300 whitespace-pre-wrap"><%= c.body %></div>
+          <div class="text-[10px] text-slate-600 mt-1"><%= new Date(c.createdAt).toISOString().replace('T', ' ').slice(0, 19) %></div>
+        </div>
+      <% } %>
+
+      <% if (!it.prStatus.merged) { %>
+        <button class="btn btn-xs btn-primary mt-3"
+          hx-post="/api/tasks/<%= it.taskId %>/address-feedback"
+          hx-swap="none"
+          hx-confirm="Re-run execution to address <%= it.comments.length %> review comment<%= it.comments.length > 1 ? 's' : '' %>?"
+        >Address Feedback</button>
+      <% } %>
+    <% } %>
+  </div>
+</div>

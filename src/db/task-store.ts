@@ -48,6 +48,8 @@ export class TaskStore {
       branch: (row['branch'] as string | null) ?? null,
       prUrl: (row['pr_url'] as string | null) ?? null,
       previewUrl: (row['preview_url'] as string | null) ?? null,
+      prCommentWatermark: (row['pr_comment_watermark'] as string | null) ?? null,
+      reviewFeedback: (row['review_feedback'] as string | null) ?? null,
       createdAt: new Date(row['created_at'] as string),
       updatedAt: new Date(row['updated_at'] as string),
       completedAt: row['completed_at'] ? new Date(row['completed_at'] as string) : null,
@@ -273,6 +275,18 @@ export class TaskStore {
     }
 
     this.#db.prepare(`UPDATE tasks SET ${sets.join(', ')} WHERE id = ?`).run(...params, id);
+  }
+
+  setPrCommentWatermark(id: string, watermark: string): void {
+    this.#db
+      .prepare("UPDATE tasks SET pr_comment_watermark = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(watermark, id);
+  }
+
+  setReviewFeedback(id: string, feedback: string | null): void {
+    this.#db
+      .prepare("UPDATE tasks SET review_feedback = ?, updated_at = datetime('now') WHERE id = ?")
+      .run(feedback, id);
   }
 
   // --- Transcript ---

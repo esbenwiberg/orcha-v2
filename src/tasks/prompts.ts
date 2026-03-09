@@ -169,6 +169,25 @@ When creating the PR, include a "## Preview" section in the description with:
 Leave the validation environment running — it will auto-stop after timeout.`;
   }
 
+  // Review feedback — when addressing PR review comments
+  if (task.reviewFeedback) {
+    prompt += `
+
+## Review Feedback to Address
+
+The following review comments were left on the PR. Address ALL of them:
+
+${task.reviewFeedback}
+
+## After Fixing
+
+1. Commit your fixes with a message like "fix: address review feedback"
+2. Push the branch (this auto-updates the PR)
+3. Post a comment on the PR summarizing what you fixed using:
+   \`gh pr comment ${task.prUrl?.match(/pull\/(\d+)/)?.[1] ?? ''} --body "your summary"\`
+   Start the comment with a clear summary of changes made.`;
+  }
+
   // Verification suffix (always included)
   prompt += `
 

@@ -81,6 +81,10 @@ export interface Task {
   prUrl: string | null;
   previewUrl: string | null;
 
+  // PR review
+  prCommentWatermark: string | null;
+  reviewFeedback: string | null;
+
   // Lifecycle
   createdAt: Date;
   updatedAt: Date;

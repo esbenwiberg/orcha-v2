@@ -90,6 +90,13 @@
         hx-confirm="Re-run execution? Investigation and enrichment results will be preserved."
       >Retry Execute</button>
     <% } %>
+    <% if ((it.task.status === 'done' || it.task.status === 'failed') && it.task.prUrl) { %>
+      <button class="btn btn-xs btn-accent"
+        hx-post="/api/tasks/<%= it.task.id %>/check-pr"
+        hx-target="#pr-review-<%= it.task.id %>"
+        hx-swap="innerHTML"
+      >Check PR</button>
+    <% } %>
     <% if (it.task.status !== 'done' && it.task.status !== 'cancelled' && it.task.status !== 'failed') { %>
       <button class="btn btn-xs btn-ghost text-red-400"
         hx-post="/api/tasks/<%= it.task.id %>/cancel"
@@ -249,6 +256,9 @@
     </div>
   </div>
   <% } %>
+
+  <!-- PR Review (populated by Check PR button) -->
+  <div id="pr-review-<%= it.task.id %>"></div>
 
   <!-- Error -->
   <% if (it.task.errorMessage) { %>
