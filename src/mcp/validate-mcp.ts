@@ -204,14 +204,16 @@ function buildMcpServer(
           },
         });
 
+        const proxyPath = `/validate/${sessionId}/`;
         return {
           content: [{
             type: 'text' as const,
             text: JSON.stringify({
               url: result.url,
+              proxyPath,
               port: result.port,
               status: result.status,
-              message: `Validation environment started. Access at ${result.url}`,
+              message: `Validation environment started. Internal: ${result.url} — Human preview: ${proxyPath} on the Orcha host.`,
             }),
           }],
         };
@@ -255,7 +257,7 @@ function buildMcpServer(
         };
       }
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ ...result, proxyPath: `/validate/${sessionId}/` }) }],
       };
     },
   );
