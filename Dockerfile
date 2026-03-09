@@ -26,10 +26,13 @@ FROM node:22-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git fuse3 ca-certificates curl gnupg libicu72 \
     python3 make g++ \
-    # Chromium runtime deps for Playwright
-    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
-    libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
-    libpango-1.0-0 libasound2 libxshmfence1 \
+    # Chromium runtime deps for Playwright (from `npx playwright install-deps chromium`)
+    libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libcairo2 \
+    libcups2 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 libnspr4 libnss3 \
+    libpango-1.0-0 libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 \
+    libxfixes3 libxkbcommon0 libxrandr2 libxshmfence1 \
+    # Fonts for Playwright screenshots (without these, pages render blank boxes)
+    fonts-liberation fonts-noto-color-emoji libfontconfig1 libfreetype6 \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
        -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
