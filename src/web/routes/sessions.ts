@@ -24,6 +24,8 @@ import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
 import { ensureSdksInstalled } from '../../sdk-installer.js';
 import { getStoragePaths } from '../../storage/paths.js';
+import { writeFeedConfigs } from '../../credentials/feed-config.js';
+import { loadFeedConfig } from './feeds.js';
 
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_-]+$/;
@@ -166,6 +168,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const sandbox = req.body['sandbox'] === '1';
       const skipPermissions = req.body['skipPermissions'] === '1';
       const webAccess = req.body['webAccess'] === '1';
+      const privateFeeds = req.body['privateFeeds'] === '1';
 
       // mcpServerIds comes as repeated checkbox values — ensure array
       const rawMcpIds = req.body['mcpServerIds'];
@@ -222,7 +225,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       if (errors.length > 0) {
         const modelConfigs = modelConfigStore.listConfigs();
         const mcpServers = mcpServerStore.listServers();
-        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess });
+        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess, privateFeeds });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
@@ -407,6 +410,17 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             }
           }
 
+          // Generate .npmrc + NuGet.Config for private Azure DevOps feeds
+          if (privateFeeds) {
+            const feedConfig = loadFeedConfig(globalSettingsStore);
+            if (feedConfig) {
+              writeFeedConfigs(sessionHome, feedConfig);
+              console.log(`[sessions] feed configs written sessionId=${sessionId} feeds=${feedConfig.feeds.join(',')}`);
+            } else {
+              console.warn(`[sessions] privateFeeds enabled but no feed config in settings sessionId=${sessionId}`);
+            }
+          }
+
           env['HOME'] = sessionHome;
           console.log(`[sessions] per-session HOME=${sessionHome} sessionId=${sessionId}`);
         } catch (err) {
@@ -449,6 +463,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         ...(modelConfig !== undefined ? { modelProvider: modelConfig.provider } : {}),
         ...(sourceBranch ? { sourceBranch } : {}),
         ...(mcpServerIds.length > 0 ? { mcpServerIds } : {}),
+        ...(privateFeeds ? { privateFeeds } : {}),
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;
@@ -803,6 +818,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             }
           }
 
+          // Restore .npmrc + NuGet.Config for private feeds
+          if (existing.config.privateFeeds) {
+            const feedConfig = loadFeedConfig(globalSettingsStore);
+            if (feedConfig) {
+              writeFeedConfigs(sessionHome, feedConfig);
+              console.log(`[sessions] feed configs rebuilt for reopen id=${id} feeds=${feedConfig.feeds.join(',')}`);
+            }
+          }
+
           console.log(`[sessions] rebuilt per-session HOME=${sessionHome} for reopen id=${id}`);
         } catch (err) {
           console.warn('[sessions] Failed to rebuild per-session home dir on reopen:', err);
@@ -877,6 +901,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         sandbox,
         skipPermissions,
         webAccess,
+        privateFeeds: source.config.privateFeeds ?? false,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

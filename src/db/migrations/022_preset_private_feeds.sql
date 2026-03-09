@@ -1,0 +1,1 @@
+ALTER TABLE presets ADD COLUMN private_feeds INTEGER NOT NULL DEFAULT 0;

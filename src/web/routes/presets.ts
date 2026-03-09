@@ -91,6 +91,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : ''
       ).trim();
       const webAccess = req.body['webAccess'] === '1';
+      const privateFeeds = req.body['privateFeeds'] === '1';
       const validateMode = (typeof req.body['validateMode'] === 'string' ? req.body['validateMode'] : '').trim();
       const validateBuild = (typeof req.body['validateBuild'] === 'string' ? req.body['validateBuild'] : '').trim();
       const validateStart = (typeof req.body['validateStart'] === 'string' ? req.body['validateStart'] : '').trim();
@@ -131,6 +132,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           validateStart,
           validateHealth,
           webAccess,
+          privateFeeds,
           validateComposeFile,
           validateTimeout,
           repos,
@@ -145,7 +147,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       store.createPreset({
-        name, repoId, credentialProfileId, modelConfigId, webAccess,
+        name, repoId, credentialProfileId, modelConfigId, webAccess, privateFeeds,
         ...(mcpServerIds.length > 0 ? { mcpServerIds } : {}),
         ...(validateMode ? { validateMode } : {}),
         ...(validateBuild ? { validateBuild } : {}),
@@ -188,6 +190,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         modelConfigId: preset.modelConfigId,
         mcpServerIds: preset.mcpServerIds,
         webAccess: preset.webAccess,
+        privateFeeds: preset.privateFeeds,
         validateMode: preset.validateMode ?? '',
         validateBuild: preset.validateBuild ?? '',
         validateStart: preset.validateStart ?? '',
@@ -226,6 +229,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
       const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
       const webAccess = req.body['webAccess'] === '1';
+      const privateFeeds = req.body['privateFeeds'] === '1';
 
       const rawMcpIds = req.body['mcpServerIds'];
       const mcpServerIds: string[] = Array.isArray(rawMcpIds)
@@ -255,6 +259,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           modelConfigId,
           mcpServerIds,
           webAccess,
+          privateFeeds,
           validateMode,
           validateBuild,
           validateStart,
@@ -273,7 +278,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       store.updatePreset(id, {
-        name, repoId, credentialProfileId, modelConfigId, webAccess,
+        name, repoId, credentialProfileId, modelConfigId, webAccess, privateFeeds,
         mcpServerIds,
         ...(validateMode ? { validateMode } : {}),
         ...(validateBuild ? { validateBuild } : {}),
@@ -339,6 +344,7 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         credentialProfileId: preset.credentialProfileId,
         modelConfigId: preset.modelConfigId,
         mcpServerIds: preset.mcpServerIds,
+        privateFeeds: preset.privateFeeds,
         repos,
         credentialProfiles,
         modelConfigs,

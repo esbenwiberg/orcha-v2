@@ -1,0 +1,29 @@
+<form hx-post="/api/feeds" hx-target="closest .page-section > div:last-child" hx-swap="innerHTML">
+  <% if (it.saved) { %>
+    <div class="badge badge-success mb-3">Saved</div>
+  <% } %>
+
+  <div class="form-group">
+    <label class="form-label" for="feed-org">DevOps Org</label>
+    <input class="form-input" id="feed-org" type="text" name="org" placeholder="https://dev.azure.com/myorg or myorg" value="<%= it.org %>" />
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="feed-project">Project</label>
+    <input class="form-input" id="feed-project" type="text" name="project" placeholder="myproject" value="<%= it.project %>" />
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="feed-pat">Packaging PAT</label>
+    <input class="form-input" id="feed-pat" type="password" name="pat" placeholder="Packaging-scoped PAT (vso.packaging)" value="<%= it.pat %>" />
+    <small class="form-hint">Long-lived PAT with <code class="font-mono">vso.packaging</code> (read) scope only</small>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="feed-names">Feed Names</label>
+    <input class="form-input" id="feed-names" type="text" name="feeds" placeholder="my-npm-feed, my-nuget-feed" value="<%= it.feeds %>" />
+    <small class="form-hint">Comma-separated Azure Artifacts feed names — generates <code class="font-mono">.npmrc</code> + <code class="font-mono">NuGet.Config</code> auth</small>
+  </div>
+
+  <button type="submit" class="btn btn-primary mt-1">Save</button>
+</form>

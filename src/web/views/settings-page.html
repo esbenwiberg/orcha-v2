@@ -96,6 +96,23 @@
   <div class="page-section">
     <div class="page-section__header">
       <div>
+        <h2 class="page-section__title">Private Feeds</h2>
+        <p class="page-section__subtitle">Azure DevOps Artifacts feeds — <code class="font-mono text-xs">.npmrc</code> + <code class="font-mono text-xs">NuGet.Config</code> injected when enabled per session</p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/feeds"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row mt-2"></div>
+    </div>
+  </div>
+
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
         <h2 class="page-section__title">Global SDKs</h2>
         <p class="page-section__subtitle">SDKs installed at container boot and available to all agent sessions</p>
       </div>

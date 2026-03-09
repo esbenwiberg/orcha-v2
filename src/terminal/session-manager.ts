@@ -37,6 +37,8 @@ export interface CreateSessionOptions {
   sourceBranch?: string;
   /** MCP server IDs selected for this session (from the registry). */
   mcpServerIds?: string[];
+  /** Whether private Azure DevOps feeds are enabled for this session. */
+  privateFeeds?: boolean;
   /** Pre-existing worktree to reuse (skips worktree creation). */
   existingWorktree?: WorktreeInfo;
 }
@@ -228,6 +230,7 @@ export class SessionManager {
           ...(opts.modelConfigId !== undefined ? { modelConfigId: opts.modelConfigId } : {}),
           ...(opts.modelProvider !== undefined ? { modelProvider: opts.modelProvider } : {}),
           ...(opts.mcpServerIds !== undefined && opts.mcpServerIds.length > 0 ? { mcpServerIds: opts.mcpServerIds } : {}),
+          ...(opts.privateFeeds ? { privateFeeds: true } : {}),
         },
         {
           worktreePath: worktree.path,

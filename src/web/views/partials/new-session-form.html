@@ -154,6 +154,21 @@
   </label>
 
   <label class="flex items-center gap-2.5 cursor-pointer select-none">
+    <input type="checkbox" name="privateFeeds" value="1" id="ns-private-feeds" class="sr-only"
+      <%= it.privateFeeds ? 'checked' : '' %>
+    />
+    <button type="button" role="switch"
+      class="toggle<%= it.privateFeeds ? ' active' : '' %>"
+      aria-checked="<%= it.privateFeeds ? 'true' : 'false' %>"
+      onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+    ><span class="toggle-knob"></span></button>
+    <span class="text-xs text-slate-300">
+      Private feeds
+      <span class="text-slate-500 ml-0.5">(Azure Artifacts .npmrc + NuGet)</span>
+    </span>
+  </label>
+
+  <label class="flex items-center gap-2.5 cursor-pointer select-none">
     <input type="checkbox" name="skipPermissions" value="1" id="ns-skip-permissions" class="sr-only"
       <%= it.skipPermissions ? 'checked' : '' %>
     />

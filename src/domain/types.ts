@@ -28,6 +28,7 @@ export interface SessionConfig {
   modelConfigId?: string;
   modelProvider?: string;
   mcpServerIds?: string[];
+  privateFeeds?: boolean;
 }
 
 export interface Session {

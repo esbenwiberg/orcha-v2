@@ -30,6 +30,7 @@ import { createSdksRouter } from './routes/sdks.js';
 import { createSkillsRouter } from './routes/skills.js';
 import { createAzLoginRouter } from './routes/az-login.js';
 import { createTasksRouter } from './routes/tasks.js';
+import { createFeedsRouter } from './routes/feeds.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
@@ -188,6 +189,9 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
 
   // Global SDKs settings router
   app.use('/api', createSdksRouter(eta, deps));
+
+  // Private feeds settings router
+  app.use('/api', createFeedsRouter(eta, deps.db));
 
   // Az login (session-scoped + host-scoped device code flow)
   app.use('/api', createAzLoginRouter(eta, deps));
