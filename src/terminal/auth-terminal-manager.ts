@@ -111,6 +111,21 @@ export class AuthTerminalManager {
     }
     writeFileSync(sessionSettings, JSON.stringify(baseSettings), 'utf8');
 
+    // Write .config.json to suppress all first-run prompts (onboarding, theme
+    // picker, project trust dialog) so the auth terminal can proceed straight
+    // to /login without needing carriage-return hacks to dismiss them.
+    const claudeConfig: Record<string, unknown> = {
+      hasCompletedOnboarding: true,
+      theme: 'dark',
+      projects: {
+        [cwd]: {
+          hasTrustDialogAccepted: true,
+          allowedTools: [],
+        },
+      },
+    };
+    writeFileSync(join(claudeDir, '.config.json'), JSON.stringify(claudeConfig), 'utf8');
+
     // Build env: inherit ambient vars but strip ANTHROPIC_API_KEY so claude
     // uses OAuth/Max-plan auth rather than API key auth.
     const spawnEnv: Record<string, string> = {};
@@ -143,21 +158,16 @@ export class AuthTerminalManager {
       bytesReceived += data.length;
       if (bytesReceived <= data.length) {
         console.log(`[auth-pty] first data token=${token.slice(0, 8)} bytes=${data.length}`);
-        // Claude is rendering — press Enter first (dismisses any first-run
-        // prompt, e.g. theme picker), then send /login after the UI settles.
+        // .config.json suppresses onboarding/theme/trust prompts, so we can
+        // send /login directly once the REPL is ready (no dismiss-enter needed).
         if (!loginSent) {
           loginSent = true;
-          // Step 1: dismiss any prompt (theme picker, etc.)
-          setTimeout(() => {
-            try { pty.write('\r'); } catch { /* may have exited */ }
-          }, 600);
-          // Step 2: send /login once the main REPL is ready
           setTimeout(() => {
             try {
               pty.write('/login\r');
               console.log(`[auth-pty] sent /login token=${token.slice(0, 8)}`);
             } catch { /* process may have exited */ }
-          }, 1800);
+          }, 1200);
         }
       }
       outputBuffer.push(data);
@@ -169,14 +179,9 @@ export class AuthTerminalManager {
       if (!loginSent) {
         loginSent = true;
         try {
-          pty.write('\r');
-        } catch { /* may have exited */ }
-        setTimeout(() => {
-          try {
-            pty.write('/login\r');
-            console.log(`[auth-pty] sent /login (fallback) token=${token.slice(0, 8)} bytesReceived=${bytesReceived}`);
-          } catch { /* process may have exited */ }
-        }, 1200);
+          pty.write('/login\r');
+          console.log(`[auth-pty] sent /login (fallback) token=${token.slice(0, 8)} bytesReceived=${bytesReceived}`);
+        } catch { /* process may have exited */ }
       }
     }, 5000);
 
