@@ -11,6 +11,63 @@
  *                    { type: 'error',  message: string }
  */
 
+/** Set of PR URLs already shown for the current session — avoids duplicate banners. */
+const _shownPrLinks = new Set();
+
+/**
+ * Strip ANSI escape sequences from terminal output so we can match plain-text URLs.
+ * @param {string} text
+ * @returns {string}
+ */
+function _stripAnsi(text) {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b\]8;[^;]*;[^\x1b]*\x1b\\/g, '');
+}
+
+/**
+ * Scan text for GitHub and Azure DevOps PR URLs.
+ * @param {string} text - Plain text (ANSI-stripped).
+ * @returns {string[]} Array of matched PR URLs.
+ */
+function _extractPrUrls(text) {
+  const pattern = /https:\/\/(?:github\.com\/[^\s"'<>)]+\/pull\/\d+|dev\.azure\.com\/[^\s"'<>)]+\/pullrequest\/\d+|[^\s"'<>)]+\.visualstudio\.com\/[^\s"'<>)]+\/pullrequest\/\d+)/g;
+  const matches = text.match(pattern);
+  return matches ? [...new Set(matches)] : [];
+}
+
+/**
+ * Show a dismissable PR link banner above the mobile terminal.
+ * @param {string} url - The PR URL.
+ */
+function _showMobilePrBanner(url) {
+  const frame = document.getElementById('terminal-frame');
+  if (!frame) return;
+
+  const isGitHub = url.includes('github.com');
+  const prNum = url.match(/\/pull\/(\d+)|\/pullrequest\/(\d+)/);
+  const num = prNum ? (prNum[1] || prNum[2]) : '';
+  const label = isGitHub ? `GitHub PR #${num}` : `Azure DevOps PR #${num}`;
+
+  const banner = document.createElement('div');
+  banner.className = 'pr-link-banner';
+  banner.innerHTML =
+    `<svg class="pr-link-banner__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">` +
+    `<circle cx="5" cy="3.5" r="2" /><circle cx="5" cy="12.5" r="2" /><circle cx="12" cy="5.5" r="2" /><path d="M5 5.5v5M10.2 5.8L7 10.5" />` +
+    `</svg>` +
+    `<a class="pr-link-banner__link" href="${url}" target="_blank" rel="noopener">${label}</a>` +
+    `<button class="pr-link-banner__dismiss" aria-label="Dismiss" onclick="this.parentElement.remove()">` +
+    `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">` +
+    `<path d="M2 2l10 10M12 2L2 12" /></svg></button>`;
+
+  // Insert before the xterm container
+  const xtermContainer = document.getElementById('xterm-container');
+  if (xtermContainer) {
+    xtermContainer.before(banner);
+  } else {
+    frame.prepend(banner);
+  }
+}
+
 /** Active mobile terminal state — only one terminal open at a time on mobile. */
 let _activeTerm = null;
 let _activeWs = null;
@@ -425,6 +482,16 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
         _lastOutputTime = Date.now();
         // Reset wake lock idle timer on terminal activity
         if (_wakeLock) _resetWakeLockIdleTimer();
+
+        // Scan for PR links in output
+        const plain = _stripAnsi(msg.data);
+        const urls = _extractPrUrls(plain);
+        for (const url of urls) {
+          if (!_shownPrLinks.has(url)) {
+            _shownPrLinks.add(url);
+            _showMobilePrBanner(url);
+          }
+        }
       }
     } catch {
       // Ignore unparseable messages.
@@ -752,6 +819,7 @@ function _disposeMobileTerminal() {
   _activeFitAddon = null;
   _baseWsUrl = null;
   _bootedFrame = null;
+  _shownPrLinks.clear();
 }
 
 /**
