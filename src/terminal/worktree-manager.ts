@@ -427,6 +427,22 @@ export class WorktreeManager {
         fs.rmSync(stagingPath, { recursive: true, force: true });
       }
     }
+    // Fast-forward the default branch's local ref (e.g. refs/heads/main) to
+    // match origin. Without this, worktrees see a stale `main` from clone-time
+    // when running `git diff main...HEAD` — making it look like 150+ commits
+    // diverged when there's really just 1.
+    try {
+      const defaultBranch = await this.getDefaultBranch(barePath);
+      if (defaultBranch) {
+        await this.execGit(
+          ['update-ref', `refs/heads/${defaultBranch}`, `refs/remotes/origin/${defaultBranch}`],
+          barePath,
+        );
+      }
+    } catch {
+      // Best-effort: may fail if the branch is checked out in a worktree
+    }
+
     this.fetchCache.set(barePath, Date.now());
   }
 
