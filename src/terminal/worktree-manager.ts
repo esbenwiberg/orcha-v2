@@ -63,6 +63,30 @@ function ensureFileModeDisabled(bareRepoPath: string): void {
   fs.writeFileSync(configPath, config, 'utf8');
 }
 
+/**
+ * Ensures a bare repo's config has push.autoSetupRemote = true.
+ * This lets `git push` in worktrees auto-create the upstream tracking branch,
+ * avoiding the "no upstream branch" error on first push of a new branch.
+ */
+function ensureAutoSetupRemote(bareRepoPath: string): void {
+  const configPath = path.join(bareRepoPath, 'config');
+  if (!fs.existsSync(configPath)) return;
+  let config = fs.readFileSync(configPath, 'utf8');
+  // Already set — nothing to do
+  if (/autoSetupRemote\s*=\s*true/i.test(config)) return;
+  // Replace existing false with true
+  if (/autoSetupRemote\s*=\s*false/i.test(config)) {
+    config = config.replace(/autoSetupRemote\s*=\s*false/i, 'autoSetupRemote = true');
+  } else if (/\[push\]/i.test(config)) {
+    // [push] section exists but no autoSetupRemote — add it
+    config = config.replace(/(\[push\])/i, '$1\n\tautoSetupRemote = true');
+  } else {
+    // No [push] section — append one
+    config += '\n[push]\n\tautoSetupRemote = true\n';
+  }
+  fs.writeFileSync(configPath, config, 'utf8');
+}
+
 export interface WorktreeInfo {
   id: string;
   path: string;
@@ -134,6 +158,59 @@ export class WorktreeManager {
         }
       });
     });
+  }
+
+  /**
+   * Creates a worktree that checks out an existing remote branch (no new local branch).
+   * Used for PR review sessions where we want to work directly on the PR branch.
+   */
+  async checkoutWorktree(sessionId: string, remoteBranch: string, repoRootOverride?: string): Promise<WorktreeInfo> {
+    WorktreeManager.assertNoInjection(sessionId, 'sessionId');
+    WorktreeManager.assertNoInjection(remoteBranch, 'remoteBranch');
+    const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
+    const cwd = repoRootOverride ?? undefined;
+
+    // Clean up stale state
+    if (fs.existsSync(worktreePath)) {
+      console.warn('[worktree] stale directory %s exists — removing before checkoutWorktree', worktreePath);
+      fs.rmSync(worktreePath, { recursive: true, force: true });
+      try {
+        await this.execGit(['worktree', 'prune'], cwd);
+      } catch { /* best-effort */ }
+    }
+
+    // Strip origin/ prefix if present for the local branch name
+    const localBranch = remoteBranch.replace(/^origin\//, '');
+    const trackingRef = remoteBranch.startsWith('origin/') ? remoteBranch : `origin/${remoteBranch}`;
+
+    // Check if local branch already exists
+    let branchExists = false;
+    try {
+      const raw = await this.execGit(['branch', '--list', '--no-color', localBranch], cwd);
+      branchExists = raw.trim().length > 0;
+    } catch { /* non-fatal */ }
+
+    if (branchExists) {
+      // Local branch exists — check it out directly
+      await this.execGit(['worktree', 'add', worktreePath, localBranch], cwd);
+      // Fast-forward to latest remote
+      try {
+        await this.execGit(['merge', '--ff-only', trackingRef], worktreePath);
+      } catch { /* non-fatal — may diverge, that's OK */ }
+    } else {
+      // Create local branch tracking remote
+      await this.execGit(['worktree', 'add', '-b', localBranch, worktreePath, trackingRef], cwd);
+    }
+
+    const commitShaRaw = await this.execGit(['rev-parse', 'HEAD'], worktreePath);
+    const commitSha = commitShaRaw.trim();
+    return {
+      id: sessionId,
+      path: worktreePath,
+      branch: localBranch,
+      commitSha,
+      createdAt: new Date(),
+    };
   }
 
   async addWorktree(sessionId: string, branch: string, repoRootOverride?: string, startPoint?: string): Promise<WorktreeInfo> {
@@ -407,8 +484,9 @@ export class WorktreeManager {
     const bareRepoPath = path.join(getStoragePaths().bareRepoDir, slug);
 
     if (fs.existsSync(path.join(bareRepoPath, 'HEAD'))) {
-      // Patch existing repos that were cloned before the fileMode fix
+      // Patch existing repos that were cloned before these config fixes
       ensureFileModeDisabled(bareRepoPath);
+      ensureAutoSetupRemote(bareRepoPath);
       return bareRepoPath;
     }
 
@@ -442,9 +520,10 @@ export class WorktreeManager {
         );
       });
 
-      // Set core.fileMode = false in the bare repo config while still on /tmp
-      // (before copying to Azure Files where chmod would fail).
+      // Patch bare repo config while still on /tmp (before copying to Azure
+      // Files where chmod would fail).
       ensureFileModeDisabled(stagingPath);
+      ensureAutoSetupRemote(stagingPath);
 
       // fs.promises.cp calls chmod internally which fails on Azure File Share.
       // Use a plain read/write recursive copy instead.

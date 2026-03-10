@@ -29,7 +29,40 @@ const openTerminals = new Map();
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 /** Active voice recognition state (only one can run at a time). */
-let voiceState = null; // { recognition, sessionId }
+let voiceState = null; // { recognition, sessionId, buffer, silenceTimer }
+
+/** How long to wait after last speech before auto-sending (ms). */
+const VOICE_SILENCE_TIMEOUT = 2000;
+
+/**
+ * Flush the voice buffer — send accumulated text to the terminal and reset.
+ */
+function _flushVoiceBuffer() {
+  if (!voiceState) return;
+  const { sessionId, buffer } = voiceState;
+  const text = buffer.trim();
+  if (text) {
+    const e = openTerminals.get(sessionId);
+    if (e && e.ws.readyState === WebSocket.OPEN) {
+      e.ws.send(JSON.stringify({ type: 'input', data: text }));
+    }
+  }
+  voiceState.buffer = '';
+  _setTranscript(sessionId, '');
+}
+
+/**
+ * Reset the silence auto-send timer.
+ */
+function _resetSilenceTimer() {
+  if (!voiceState) return;
+  if (voiceState.silenceTimer) clearTimeout(voiceState.silenceTimer);
+  voiceState.silenceTimer = setTimeout(() => {
+    if (!voiceState) return;
+    _flushVoiceBuffer();
+    voiceState.recognition.stop();
+  }, VOICE_SILENCE_TIMEOUT);
+}
 
 /**
  * Toggle voice input for a session terminal.
@@ -38,14 +71,18 @@ let voiceState = null; // { recognition, sessionId }
 function toggleVoice(sessionId) {
   if (!SpeechRecognition) return;
 
-  // If already recording for this session, stop
+  // If already recording for this session, stop and send buffer
   if (voiceState && voiceState.sessionId === sessionId) {
+    if (voiceState.silenceTimer) clearTimeout(voiceState.silenceTimer);
+    _flushVoiceBuffer();
     voiceState.recognition.stop();
     return;
   }
 
   // If recording for a different session, stop that first
   if (voiceState) {
+    if (voiceState.silenceTimer) clearTimeout(voiceState.silenceTimer);
+    _flushVoiceBuffer();
     voiceState.recognition.stop();
   }
 
@@ -57,7 +94,7 @@ function toggleVoice(sessionId) {
   recognition.interimResults = true;
   recognition.lang = navigator.language || 'en-US';
 
-  voiceState = { recognition, sessionId };
+  voiceState = { recognition, sessionId, buffer: '', silenceTimer: null };
   _setVoiceUI(sessionId, true);
 
   recognition.onresult = (event) => {
@@ -65,19 +102,15 @@ function toggleVoice(sessionId) {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const transcript = event.results[i][0].transcript;
       if (event.results[i].isFinal) {
-        // Send final text to terminal
-        const e = openTerminals.get(sessionId);
-        if (e && e.ws.readyState === WebSocket.OPEN) {
-          e.ws.send(JSON.stringify({ type: 'input', data: transcript }));
-        }
-        _setTranscript(sessionId, '');
+        voiceState.buffer += transcript;
       } else {
         interim += transcript;
       }
     }
-    if (interim) {
-      _setTranscript(sessionId, interim);
-    }
+    // Show buffer + current interim in the overlay
+    const display = (voiceState.buffer + ' ' + interim).trim();
+    _setTranscript(sessionId, display || '');
+    _resetSilenceTimer();
   };
 
   recognition.onerror = (event) => {
@@ -87,6 +120,10 @@ function toggleVoice(sessionId) {
   };
 
   recognition.onend = () => {
+    if (voiceState && voiceState.sessionId === sessionId) {
+      if (voiceState.silenceTimer) clearTimeout(voiceState.silenceTimer);
+      _flushVoiceBuffer();
+    }
     _setVoiceUI(sessionId, false);
     _setTranscript(sessionId, '');
     if (voiceState && voiceState.sessionId === sessionId) {
@@ -1146,6 +1183,8 @@ export function closeTerminal(sessionId) {
 
   // Stop voice recognition if active for this terminal
   if (voiceState && voiceState.sessionId === sessionId) {
+    if (voiceState.silenceTimer) clearTimeout(voiceState.silenceTimer);
+    _flushVoiceBuffer();
     voiceState.recognition.stop();
   }
 

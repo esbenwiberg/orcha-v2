@@ -26,6 +26,8 @@ import { ensureSdksInstalled } from '../../sdk-installer.js';
 import { getStoragePaths } from '../../storage/paths.js';
 import { writeFeedConfigs } from '../../credentials/feed-config.js';
 import { loadFeedConfig } from './feeds.js';
+import { parsePrUrl, fetchPrComments, formatPrReview } from '../../pr-review/index.js';
+import type { PrInfo } from '../../pr-review/index.js';
 
 /** Allowed characters for a git branch name (simplified). */
 const BRANCH_RE = /^[a-zA-Z0-9/_-]+$/;
@@ -159,11 +161,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   // POST /api/sessions — create session from HTMX form submission
   router.post('/sessions', async (req, res, next) => {
     try {
-      const repoId = (typeof req.body['repoId'] === 'string' ? req.body['repoId'] : '').trim();
-      const branch = (typeof req.body['branch'] === 'string' ? req.body['branch'] : '').trim();
-      const sourceBranch = (typeof req.body['sourceBranch'] === 'string' ? req.body['sourceBranch'] : '').trim();
+      let repoId = (typeof req.body['repoId'] === 'string' ? req.body['repoId'] : '').trim();
+      let branch = (typeof req.body['branch'] === 'string' ? req.body['branch'] : '').trim();
+      let sourceBranch = (typeof req.body['sourceBranch'] === 'string' ? req.body['sourceBranch'] : '').trim();
       const credentialProfileId = (typeof req.body['credentialProfileId'] === 'string' ? req.body['credentialProfileId'] : '').trim();
       const modelConfigId = (typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : '').trim();
+      const prUrl = (typeof req.body['prUrl'] === 'string' ? req.body['prUrl'] : '').trim();
       // Checkboxes: present = "1"
       const sandbox = req.body['sandbox'] === '1';
       const skipPermissions = req.body['skipPermissions'] === '1';
@@ -178,13 +181,43 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           ? [rawMcpIds]
           : [];
 
+      // PR review mode: if a PR URL is provided, parse it to resolve repo + branch
+      let prInfo: PrInfo | undefined;
+      const isPrMode = prUrl.length > 0;
+
+      if (isPrMode) {
+        try {
+          const parsed = parsePrUrl(prUrl);
+          // Auto-detect repo by matching owner/repo against registered repos
+          if (repoId.length === 0) {
+            const allRepos = repoStore.listRepos();
+            const matchStr = `${parsed.owner}/${parsed.repo}`.toLowerCase();
+            const matched = allRepos.find((r) => r.url.toLowerCase().includes(matchStr) && r.status === 'ready');
+            if (matched) {
+              repoId = matched.id;
+            }
+          }
+        } catch (err) {
+          // Invalid URL — will be caught in validation below
+          console.warn('[sessions] Failed to parse PR URL:', err);
+        }
+      }
+
       // Validate
       const errors: string[] = [];
       const repos = repoStore.listRepos();
       const credentialProfiles = credStore.listProfiles();
 
+      if (isPrMode && prUrl.length > 0) {
+        try {
+          parsePrUrl(prUrl);
+        } catch {
+          errors.push('Invalid PR URL. Supported: GitHub (github.com/.../pull/N) and Azure DevOps (dev.azure.com/...pullrequest/N).');
+        }
+      }
+
       if (repoId.length === 0) {
-        errors.push('A repository must be selected.');
+        errors.push(isPrMode ? 'Could not match PR URL to a registered repository. Select one manually.' : 'A repository must be selected.');
       } else {
         const repo = repoStore.getRepo(repoId);
         if (repo === undefined) {
@@ -194,10 +227,13 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
-      if (branch.length === 0) {
-        errors.push('Branch name is required.');
-      } else if (!BRANCH_RE.test(branch)) {
-        errors.push('Branch name may only contain letters, numbers, /, _ and -.');
+      // In PR mode, branch name is auto-derived — skip validation for it
+      if (!isPrMode) {
+        if (branch.length === 0) {
+          errors.push('Branch name is required.');
+        } else if (!BRANCH_RE.test(branch)) {
+          errors.push('Branch name may only contain letters, numbers, /, _ and -.');
+        }
       }
 
       if (modelConfigId.length === 0) {
@@ -207,7 +243,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       // Branch collision guard: check if a session already uses this branch on this repo
-      if (errors.length === 0 && branch.length > 0 && repoId.length > 0) {
+      // (skip for PR mode — branch is resolved later after fetching PR metadata)
+      if (!isPrMode && errors.length === 0 && branch.length > 0 && repoId.length > 0) {
         const repo = repoStore.getRepo(repoId);
         if (repo?.barePath) {
           const existing = store.findByBranchAndRepo(branch, repo.barePath);
@@ -225,7 +262,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       if (errors.length > 0) {
         const modelConfigs = modelConfigStore.listConfigs();
         const mcpServers = mcpServerStore.listServers();
-        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess, privateFeeds });
+        const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess, privateFeeds, prUrl });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(422).send(html);
@@ -381,7 +418,29 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
           // Inject merged CLAUDE.md (includes soul.md content inline so it's
           // auto-loaded by Claude Code — soul.md is not a natively recognised file)
-          const mergedClaudeMd = buildSessionClaudeMd(globalSettingsStore);
+          let mergedClaudeMd = buildSessionClaudeMd(globalSettingsStore);
+
+          // Append PR review instructions if in PR mode
+          if (isPrMode && prUrl) {
+            const prInstructions = [
+              '',
+              '# PR Review Session',
+              '',
+              'This session was opened to work on PR comments.',
+              `PR: ${prUrl}`,
+              '',
+              'A file with all PR comments has been written to `.orcha/pr-review.md` in the worktree.',
+              'Read that file first to understand what needs to be addressed.',
+              '',
+              'Work through each active comment systematically:',
+              '1. Read `.orcha/pr-review.md` to see all comments',
+              '2. For each unresolved comment, make the requested changes',
+              '3. If a comment is unclear, note your interpretation and proceed with the most reasonable fix',
+              '',
+            ].join('\n');
+            mergedClaudeMd = mergedClaudeMd ? `${mergedClaudeMd}\n${prInstructions}` : prInstructions;
+          }
+
           if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
 
           // Inject skills into ~/.claude/skills/<name>/SKILL.md
@@ -461,6 +520,70 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
+      // PR review mode: fetch PR metadata + comments, resolve branch, create worktree
+      let existingWorktree: import('../../terminal/worktree-manager.js').WorktreeInfo | undefined;
+      if (isPrMode) {
+        try {
+          // Fetch PR info (metadata + comments) using tokens from the session env
+          const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'] ?? process.env['GH_TOKEN'] ?? '';
+          const adoToken = env['AZURE_DEVOPS_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? '';
+          prInfo = await fetchPrComments({ prUrl, ghToken, adoToken });
+
+          // Use the PR's source branch
+          branch = prInfo.sourceBranch;
+          sourceBranch = `origin/${prInfo.sourceBranch}`;
+          console.log(`[sessions] PR review mode: branch=${branch} pr=${prInfo.title} comments=${prInfo.comments.length} sessionId=${sessionId}`);
+
+          // Check branch collision now that we know the branch name
+          if (repo.barePath) {
+            const existing = store.findByBranchAndRepo(branch, repo.barePath);
+            if (existing !== undefined) {
+              const isAlive = existing.status === 'running' || existing.status === 'starting' || existing.status === 'pending';
+              const msg = isAlive
+                ? `A session is already running on PR branch '${branch}' (session #${existing.displayId}).`
+                : `Session #${existing.displayId} already uses branch '${branch}'. Reopen it, or delete it to free the branch name.`;
+              const modelConfigs = modelConfigStore.listConfigs();
+              const mcpServers = mcpServerStore.listServers();
+              const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess, privateFeeds, prUrl });
+              const html = eta.render('partials/form-error', { errors: [msg], formHtml });
+              res.setHeader('Content-Type', 'text/html; charset=utf-8');
+              res.status(422).send(html);
+              return;
+            }
+          }
+
+          // Create worktree by checking out the existing PR branch
+          existingWorktree = await deps.worktreeManager.checkoutWorktree(sessionId, branch, repo.barePath ?? undefined);
+
+          // Write PR review file to worktree
+          const orchaDir = join(existingWorktree.path, '.orcha');
+          mkdirSync(orchaDir, { recursive: true });
+          writeFileSync(join(orchaDir, 'pr-review.md'), formatPrReview(prInfo), 'utf8');
+
+          // Ensure .orcha/ is gitignored
+          const gitignorePath = join(existingWorktree.path, '.gitignore');
+          try {
+            const existing = readFileSync(gitignorePath, 'utf8');
+            if (!existing.includes('.orcha/')) {
+              writeFileSync(gitignorePath, existing.trimEnd() + '\n.orcha/\n', 'utf8');
+            }
+          } catch {
+            writeFileSync(gitignorePath, '.orcha/\n', 'utf8');
+          }
+
+          console.log(`[sessions] PR review written to ${orchaDir}/pr-review.md sessionId=${sessionId}`);
+        } catch (err) {
+          console.error('[sessions] PR review setup failed:', err);
+          const modelConfigs = modelConfigStore.listConfigs();
+          const mcpServers = mcpServerStore.listServers();
+          const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess, privateFeeds, prUrl });
+          const html = eta.render('partials/form-error', { errors: [`PR review setup failed: ${String(err)}`], formHtml });
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.status(422).send(html);
+          return;
+        }
+      }
+
       // Create a real session with worktree + PTY via the session engine
       const claudeArgs = skipPermissions ? ['--dangerously-skip-permissions'] : [];
       const sessionHome = env['HOME'];
@@ -479,6 +602,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         ...(sourceBranch ? { sourceBranch } : {}),
         ...(mcpServerIds.length > 0 ? { mcpServerIds } : {}),
         ...(privateFeeds ? { privateFeeds } : {}),
+        ...(existingWorktree !== undefined ? { existingWorktree } : {}),
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;

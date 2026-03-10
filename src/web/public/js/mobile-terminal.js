@@ -31,6 +31,34 @@ const _SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogn
 
 /** Active voice recognition state. */
 let _voiceRecognition = null;
+let _voiceBuffer = '';
+let _voiceSilenceTimer = null;
+
+/** How long to wait after last speech before auto-sending (ms). */
+const _VOICE_SILENCE_TIMEOUT = 2000;
+
+/**
+ * Flush the mobile voice buffer — send accumulated text to the terminal.
+ */
+function _flushMobileVoiceBuffer() {
+  const text = _voiceBuffer.trim();
+  if (text && _activeWs && _activeWs.readyState === WebSocket.OPEN) {
+    _activeWs.send(JSON.stringify({ type: 'input', data: text }));
+  }
+  _voiceBuffer = '';
+  _setMobileTranscript('');
+}
+
+/**
+ * Reset the mobile silence auto-send timer.
+ */
+function _resetMobileSilenceTimer() {
+  if (_voiceSilenceTimer) clearTimeout(_voiceSilenceTimer);
+  _voiceSilenceTimer = setTimeout(() => {
+    _flushMobileVoiceBuffer();
+    if (_voiceRecognition) _voiceRecognition.stop();
+  }, _VOICE_SILENCE_TIMEOUT);
+}
 
 /**
  * Toggle voice input for the active mobile terminal.
@@ -39,6 +67,8 @@ function _toggleMobileVoice() {
   if (!_SpeechRecognition) return;
 
   if (_voiceRecognition) {
+    if (_voiceSilenceTimer) clearTimeout(_voiceSilenceTimer);
+    _flushMobileVoiceBuffer();
     _voiceRecognition.stop();
     return;
   }
@@ -51,6 +81,7 @@ function _toggleMobileVoice() {
   recognition.lang = navigator.language || 'en-US';
 
   _voiceRecognition = recognition;
+  _voiceBuffer = '';
   _setMobileVoiceUI(true);
 
   recognition.onresult = (event) => {
@@ -58,17 +89,15 @@ function _toggleMobileVoice() {
     for (let i = event.resultIndex; i < event.results.length; i++) {
       const transcript = event.results[i][0].transcript;
       if (event.results[i].isFinal) {
-        if (_activeWs && _activeWs.readyState === WebSocket.OPEN) {
-          _activeWs.send(JSON.stringify({ type: 'input', data: transcript }));
-        }
-        _setMobileTranscript('');
+        _voiceBuffer += transcript;
       } else {
         interim += transcript;
       }
     }
-    if (interim) {
-      _setMobileTranscript(interim);
-    }
+    // Show buffer + current interim in the overlay
+    const display = (_voiceBuffer + ' ' + interim).trim();
+    _setMobileTranscript(display || '');
+    _resetMobileSilenceTimer();
   };
 
   recognition.onerror = (event) => {
@@ -78,6 +107,8 @@ function _toggleMobileVoice() {
   };
 
   recognition.onend = () => {
+    if (_voiceSilenceTimer) clearTimeout(_voiceSilenceTimer);
+    _flushMobileVoiceBuffer();
     _setMobileVoiceUI(false);
     _setMobileTranscript('');
     _voiceRecognition = null;
@@ -701,6 +732,8 @@ function _stopAuthPolling() {
  */
 function _disposeMobileTerminal() {
   if (_voiceRecognition) {
+    if (_voiceSilenceTimer) clearTimeout(_voiceSilenceTimer);
+    _flushMobileVoiceBuffer();
     _voiceRecognition.stop();
   }
   _stopAuthPolling();
