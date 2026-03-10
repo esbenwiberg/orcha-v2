@@ -19,28 +19,36 @@
     min-width: 260px;
     max-width: 280px;
     flex-shrink: 0;
-    background: color-mix(in srgb, var(--color-surface) 60%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
-    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 12px;
     overflow: hidden;
+    box-shadow:
+      0 4px 6px -1px rgba(0, 0, 0, 0.2),
+      0 2px 4px -2px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 0 rgba(148, 163, 184, 0.04);
   }
 
   .kanban-column__header {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.625rem 0.75rem;
+    padding: 0.75rem 0.875rem;
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--color-text-muted);
-    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.06);
     user-select: none;
     position: sticky;
     top: 0;
     z-index: 1;
-    background: inherit;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   .kanban-column__header-title {
@@ -49,10 +57,11 @@
 
   .kanban-column__count {
     @apply text-[10px] font-mono rounded-full px-1.5 py-0.5;
-    background: color-mix(in srgb, var(--color-surface-raised) 60%, transparent);
+    background: rgba(51, 65, 85, 0.5);
     color: var(--color-text-muted);
     min-width: 20px;
     text-align: center;
+    border: 1px solid rgba(148, 163, 184, 0.06);
   }
 
   .kanban-column__collapse-btn {
@@ -70,7 +79,7 @@
 
   .kanban-column__collapse-btn:hover {
     color: var(--color-text);
-    background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+    background: rgba(51, 65, 85, 0.5);
   }
 
   .kanban-column__body {
@@ -88,8 +97,8 @@
     align-items: center;
     justify-content: center;
     min-height: 60px;
-    border: 1px dashed color-mix(in srgb, var(--color-border) 40%, transparent);
-    border-radius: 6px;
+    border: 1px dashed rgba(148, 163, 184, 0.1);
+    border-radius: 8px;
     color: var(--color-text-muted);
     font-size: 11px;
     opacity: 0.6;
@@ -105,13 +114,31 @@
     color: var(--color-accent-hover);
   }
 
-  /* Column top-border colors */
-  .kanban-column--inbox .kanban-column__header { border-top: 2px solid #64748b; }
-  .kanban-column--investigating .kanban-column__header { border-top: 2px solid #f59e0b; }
-  .kanban-column--review .kanban-column__header { border-top: 2px solid #f97316; }
-  .kanban-column--pipeline .kanban-column__header { border-top: 2px solid #3b82f6; }
-  .kanban-column--done .kanban-column__header { border-top: 2px solid #22c55e; }
-  .kanban-column--failed .kanban-column__header { border-top: 2px solid #ef4444; }
+  /* Column accent glow — gradient top border + subtle header tint */
+  .kanban-column--inbox .kanban-column__header {
+    border-top: 2px solid #64748b;
+    box-shadow: inset 0 8px 16px -8px rgba(100, 116, 139, 0.1);
+  }
+  .kanban-column--investigating .kanban-column__header {
+    border-top: 2px solid #f59e0b;
+    box-shadow: inset 0 8px 16px -8px rgba(245, 158, 11, 0.12);
+  }
+  .kanban-column--review .kanban-column__header {
+    border-top: 2px solid #f97316;
+    box-shadow: inset 0 8px 16px -8px rgba(249, 115, 22, 0.12);
+  }
+  .kanban-column--pipeline .kanban-column__header {
+    border-top: 2px solid #3b82f6;
+    box-shadow: inset 0 8px 16px -8px rgba(59, 130, 246, 0.12);
+  }
+  .kanban-column--done .kanban-column__header {
+    border-top: 2px solid #22c55e;
+    box-shadow: inset 0 8px 16px -8px rgba(34, 197, 94, 0.12);
+  }
+  .kanban-column--failed .kanban-column__header {
+    border-top: 2px solid #ef4444;
+    box-shadow: inset 0 8px 16px -8px rgba(239, 68, 68, 0.12);
+  }
 
   /* Collapsed column */
   .kanban-column--collapsed .kanban-column__body {
@@ -124,24 +151,37 @@
 
   /* Drag-and-drop states */
   .kanban-column--drag-over {
-    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
-    border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+    background: rgba(37, 99, 235, 0.08);
+    border-color: rgba(59, 130, 246, 0.2);
+    box-shadow:
+      0 0 20px -4px rgba(59, 130, 246, 0.15),
+      inset 0 1px 0 0 rgba(59, 130, 246, 0.06);
   }
 
   /* ===================================================================
-     Kanban Card
+     Kanban Card — Glass treatment
      =================================================================== */
 
   .kanban-card {
-    @apply rounded-lg border border-slate-700/50 text-xs cursor-pointer transition-all;
-    background: var(--color-bg);
+    @apply rounded-lg text-xs cursor-pointer;
+    background: rgba(30, 41, 59, 0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(148, 163, 184, 0.08);
     padding: 0.625rem 0.75rem;
+    box-shadow:
+      0 2px 4px -1px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 0 rgba(148, 163, 184, 0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
 
   .kanban-card:hover {
-    border-color: color-mix(in srgb, var(--color-border) 80%, white);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    border-color: rgba(148, 163, 184, 0.15);
+    transform: translateY(-2px);
+    box-shadow:
+      0 8px 16px -4px rgba(0, 0, 0, 0.3),
+      0 4px 6px -2px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 0 rgba(148, 163, 184, 0.06);
   }
 
   .kanban-card__header {
@@ -174,7 +214,7 @@
 
   .kanban-card__menu-btn:hover {
     color: var(--color-text);
-    background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+    background: rgba(51, 65, 85, 0.6);
   }
 
   .kanban-card__title {
@@ -225,12 +265,15 @@
     display: flex;
     align-items: center;
     gap: 0.375rem;
-    background: color-mix(in srgb, var(--color-surface-raised) 40%, transparent);
+    background: rgba(51, 65, 85, 0.3);
     color: var(--color-text-muted);
+    border: 1px solid rgba(148, 163, 184, 0.04);
   }
 
   .kanban-card__activity--working {
     color: #f59e0b;
+    background: rgba(245, 158, 11, 0.06);
+    border-color: rgba(245, 158, 11, 0.1);
   }
 
   .kanban-card__activity--queued {
@@ -240,6 +283,8 @@
 
   .kanban-card__activity--review {
     color: #3b82f6;
+    background: rgba(59, 130, 246, 0.06);
+    border-color: rgba(59, 130, 246, 0.1);
   }
 
   .kanban-card__activity-dot {
@@ -266,7 +311,9 @@
   }
 
   .sortable-chosen {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(59, 130, 246, 0.2);
   }
 
   .sortable-drag {
@@ -278,8 +325,8 @@
   }
 
   @keyframes invalid-drop {
-    0%, 100% { border-color: color-mix(in srgb, var(--color-border) 50%, transparent); }
-    50% { border-color: #ef4444; }
+    0%, 100% { border-color: rgba(148, 163, 184, 0.08); }
+    50% { border-color: rgba(239, 68, 68, 0.5); }
   }
 
   /* Card enter/exit animations for SSE */
@@ -302,25 +349,28 @@
   }
 
   /* ===================================================================
-     View Toggle
+     View Toggle — Glass
      =================================================================== */
 
   .view-toggle {
     display: inline-flex;
-    background: color-mix(in srgb, var(--color-surface) 80%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
-    border-radius: 6px;
-    padding: 2px;
+    background: rgba(30, 41, 59, 0.5);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 8px;
+    padding: 3px;
     gap: 2px;
+    box-shadow: inset 0 1px 0 0 rgba(148, 163, 184, 0.03);
   }
 
   .view-toggle__btn {
-    @apply text-xs font-medium px-3 py-1.5 rounded;
+    @apply text-xs font-medium px-3 py-1.5 rounded-md;
     background: none;
     border: none;
     color: var(--color-text-muted);
     cursor: pointer;
-    transition: color 0.15s, background 0.15s;
+    transition: color 0.15s, background 0.15s, box-shadow 0.15s;
     display: flex;
     align-items: center;
     gap: 0.375rem;
@@ -331,12 +381,15 @@
   }
 
   .view-toggle__btn--active {
-    background: var(--color-surface-raised);
+    background: rgba(51, 65, 85, 0.6);
     color: var(--color-text-primary);
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 0 rgba(148, 163, 184, 0.05);
   }
 
   /* ===================================================================
-     Modal
+     Modal — Glass treatment
      =================================================================== */
 
   .modal-overlay {
@@ -351,7 +404,8 @@
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease-out;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
   }
 
   .modal-overlay.is-open {
@@ -360,15 +414,21 @@
   }
 
   .modal-panel {
-    background: var(--color-bg);
-    border: 1px solid var(--color-border);
-    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 16px;
     width: 100%;
     max-width: 720px;
     max-height: 85vh;
     overflow-y: auto;
     transform: scale(0.96);
     transition: transform 0.2s ease-out;
+    box-shadow:
+      0 24px 48px -12px rgba(0, 0, 0, 0.5),
+      0 12px 24px -8px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 0 rgba(148, 163, 184, 0.06);
   }
 
   .modal-overlay.is-open .modal-panel {
@@ -382,9 +442,11 @@
     padding: 1.25rem 1.5rem 0.75rem;
     position: sticky;
     top: 0;
-    background: var(--color-bg);
+    background: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     z-index: 1;
-    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 50%, transparent);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.08);
   }
 
   .modal-panel__close {
@@ -393,14 +455,14 @@
     cursor: pointer;
     color: var(--color-text-muted);
     padding: 4px;
-    border-radius: 4px;
+    border-radius: 6px;
     transition: color 0.15s, background 0.15s;
     flex-shrink: 0;
   }
 
   .modal-panel__close:hover {
     color: var(--color-text);
-    background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+    background: rgba(51, 65, 85, 0.5);
   }
 
   .modal-panel__body {
@@ -408,7 +470,7 @@
   }
 
   /* ===================================================================
-     Card context menu (overflow ...)
+     Card context menu — Glass
      =================================================================== */
 
   .kanban-card__menu {
@@ -416,12 +478,16 @@
     right: 0;
     top: 100%;
     z-index: 20;
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 6px;
+    background: rgba(30, 41, 59, 0.9);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 8px;
     padding: 4px;
     min-width: 120px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 0 rgba(148, 163, 184, 0.05);
     display: none;
   }
 
@@ -439,7 +505,7 @@
   }
 
   .kanban-card__menu-item:hover {
-    background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+    background: rgba(51, 65, 85, 0.5);
     color: var(--color-text-primary);
   }
 
