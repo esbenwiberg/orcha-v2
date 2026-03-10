@@ -22,6 +22,7 @@ import type { Task } from '../domain/task-types.js';
 import { investigate } from './investigate.js';
 import { enrich } from './enrich.js';
 import { execute, waitForSessionExit, extractPrUrl, extractPreviewUrl } from './execute.js';
+import { resolveOrchaHost } from '../host-url.js';
 import { eventBus } from '../web/services/event-bus.js';
 
 export interface TaskProcessorDeps {
@@ -54,7 +55,7 @@ export class TaskProcessor {
   #worktreeManager: WorktreeManager;
   #db: Database.Database;
   #interval: ReturnType<typeof setInterval> | undefined;
-  #processing = false;
+  #activeTasks = new Set<string>();
 
   constructor(deps: TaskProcessorDeps) {
     this.#db = deps.db;
@@ -117,14 +118,25 @@ export class TaskProcessor {
   }
 
   async tick(): Promise<void> {
-    if (this.#processing) return;
-    this.#processing = true;
+    const max = this.#getMaxConcurrent();
+
+    // Pick up tasks until we hit the concurrent limit
+    while (this.#activeTasks.size < max) {
+      const excludeIds = [...this.#activeTasks];
+      const task = this.#taskStore.getNextActionable(excludeIds.length > 0 ? excludeIds : undefined);
+      if (!task) break;
+
+      this.#activeTasks.add(task.id);
+      console.log('[task-processor] picked up TASK-%d (%s) status=%s [%d/%d active]',
+        task.displayId, task.id.slice(0, 8), task.status, this.#activeTasks.size, max);
+
+      // Fire-and-forget — each task runs independently
+      void this.#processTask(task);
+    }
+  }
+
+  async #processTask(task: Task): Promise<void> {
     try {
-      const task = this.#taskStore.getNextActionable();
-      if (!task) return;
-
-      console.log('[task-processor] picked up TASK-%d (%s) status=%s', task.displayId, task.id.slice(0, 8), task.status);
-
       switch (task.status) {
         case 'investigating':
           await this.#runInvestigation(task);
@@ -139,8 +151,16 @@ export class TaskProcessor {
     } catch (err) {
       console.error('[task-processor] tick error:', err);
     } finally {
-      this.#processing = false;
+      this.#activeTasks.delete(task.id);
     }
+  }
+
+  /** Read max concurrent tasks from settings (default 1, capped at 10). */
+  #getMaxConcurrent(): number {
+    const raw = this.#globalSettingsStore.get('max_concurrent_tasks');
+    if (!raw) return 1;
+    const val = parseInt(raw, 10);
+    return Number.isFinite(val) && val >= 1 ? Math.min(val, 10) : 1;
   }
 
   async #runInvestigation(task: Task): Promise<void> {
@@ -227,6 +247,7 @@ export class TaskProcessor {
       this.#taskStore.transition(task.id, 'executing', 'Starting execution session');
       this.#publishStatus(task.id, 'executing');
 
+      const orchaHost = resolveOrchaHost();
       const session = await execute({
         task,
         taskStore: this.#taskStore,
@@ -240,6 +261,7 @@ export class TaskProcessor {
         ...(deleteEnv.length > 0 ? { deleteEnv } : {}),
         ...(homeDir !== undefined ? { homeDir } : {}),
         ...(modelProvider !== undefined ? { modelProvider } : {}),
+        orchaHost,
       });
 
       console.log('[task-processor] TASK-%d execution session created: sessionId=%s',

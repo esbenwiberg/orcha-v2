@@ -187,8 +187,25 @@ export class TaskStore {
     this.#db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
   }
 
-  /** Get the oldest actionable task (investigating without results, enriching, or queued). */
-  getNextActionable(): Task | undefined {
+  /** Get the oldest actionable task (investigating without results, enriching, or queued).
+   *  Optionally exclude task IDs that are already being processed. */
+  getNextActionable(excludeIds?: readonly string[]): Task | undefined {
+    if (excludeIds && excludeIds.length > 0) {
+      const placeholders = excludeIds.map(() => '?').join(', ');
+      const row = this.#db
+        .prepare(
+          `SELECT * FROM tasks
+           WHERE ((status = 'investigating' AND investigation_result IS NULL)
+              OR status IN ('enriching', 'queued'))
+             AND id NOT IN (${placeholders})
+           ORDER BY created_at ASC
+           LIMIT 1`,
+        )
+        .get(...excludeIds) as Record<string, unknown> | undefined;
+      if (row === undefined) return undefined;
+      return this.#rowToTask(row);
+    }
+
     const row = this.#db
       .prepare(
         `SELECT * FROM tasks

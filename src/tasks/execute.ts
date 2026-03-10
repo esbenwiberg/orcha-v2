@@ -26,6 +26,8 @@ export interface ExecuteContext {
   modelProvider?: string;
   /** Pre-generated session ID (must match the ID used in MCP URL setup). */
   sessionId?: string;
+  /** External Orcha host URL (e.g. https://orcha.example.com) for PR links. */
+  orchaHost?: string;
 }
 
 /** Slugify a task title into a git branch name. */
@@ -50,7 +52,9 @@ export async function execute(ctx: ExecuteContext): Promise<ActiveSession> {
   }
 
   const branch = task.branch || slugifyBranch(task.title);
-  const prompt = buildExecutionPrompt(task);
+  const prompt = buildExecutionPrompt(task, {
+    ...(ctx.orchaHost !== undefined ? { orchaHost: ctx.orchaHost } : {}),
+  });
 
   // Build claude args: non-interactive with the prompt
   const args = [
@@ -159,10 +163,15 @@ export function extractPrUrl(session: ActiveSession): string | null {
 
 /**
  * Try to extract a preview URL from the session's terminal output buffer.
- * Looks for validate_start preview URLs.
+ * Looks for validate_start preview URLs — either full ORCHA_HOST-based URLs
+ * (e.g. https://orcha.example.com/validate/{id}/) or relative /validate/ paths.
  */
 export function extractPreviewUrl(session: ActiveSession): string | null {
   const output = session.outputBuffer.snapshot().toString('utf8');
-  const match = output.match(/https?:\/\/[^\s]*validate[^\s]*/i);
-  return match ? match[0] : null;
+  // Full URL with /validate/ path (ORCHA_HOST is set)
+  const fullMatch = output.match(/https?:\/\/[^\s"]*\/validate\/[0-9a-f-]+\//i);
+  if (fullMatch) return fullMatch[0];
+  // Relative /validate/ path (fallback when ORCHA_HOST is not set)
+  const relMatch = output.match(/\/validate\/[0-9a-f-]+\//);
+  return relMatch ? relMatch[0] : null;
 }

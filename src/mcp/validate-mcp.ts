@@ -7,6 +7,7 @@ import { RepoStore } from '../db/repo-store.js';
 import { PresetStore } from '../db/preset-store.js';
 import { SessionStore } from '../db/session-store.js';
 import { ValidationManager } from '../validation/validation-manager.js';
+import { resolveOrchaHost } from '../host-url.js';
 
 /**
  * Create an Express router that serves MCP over Streamable HTTP for validation tools.
@@ -205,15 +206,17 @@ function buildMcpServer(
         });
 
         const proxyPath = `/validate/${sessionId}/`;
+        const orchaHost = resolveOrchaHost();
+        const previewUrl = `${orchaHost}${proxyPath}`;
         return {
           content: [{
             type: 'text' as const,
             text: JSON.stringify({
               url: result.url,
-              proxyPath,
+              previewUrl,
               port: result.port,
               status: result.status,
-              message: `Validation environment started. Internal: ${result.url} — Human preview: ${proxyPath} on the Orcha host.`,
+              message: `Validation environment started. Preview: ${previewUrl}`,
             }),
           }],
         };
@@ -257,7 +260,7 @@ function buildMcpServer(
         };
       }
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ ...result, proxyPath: `/validate/${sessionId}/` }) }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ ...result, previewUrl: `${resolveOrchaHost()}/validate/${sessionId}/` }) }],
       };
     },
   );

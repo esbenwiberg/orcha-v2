@@ -1,0 +1,26 @@
+<div id="task-settings-panel">
+  <form
+    hx-post="/api/task-settings/max-concurrent"
+    hx-target="#task-settings-panel"
+    hx-swap="outerHTML"
+    class="flex gap-3 items-end"
+  >
+    <div class="flex flex-col gap-1">
+      <label class="text-xs text-muted" for="maxConcurrent">Max concurrent tasks</label>
+      <input
+        type="number"
+        id="maxConcurrent"
+        name="maxConcurrent"
+        value="<%= it.maxConcurrent %>"
+        min="1"
+        max="<%= it.absoluteMax %>"
+        class="form-input text-sm w-20"
+      />
+    </div>
+    <button type="submit" class="btn btn-xs btn-primary">Save</button>
+  </form>
+  <small class="text-xs text-muted block mt-2">
+    How many tasks the pipeline processes simultaneously. Each task spawns its own agent session and worktree.
+    Higher values use more CPU, memory, and API quota. Default is 1.
+  </small>
+</div>

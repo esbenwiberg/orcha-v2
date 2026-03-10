@@ -103,7 +103,8 @@ JSON schema:
 REMEMBER: Your final message must be ONLY the JSON object above. Do not write any analysis text — put all your analysis INSIDE the JSON fields.`;
 }
 
-export function buildExecutionPrompt(task: Task): string {
+export function buildExecutionPrompt(task: Task, opts?: { orchaHost?: string }): string {
+  const orchaHost = opts?.orchaHost;
   const description = task.enrichedDescription ?? task.description;
 
   let prompt = `## Task
@@ -182,6 +183,11 @@ ${task.reviewFeedback}
    \`gh pr comment ${task.prUrl?.match(/pull\/(\d+)/)?.[1] ?? ''} --body "your summary"\`
    Start the comment with a clear summary of changes made.`;
   } else {
+    const prFooterParts: string[] = [];
+    if (orchaHost) {
+      prFooterParts.push(`[TASK-${task.displayId}](${orchaHost}/tasks)`);
+    }
+
     prompt += `
 
 ## Pull Request
@@ -193,7 +199,8 @@ After completing the implementation${task.selfValidate ? ' and validation' : ''}
    - A concise title summarizing the change
    - A description that explains what was done and why
    - Reference the acceptance criteria in the PR body${task.selfValidate ? `
-   - Include a "## Preview" section with the preview URL from validate_start and any validation findings` : ''}`;
+   - Include a "## Preview" section with the \`previewUrl\` returned by validate_start` : ''}${prFooterParts.length > 0 ? `
+   - Add a footer line: "🤖 ${prFooterParts.join(' · ')}"` : ''}`;
   }
 
   return prompt;

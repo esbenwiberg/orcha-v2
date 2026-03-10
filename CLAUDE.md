@@ -104,6 +104,7 @@ src/
 | `ORCHA_DATA_DIR` | `/data` | Persistent data directory |
 | `SANDBOX_MODE` | `none` | `none` / `landlock` |
 | `NODE_ENV` | `production` | |
+| `ORCHA_HOST` | _(auto)_ | External host URL override. Auto-inferred from `OIDC_REDIRECT_URI` or `localhost:PORT`. Used for preview URLs in PRs and task links. |
 
 ## Local Development
 

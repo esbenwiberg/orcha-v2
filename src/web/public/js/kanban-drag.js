@@ -4,9 +4,10 @@
  * Valid transitions map (column-level):
  *   inbox → investigating, pipeline
  *   review → inbox, pipeline
+ *   done → inbox, pipeline
  *   failed → inbox, pipeline, done
  *
- * Investigating, Pipeline, Done columns do not accept manual drops.
+ * Pipeline column does not accept manual drops.
  */
 
 (function () {
@@ -16,6 +17,7 @@
     inbox: ['investigating', 'pipeline'],
     investigating: ['review', 'pipeline'],
     review: ['inbox', 'pipeline'],
+    done: ['inbox', 'pipeline'],
     failed: ['inbox', 'pipeline', 'done'],
   };
 
@@ -27,6 +29,8 @@
     'investigating->pipeline': { url: '/api/tasks/{id}/force-queue', method: 'POST' },
     'review->inbox': { url: '/api/tasks/{id}/retry', method: 'POST' },
     'review->pipeline': { url: '/api/tasks/{id}/force-queue', method: 'POST' },
+    'done->inbox': { url: '/api/tasks/{id}/retry', method: 'POST' },
+    'done->pipeline': { url: '/api/tasks/{id}/retry-execute', method: 'POST' },
     'failed->inbox': { url: '/api/tasks/{id}/retry', method: 'POST' },
     'failed->pipeline': { url: '/api/tasks/{id}/retry-execute', method: 'POST' },
     'failed->done': { url: '/api/tasks/{id}/mark-done', method: 'POST' },

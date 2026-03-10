@@ -149,7 +149,7 @@ export const TASK_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   enriching: ['queued', 'failed', 'cancelled'],
   queued: ['executing', 'cancelled'],
   executing: ['done', 'failed', 'cancelled'],
-  done: ['queued'],
+  done: ['draft', 'queued'],
   failed: ['draft', 'queued', 'done', 'cancelled'],
   cancelled: ['draft'],
 };
