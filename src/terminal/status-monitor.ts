@@ -78,7 +78,7 @@ export class StatusMonitor extends EventEmitter {
       this._setStatus(sessionId, 'idle');
     }, this._idleTimeoutMs);
 
-    if (CLAUDE_PATTERNS.NEEDS_CONFIRMATION.test(text)) {
+    if (CLAUDE_PATTERNS.NEEDS_CONFIRMATION.test(text) || CLAUDE_PATTERNS.NEEDS_PERMISSION.test(text)) {
       this._setStatus(sessionId, 'needs-input');
       const needsInputEvent: StatusEvent & { type: 'needs-input' } = {
         type: 'needs-input',

@@ -11,6 +11,7 @@ import { SessionStore } from '@orcha/db';
 import { CredentialStore } from '../db/credential-store.js';
 import { ModelConfigStore } from '../db/model-config-store.js';
 import { credentialManager } from '../credentials/credential-manager.js';
+import type { StatusMonitor } from './status-monitor.js';
 import type { ValidationManager } from '../validation/validation-manager.js';
 
 export interface CreateSessionOptions {
@@ -103,6 +104,7 @@ export class SessionManager {
   private _debugShells: Map<string, DebugShell> = new Map();
 
   private _validationManager?: ValidationManager;
+  private _statusMonitor?: StatusMonitor;
 
   constructor(
     private readonly _worktreeManager: WorktreeManager,
@@ -112,6 +114,10 @@ export class SessionManager {
     private readonly _instanceId: string = 'local',
     private readonly _modelConfigStore?: ModelConfigStore,
   ) {}
+
+  setStatusMonitor(monitor: StatusMonitor): void {
+    this._statusMonitor = monitor;
+  }
 
   setValidationManager(vm: ValidationManager): void {
     this._validationManager = vm;
@@ -275,7 +281,10 @@ export class SessionManager {
 
     this._active.set(sessionId, activeSession);
 
-    // Step 6: Attach exit handler
+    // Step 6: Attach status monitor (if available)
+    this._statusMonitor?.watch(sessionId, terminal);
+
+    // Step 7: Attach exit handler
     terminal.on('exit', (code: number) => {
       void this._handleExit(sessionId, code);
     });
@@ -285,6 +294,7 @@ export class SessionManager {
 
   private async _handleExit(sessionId: string, exitCode: number): Promise<void> {
     console.log(`[session] exit sessionId=${sessionId} exitCode=${exitCode}`);
+    this._statusMonitor?.unwatch(sessionId);
     const session = this._active.get(sessionId);
     // Keep session accessible for 5 min after exit so a WS that connects late
     // can still read the output buffer (e.g. sandbox failing immediately).
@@ -500,6 +510,8 @@ export class SessionManager {
     };
 
     this._active.set(sessionId, activeSession);
+
+    this._statusMonitor?.watch(sessionId, terminal);
 
     terminal.on('exit', (code: number) => {
       void this._handleExit(sessionId, code);

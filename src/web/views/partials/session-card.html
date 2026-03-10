@@ -7,7 +7,7 @@
   <div class="session-card__header">
     <span class="card__meta"><%= it.repoName %> / <%= it.branch %></span>
     <div class="session-card__header-right">
-      <% const _bm = { pending:'badge-neutral', starting:'badge-warning badge-dot badge-pulse', running:'badge-success badge-dot badge-pulse', paused:'badge-accent', completed:'badge-success', failed:'badge-error', cancelled:'badge-neutral' }; %><span class="badge <%= _bm[it.status] || 'badge-neutral' %>" id="badge-<%= it.id %>" sse-swap="session-status-<%= it.id %>" hx-swap="outerHTML"><%= it.status %></span>
+      <% const _bm = { pending:'badge-neutral', starting:'badge-warning badge-dot badge-pulse', running:'badge-success badge-dot badge-pulse', paused:'badge-accent', completed:'badge-success', failed:'badge-error', cancelled:'badge-neutral', 'needs-input':'badge-purple badge-dot badge-pulse' }; const _labels = { 'needs-input': 'human needed' }; %><span class="badge <%= _bm[it.status] || 'badge-neutral' %>" id="badge-<%= it.id %>" sse-swap="session-status-<%= it.id %>" hx-swap="outerHTML"><%= _labels[it.status] || it.status %></span>
       <div class="session-card__term-actions">
         <button class="terminal-header__btn" title="Files"
           hx-get="/api/sessions/<%= it.id %>/file-browser"

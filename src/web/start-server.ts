@@ -18,8 +18,23 @@ import { getStoragePaths } from '../storage/paths.js';
 import { GlobalSettingsStore } from '../db/global-settings-store.js';
 import { installEnabledSdks } from '../sdk-installer.js';
 import { TaskProcessor } from '../tasks/task-processor.js';
+import { StatusMonitor } from '../terminal/status-monitor.js';
+import { eventBus } from './services/event-bus.js';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
+
+// --- Global crash safety net ---
+// Without these handlers, any uncaught error (e.g. native node-pty EBADF)
+// crashes the process silently. Log the error so we have visibility, then
+// let the container restart cleanly.
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] uncaughtException — process will exit:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] unhandledRejection — process will exit:', reason);
+  process.exit(1);
+});
 
 await emitStartupDiagnostics();
 
@@ -124,6 +139,19 @@ const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionSto
 
 const validationManager = new ValidationManager();
 sessionEngine.setValidationManager(validationManager);
+
+// Wire terminal status monitor → SSE badge updates
+const statusMonitor = new StatusMonitor();
+sessionEngine.setStatusMonitor(statusMonitor);
+statusMonitor.on('status-change', (e) => {
+  // When the monitor detects the agent needs human input, push a badge update.
+  // When activity resumes, push the badge back to "running".
+  if (e.status === 'needs-input' || e.status === 'idle') {
+    eventBus.publish({ type: 'status', sessionId: e.sessionId, status: 'needs-input' });
+  } else if (e.prevStatus === 'needs-input' || e.prevStatus === 'idle') {
+    eventBus.publish({ type: 'status', sessionId: e.sessionId, status: 'running' });
+  }
+});
 
 const authConfig = loadAuthConfig();
 const authTerminalManager = new AuthTerminalManager();
