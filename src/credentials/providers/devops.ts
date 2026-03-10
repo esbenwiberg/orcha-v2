@@ -74,8 +74,11 @@ export class DevOpsProvider {
     const expiryDate = new Date();
     expiryDate.setHours(expiryDate.getHours() + profile.durationHours);
 
+    const url = `${vsspsUrl}/_apis/tokens/pats?api-version=7.1-preview.1`;
+    console.log(`[devops] provision: url=${url} org=${orgName} tokenPrefix=${token.slice(0, 8)} scopes=${profile.scopes.join(' ')}`);
+
     const resp = await fetch(
-      `${vsspsUrl}/_apis/tokens/pats?api-version=7.1-preview.1`,
+      url,
       {
         method: 'POST',
         headers: {
@@ -94,8 +97,10 @@ export class DevOpsProvider {
     );
 
     if (!resp.ok) {
+      const body = await resp.text();
+      console.error(`[devops] provision failed: status=${resp.status} body=${body.slice(0, 300)}`);
       throw new Error(
-        `Failed to create DevOps PAT: ${resp.status} ${await resp.text()}`,
+        `Failed to create DevOps PAT: ${resp.status} ${body}`,
       );
     }
 

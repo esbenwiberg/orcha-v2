@@ -52,6 +52,7 @@
   </table>
   <small class="text-xs text-muted block mt-2">
     The DevOps bootstrap PAT is used to provision short-lived session tokens. It is stored encrypted and shared across all credential profiles.
+    Required scopes: <strong>Token Administration</strong> (read &amp; manage) and <strong>User Profile</strong> (read).
     You can also set it via the <code class="font-mono">DEVOPS_BOOTSTRAP_PAT</code> environment variable.
     GitHub PATs are configured per credential profile.
   </small>

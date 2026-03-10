@@ -299,6 +299,20 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             provisionedCreds = await credentialManager.provision(profile);
             Object.assign(env, provisionedCreds.env);
           } catch (err) {
+            // If we're in PR mode, credential failure is fatal — the PR fetch
+            // will also fail without a valid token. Surface the real error.
+            if (isPrMode) {
+              const hint = String(err).includes('401')
+                ? ' The bootstrap PAT on the Settings page may be expired — update it and retry.'
+                : '';
+              const modelConfigs = modelConfigStore.listConfigs();
+              const mcpServers = mcpServerStore.listServers();
+              const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess, privateFeeds, prUrl });
+              const html = eta.render('partials/form-error', { errors: [`Credential provisioning failed: ${String(err)}.${hint}`], formHtml });
+              res.setHeader('Content-Type', 'text/html; charset=utf-8');
+              res.status(422).send(html);
+              return;
+            }
             console.warn('Credential provisioning failed, continuing with ambient credentials:', err);
           }
         }
