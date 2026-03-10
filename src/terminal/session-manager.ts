@@ -455,21 +455,8 @@ export class SessionManager {
     // Step 5: Set up output buffer + exit handler
     const outputBuffer = new OutputBuffer();
     outputBuffer.push('\r\n\x1b[33mReopening session...\x1b[0m\r\n');
-    let firstChunkLogged = false;
     terminal.output.on('data', (chunk: Buffer | string) => {
       outputBuffer.push(chunk);
-      if (!firstChunkLogged) {
-        firstChunkLogged = true;
-        // Max/Pro sessions: auto-dismiss first-run prompts on reopen too
-        if (modelProvider === 'max') {
-          setTimeout(() => {
-            try { terminal.write('\r'); } catch { /* may have exited */ }
-          }, 600);
-          setTimeout(() => {
-            try { terminal.write('\r'); } catch { /* may have exited */ }
-          }, 2000);
-        }
-      }
     });
 
     // Step 6: Transition status and clear stale data
