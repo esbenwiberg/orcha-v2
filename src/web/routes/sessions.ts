@@ -1150,17 +1150,32 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      // No URL found yet — return empty, keep polling
+      // No URL found yet — check if we can stop polling early
+      const snapshot2 = snapshot; // already captured above
+      const text = snapshot2.toString('utf8');
       const ageMs = Date.now() - active.createdAt.getTime();
+
+      // If Claude Code already started (prompt visible), auth is fine — stop polling
+      if (/Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/i.test(text)) {
+        res.status(286).send('');
+        return;
+      }
+
       if (ageMs > 60_000 && active.terminal.exitCode !== undefined) {
         // Session exited without auth URL — stop polling
         res.status(286).send('');
         return;
       }
 
-      // Still waiting — return polling stub
-      const html = eta.render('partials/session-auth-banner', { waiting: true });
-      res.status(200).send(html);
+      // After 30s with no URL and session still alive, auth likely succeeded
+      // without needing user interaction (existing refresh token worked)
+      if (ageMs > 30_000) {
+        res.status(286).send('');
+        return;
+      }
+
+      // Still in early startup — return empty to keep polling without showing a banner
+      res.status(200).send('');
     } catch (err) {
       next(err);
     }
