@@ -169,7 +169,7 @@
     var container = document.getElementById('toast-container');
     if (!container) return;
     var toast = document.createElement('div');
-    toast.className = 'toast toast--' + (type || 'success');
+    toast.className = 'toast toast-' + (type || 'success');
     toast.textContent = msg;
     container.appendChild(toast);
     setTimeout(function () {

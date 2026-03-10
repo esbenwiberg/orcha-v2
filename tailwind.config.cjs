@@ -25,6 +25,12 @@ module.exports = {
     'kanban-card__activity--working',
     'kanban-card__activity--queued',
     'kanban-card__activity--review',
+    // Toast variant classes (built via string concatenation in JS)
+    'toast',
+    'toast-success',
+    'toast-error',
+    'toast-warning',
+    'toast-info',
   ],
   theme: {
     extend: {},
