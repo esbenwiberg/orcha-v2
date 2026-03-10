@@ -1328,17 +1328,29 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
+      // Compute session age early — used by multiple checks below.
+      const ageMs = Date.now() - active.createdAt.getTime();
+
       // Tier 2: Check terminal output for login URL
       const snapshot = active.outputBuffer.snapshot();
       const authUrl = extractAuthUrl(snapshot);
 
       if (authUrl) {
-        // Tier 2b: If Claude Code already started (refresh token worked), the URL
-        // is stale — auth succeeded without user interaction.
         const text = snapshot.toString('utf8');
+
+        // If Claude Code already started (refresh token worked), the URL
+        // is stale — auth succeeded without user interaction.
         if (/Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/i.test(text)) {
           const html = eta.render('partials/session-auth-banner', { authenticated: true });
           res.status(286).send(html);
+          return;
+        }
+
+        // After 30s the auth window is over — any URL in the buffer is from
+        // the agent's working output (e.g. DevOps/GitHub links), not a login
+        // prompt. The "Welcome to" text may have scrolled out of the buffer.
+        if (ageMs > 30_000) {
+          res.status(286).send('');
           return;
         }
 
@@ -1349,7 +1361,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       // No URL found yet — check if we can stop polling early
       const text = snapshot.toString('utf8');
-      const ageMs = Date.now() - active.createdAt.getTime();
 
       // If Claude Code already started (prompt visible), auth is fine — stop polling
       if (/Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/i.test(text)) {
