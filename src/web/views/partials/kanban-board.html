@@ -23,10 +23,13 @@
     }
   }
 
-  // Sort: Inbox newest-first, all others oldest-first (FIFO)
+  // Sort: Inbox/Done/Failed newest-first (LIFO), others oldest-first (FIFO)
   grouped['inbox'].sort((a, b) => b.createdAt - a.createdAt);
-  for (const colId of ['investigating', 'review', 'pipeline', 'done', 'failed']) {
+  for (const colId of ['investigating', 'review', 'pipeline']) {
     grouped[colId].sort((a, b) => a.createdAt - b.createdAt);
+  }
+  for (const colId of ['done', 'failed']) {
+    grouped[colId].sort((a, b) => b.createdAt - a.createdAt);
   }
 
   // Cap Done/Failed to 10

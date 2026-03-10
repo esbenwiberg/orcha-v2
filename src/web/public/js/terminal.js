@@ -950,29 +950,71 @@ function updateFilterBar() {
     chip.className = 'terminal-filter-chip is-active';
     chip.setAttribute('data-session-id', id);
     chip.textContent = branchText;
-    chip.onclick = () => toggleFilter(id);
+    chip.onclick = (e) => toggleFilter(id, e);
     slot.appendChild(chip);
   });
 }
 
 /**
  * Toggle visibility of a session card via the filter bar.
+ * Ctrl+click (or Meta+click on Mac) isolates that single chip — hides all
+ * others and shows only the clicked one.  If the clicked chip is already
+ * the only active one, Ctrl+click restores all (same as clicking "All").
  * @param {string} sessionId
+ * @param {MouseEvent} [event]
  */
-function toggleFilter(sessionId) {
+function toggleFilter(sessionId, event) {
   const card = document.getElementById(`session-${sessionId}`);
   const chip = document.querySelector(`.terminal-filter-chip[data-session-id="${sessionId}"]`);
   if (!card || !chip) return;
 
+  const filterSlot = document.getElementById('filter-chips');
+  const allChips = filterSlot
+    ? Array.from(filterSlot.querySelectorAll('.terminal-filter-chip[data-session-id]'))
+    : [];
+
+  // Ctrl+click (or Meta on Mac) → isolate / restore-all
+  if (event && (event.ctrlKey || event.metaKey)) {
+    const activeChips = allChips.filter((c) => c.classList.contains('is-active'));
+    const isOnlyActive =
+      activeChips.length === 1 && activeChips[0].getAttribute('data-session-id') === sessionId;
+
+    if (isOnlyActive) {
+      // Already isolated → restore all
+      showAll();
+      return;
+    }
+
+    // Isolate: hide everything, then show only this one
+    allChips.forEach((c) => {
+      const cId = c.getAttribute('data-session-id');
+      const cCard = document.getElementById(`session-${cId}`);
+      if (cId === sessionId) {
+        c.classList.add('is-active');
+        if (cCard) cCard.classList.remove('is-hidden-by-filter');
+      } else {
+        c.classList.remove('is-active');
+        if (cCard) cCard.classList.add('is-hidden-by-filter');
+      }
+    });
+
+    // Deactivate "All" chip
+    const allChip = filterSlot && filterSlot.querySelector('.terminal-filter-chip--all');
+    if (allChip) allChip.classList.remove('is-active');
+
+    refitTerminal(sessionId);
+    if (window.__syncGridCount) window.__syncGridCount();
+    return;
+  }
+
+  // Normal click — toggle this chip
   const isHidden = card.classList.toggle('is-hidden-by-filter');
   chip.classList.toggle('is-active', !isHidden);
 
   // Update "All" chip state: active only if all chips are active
-  const filterSlot = document.getElementById('filter-chips');
   const allChip = filterSlot && filterSlot.querySelector('.terminal-filter-chip--all');
   if (allChip) {
-    const allChips = filterSlot.querySelectorAll('.terminal-filter-chip[data-session-id]');
-    const allActive = Array.from(allChips).every((c) => c.classList.contains('is-active'));
+    const allActive = allChips.every((c) => c.classList.contains('is-active'));
     allChip.classList.toggle('is-active', allActive);
   }
 

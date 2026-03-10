@@ -526,7 +526,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         try {
           // Fetch PR info (metadata + comments) using tokens from the session env
           const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'] ?? process.env['GH_TOKEN'] ?? '';
-          const adoToken = env['AZURE_DEVOPS_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? '';
+          const adoToken = env['AZURE_DEVOPS_EXT_PAT'] ?? env['AZURE_DEVOPS_PAT'] ?? process.env['AZURE_DEVOPS_EXT_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? '';
           prInfo = await fetchPrComments({ prUrl, ghToken, adoToken });
 
           // Use the PR's source branch

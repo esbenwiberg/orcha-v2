@@ -78,7 +78,7 @@
     <% if (['draft', 'rejected', 'failed', 'cancelled'].includes(it.task.status)) { %>
       <button class="btn btn-xs btn-ghost"
         hx-get="/api/tasks/<%= it.task.id %>/edit-modal"
-        hx-target="#modal-slot"
+        hx-target="#modal-slot .modal-panel"
         hx-swap="innerHTML"
       >Edit</button>
     <% } %>
