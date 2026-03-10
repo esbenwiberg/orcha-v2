@@ -9,6 +9,7 @@ import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
+import { TaskStore } from '../../db/task-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
 import { readSettingsFromDb } from './claude-settings-db.js';
@@ -53,6 +54,8 @@ interface SessionCardViewModel {
   modelProvider?: string;
   /** Deploy command from repo settings — when set, shows Deploy button on card. */
   deployCommand?: string;
+  /** Linked task info — when set, shows a "Task #N" badge on the card. */
+  taskInfo?: { taskId: string; displayId: number; status: string };
 }
 
 /** UUID pattern for detecting bare-repo directory names that are UUIDs. */
@@ -71,6 +74,7 @@ function toViewModel(
   modelProvider?: string,
   repoName?: string,
   deployCommand?: string | null,
+  taskInfo?: { taskId: string; displayId: number; status: string },
 ): SessionCardViewModel {
   let credentials: CredStripViewModel | undefined;
   if (creds && !creds.revokedAt) {
@@ -94,6 +98,7 @@ function toViewModel(
     ...(credentials !== undefined ? { credentials } : {}),
     ...(modelProvider !== undefined ? { modelProvider } : {}),
     ...(deployCommand ? { deployCommand } : {}),
+    ...(taskInfo !== undefined ? { taskInfo } : {}),
   };
 }
 
@@ -105,6 +110,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
   const modelConfigStore = new ModelConfigStore(deps.db);
   const mcpServerStore = new McpServerStore(deps.db);
   const globalSettingsStore = new GlobalSettingsStore(deps.db);
+  const taskStore = new TaskStore(deps.db);
 
   // GET /api/sessions/new-form — render the new-session form partial
   router.get('/sessions/new-form', (_req, res, next) => {
@@ -524,9 +530,11 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       let existingWorktree: import('../../terminal/worktree-manager.js').WorktreeInfo | undefined;
       if (isPrMode) {
         try {
-          // Fetch PR info (metadata + comments) using tokens from the session env
+          // Fetch PR info (metadata + comments).
+          // For ADO, prefer the bootstrap PAT (full-access, server-side only) over the
+          // session PAT which may lack Code Read scope (intentionally scoped for the agent).
           const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'] ?? process.env['GH_TOKEN'] ?? '';
-          const adoToken = env['AZURE_DEVOPS_EXT_PAT'] ?? env['AZURE_DEVOPS_PAT'] ?? process.env['AZURE_DEVOPS_EXT_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? '';
+          const adoToken = globalSettingsStore.get('devops_bootstrap_pat') ?? env['AZURE_DEVOPS_EXT_PAT'] ?? env['AZURE_DEVOPS_PAT'] ?? process.env['AZURE_DEVOPS_EXT_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? '';
           prInfo = await fetchPrComments({ prUrl, ghToken, adoToken });
 
           // Use the PR's source branch
@@ -1168,9 +1176,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           }
         }
       }
+      const sessionTaskMap = taskStore.getSessionTaskMap();
       const viewModels = sessions.map((s) => {
         const active = deps.sessionEngine.getSessionByDbId(s.id);
-        return toViewModel(s, credStore.getBySessionId(s.id), active?.modelProvider, repoNameMap.get(s.config.repoRoot), deployCmdMap.get(s.config.repoRoot));
+        return toViewModel(s, credStore.getBySessionId(s.id), active?.modelProvider, repoNameMap.get(s.config.repoRoot), deployCmdMap.get(s.config.repoRoot), sessionTaskMap.get(s.id));
       });
       const html = eta.render('partials/session-grid', { sessions: viewModels });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -1195,7 +1204,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const active = deps.sessionEngine.getSessionByDbId(id);
       const creds = credStore.getBySessionId(id);
       const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
-      const html = eta.render('partials/session-card', toViewModel(session, creds, active?.modelProvider, repo?.displayName, repo?.deployCommand));
+      const sessionTaskMap = taskStore.getSessionTaskMap();
+      const html = eta.render('partials/session-card', toViewModel(session, creds, active?.modelProvider, repo?.displayName, repo?.deployCommand, sessionTaskMap.get(id)));
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {
@@ -1309,8 +1319,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       // No URL found yet — check if we can stop polling early
-      const snapshot2 = snapshot; // already captured above
-      const text = snapshot2.toString('utf8');
+      const text = snapshot.toString('utf8');
       const ageMs = Date.now() - active.createdAt.getTime();
 
       // If Claude Code already started (prompt visible), auth is fine — stop polling

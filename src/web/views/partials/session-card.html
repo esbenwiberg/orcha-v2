@@ -8,6 +8,7 @@
     <span class="card__meta"><%= it.repoName %> / <%= it.branch %></span>
     <div class="session-card__header-right">
       <% const _bm = { pending:'badge-neutral', starting:'badge-warning badge-dot badge-pulse', running:'badge-success badge-dot badge-pulse', paused:'badge-accent', completed:'badge-success', failed:'badge-error', cancelled:'badge-neutral', 'needs-input':'badge-purple badge-dot badge-pulse' }; const _labels = { 'needs-input': 'human needed' }; %><span class="badge <%= _bm[it.status] || 'badge-neutral' %>" id="badge-<%= it.id %>" sse-swap="session-status-<%= it.id %>" hx-swap="outerHTML"><%= _labels[it.status] || it.status %></span>
+      <% if (it.taskInfo) { %><span class="badge badge-info badge-sm" style="cursor:pointer" onclick="openModal('/api/tasks/<%= it.taskInfo.taskId %>/modal')" title="Task #<%= it.taskInfo.displayId %> — <%= it.taskInfo.status %>">Task #<%= it.taskInfo.displayId %></span><% } %>
       <div class="session-card__term-actions">
         <button class="terminal-header__btn" title="Files"
           hx-get="/api/sessions/<%= it.id %>/file-browser"
@@ -64,7 +65,7 @@
     <p class="card__meta">Updated <%= it.updatedAt %></p>
     <%~ include('credential-status-strip', { sessionId: it.id, credentials: it.credentials }) %>
   </div>
-  <% if (it.modelProvider === 'max' && it.status === 'running') { %>
+  <% if (it.modelProvider === 'max' && it.status === 'running' && !it.taskInfo) { %>
   <div id="auth-slot-<%= it.id %>" class="session-card__auth-slot"
        hx-get="/api/sessions/<%= it.id %>/auth-url"
        hx-trigger="load, every 3s"

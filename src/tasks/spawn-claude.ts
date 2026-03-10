@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { eventBus } from '../web/services/event-bus.js';
 import type { TaskStore } from '../db/task-store.js';
 
 export interface SpawnClaudeOptions {
@@ -60,13 +59,6 @@ export function spawnClaude(opts: SpawnClaudeOptions): Promise<SpawnClaudeResult
       const eventType = (event['type'] as string) ?? 'unknown';
 
       taskStore.appendTranscript(taskId, phase, seq++, eventType, event);
-      eventBus.publish({
-        type: 'task-transcript',
-        taskId,
-        phase,
-        seq: seq - 1,
-        event,
-      });
 
       // Capture the final result text
       if (eventType === 'result') {

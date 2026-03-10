@@ -10,7 +10,6 @@ import { ModelConfigStore } from '../db/model-config-store.js';
 import { GlobalSettingsStore } from '../db/global-settings-store.js';
 import { buildModelEnv, ENV_DELETE } from '../model-config/env-builder.js';
 import { CredentialStore } from '../db/credential-store.js';
-import { SessionStore } from '../db/session-store.js';
 import { credentialManager } from '../credentials/credential-manager.js';
 import { readSettingsFromDb } from '../web/routes/claude-settings-db.js';
 import { buildSessionClaudeMd } from '../web/routes/claude-files.js';
@@ -50,7 +49,6 @@ export class TaskProcessor {
   #modelConfigStore: ModelConfigStore;
   #globalSettingsStore: GlobalSettingsStore;
   #credentialStore: CredentialStore;
-  #sessionStore: SessionStore;
   #sessionManager: SessionManager;
   #worktreeManager: WorktreeManager;
   #db: Database.Database;
@@ -65,7 +63,6 @@ export class TaskProcessor {
     this.#modelConfigStore = new ModelConfigStore(deps.db);
     this.#globalSettingsStore = new GlobalSettingsStore(deps.db);
     this.#credentialStore = new CredentialStore(deps.db);
-    this.#sessionStore = new SessionStore(deps.db);
     this.#sessionManager = deps.sessionManager;
     this.#worktreeManager = deps.worktreeManager;
   }
@@ -312,17 +309,9 @@ export class TaskProcessor {
         this.#fail(task.id, `Execution session exited with code ${exitCode}`);
       }
 
-      // Delete the session DB record so task sessions don't clutter the Sessions page.
-      // The task retains its own metadata (branch, PR URL, preview URL).
-      const dbSessionId = session.dbSessionId;
-      if (dbSessionId) {
-        try {
-          this.#sessionStore.deleteSession(dbSessionId);
-          console.log('[task-processor] TASK-%d deleted session record %s', task.displayId, dbSessionId.slice(0, 8));
-        } catch {
-          // Best-effort — session may already be gone
-        }
-      }
+      // Keep the session DB record so users can tap into the terminal
+      // (live during execution, replay buffer for ~5 min after exit).
+      // The session card shows a "Task #N" badge to distinguish it.
     } catch (err) {
       this.#fail(task.id, `Execution error: ${String(err)}`);
     }
@@ -380,6 +369,10 @@ export class TaskProcessor {
           try {
             worktree = await this.#worktreeManager.restoreWorktree(worktreeId, branch, repo.barePath);
           } catch {
+            // restoreWorktree may have left a partial directory — nuke it again
+            if (existsSync(worktreeFsPath)) {
+              rmSync(worktreeFsPath, { recursive: true, force: true });
+            }
             // Branch may not exist — delete it and start fresh
             try { await this.#worktreeManager.deleteBranch(branch, repo.barePath); } catch { /* ignore */ }
             worktree = await this.#worktreeManager.addWorktree(worktreeId, branch, repo.barePath);

@@ -183,6 +183,18 @@ export class TaskStore {
     return this.getTask(id);
   }
 
+  /** Return a map of sessionId → { taskId, displayId, status } for all tasks linked to a session. */
+  getSessionTaskMap(): Map<string, { taskId: string; displayId: number; status: string }> {
+    const rows = this.#db
+      .prepare('SELECT id, display_id, session_id, status FROM tasks WHERE session_id IS NOT NULL')
+      .all() as Array<{ id: string; display_id: number; session_id: string; status: string }>;
+    const map = new Map<string, { taskId: string; displayId: number; status: string }>();
+    for (const row of rows) {
+      map.set(row.session_id, { taskId: row.id, displayId: row.display_id, status: row.status });
+    }
+    return map;
+  }
+
   deleteTask(id: string): void {
     this.#db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
   }

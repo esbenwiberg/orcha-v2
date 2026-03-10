@@ -222,9 +222,21 @@ export class WorktreeManager {
     // Clean up stale state: if the directory already exists from a previous
     // failed attempt (crash, timeout, partial cleanup), remove it and prune
     // git's worktree tracking so the new `git worktree add` succeeds.
+    // Use `git worktree remove --force` first to properly unregister, then
+    // fall back to rmSync + prune if git doesn't know about the worktree.
     if (fs.existsSync(worktreePath)) {
       console.warn('[worktree] stale directory %s exists — removing before addWorktree', worktreePath);
-      fs.rmSync(worktreePath, { recursive: true, force: true });
+      try {
+        await this.execGit(['worktree', 'remove', '--force', worktreePath], cwd);
+      } catch { /* git may not track it — fall back to manual cleanup */ }
+      if (fs.existsSync(worktreePath)) {
+        fs.rmSync(worktreePath, { recursive: true, force: true });
+      }
+      try {
+        await this.execGit(['worktree', 'prune'], cwd);
+      } catch { /* best-effort */ }
+    } else {
+      // Path doesn't exist, but git may still have a stale tracking entry
       try {
         await this.execGit(['worktree', 'prune'], cwd);
       } catch { /* best-effort */ }
