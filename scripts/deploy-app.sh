@@ -73,6 +73,7 @@ print(p['parameters']['$1']['value'])
 ACR_NAME=$(read_param acrName)
 CONTAINER_APP_NAME=$(read_param containerAppName)
 ORCHA_DOMAIN=$(read_param orchaDomain 2>/dev/null || echo "")
+STORAGE_ACCOUNT=$(read_param storageAccountName 2>/dev/null || echo "")
 
 # ── Image tag: default to short git SHA ───────────────────────────────────────
 if [[ -z "${TAG}" ]]; then
@@ -147,6 +148,27 @@ else
   docker push "${ACR_SERVER}/orcha-caddy:${TAG}"
   docker push "${ACR_SERVER}/orcha-caddy:latest"
   ok "orcha-caddy image pushed (${TAG})"
+fi
+
+# ── Pre-deploy Azure File Share snapshot ──────────────────────────────────────
+# Create a point-in-time snapshot of the data share BEFORE deploying. This
+# captures the DB, bare repos, and all persistent state. If the deploy goes
+# wrong or the container OOM-kills before syncing, we can restore from here.
+if [[ -n "${STORAGE_ACCOUNT}" ]]; then
+  echo ""
+  info "Creating Azure File Share snapshot (pre-deploy safety net)..."
+  SNAP_TIME=$(az storage share snapshot \
+    --name orcha-data \
+    --account-name "${STORAGE_ACCOUNT}" \
+    --query "snapshot" \
+    -o tsv 2>/dev/null || echo "")
+  if [[ -n "${SNAP_TIME}" ]]; then
+    ok "File share snapshot created: ${SNAP_TIME}"
+  else
+    info "Snapshot creation failed (non-fatal) — continuing deploy"
+  fi
+else
+  info "Skipping file share snapshot (storageAccountName not in params)"
 fi
 
 # ── Snapshot current revision ─────────────────────────────────────────────────

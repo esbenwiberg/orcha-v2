@@ -10,6 +10,7 @@ import type { AuthTerminalManager } from '../terminal/auth-terminal-manager.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { securityMiddleware } from './middleware/security.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { dbSyncMiddleware } from './middleware/db-sync.js';
 import { createApiRouter } from './routes/api.js';
 import { createDashboardRouter } from './routes/dashboard.js';
 import { createHealthRouter } from './routes/health.js';
@@ -109,6 +110,9 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
 
   // Log all requests (first middleware)
   app.use(requestLogger());
+
+  // Auto-sync DB to persistent storage after successful mutations
+  app.use(dbSyncMiddleware());
 
   // Security headers (helmet) and CORS policy
   app.use(...securityMiddleware());

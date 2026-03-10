@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase, runMigrations, SessionStore, InstanceRegistry } from '@orcha/db';
@@ -16,6 +16,7 @@ import { ValidationManager } from '../validation/validation-manager.js';
 import { emitStartupDiagnostics } from '../diagnostics/startup.js';
 import { getStoragePaths } from '../storage/paths.js';
 import { GlobalSettingsStore } from '../db/global-settings-store.js';
+import { registerSyncFn } from '../db/db-sync.js';
 import { installEnabledSdks } from '../sdk-installer.js';
 import { TaskProcessor } from '../tasks/task-processor.js';
 import { StatusMonitor } from '../terminal/status-monitor.js';
@@ -47,21 +48,56 @@ const migrationsDir = path.resolve(__dirname, '../db/migrations');
 // support). Live DB stays in /tmp (local SSD, full POSIX support).
 // On startup we restore from /data if a backup exists.
 // Every 30s + on SIGTERM we serialize the DB and write it back to /data.
+// Backup rotation keeps the last N copies so OOM-kill can't lose everything.
 const { dataDir, dbPath } = getStoragePaths();
 // dbPath            = /tmp/orcha-db/orcha.db  (ORCHA_DB_DIR=/tmp/orcha-db)
 // persistentDbPath  = /data/orcha.db          (ORCHA_DATA_DIR=/data)
 const persistentDbPath = path.join(dataDir, 'orcha.db');
+const backupDir = path.join(dataDir, 'db-backups');
 
 mkdirSync(path.dirname(dbPath), { recursive: true });
+mkdirSync(backupDir, { recursive: true });
 
-if (!existsSync(dbPath) && existsSync(persistentDbPath)) {
-  try {
-    // readFileSync + writeFileSync uses plain read/write syscalls that
-    // work on both local SSD and Azure File Share.
-    writeFileSync(dbPath, readFileSync(persistentDbPath));
-    console.log('[db] restored from persistent backup');
-  } catch (e) {
-    console.error('[db] restore from backup failed:', e);
+// Restore: prefer the primary file, fall back to the newest backup
+if (!existsSync(dbPath)) {
+  let restored = false;
+  if (existsSync(persistentDbPath)) {
+    try {
+      const data = readFileSync(persistentDbPath);
+      // Sanity check: SQLite files start with "SQLite format 3\0"
+      if (data.length > 100 && data.toString('utf8', 0, 15) === 'SQLite format 3') {
+        writeFileSync(dbPath, data);
+        console.log('[db] restored from persistent primary (%d bytes)', data.length);
+        restored = true;
+      } else {
+        console.warn('[db] persistent primary is corrupted (%d bytes) — trying backups', data.length);
+      }
+    } catch (e) {
+      console.error('[db] restore from primary failed:', e);
+    }
+  }
+  if (!restored) {
+    // Try backups newest-first
+    try {
+      const backups = readdirSync(backupDir)
+        .filter((f) => f.startsWith('orcha-') && f.endsWith('.db'))
+        .sort()
+        .reverse();
+      for (const backup of backups) {
+        try {
+          const data = readFileSync(path.join(backupDir, backup));
+          if (data.length > 100 && data.toString('utf8', 0, 15) === 'SQLite format 3') {
+            writeFileSync(dbPath, data);
+            console.log('[db] restored from backup %s (%d bytes)', backup, data.length);
+            restored = true;
+            break;
+          }
+        } catch { /* try next */ }
+      }
+      if (!restored && backups.length > 0) {
+        console.error('[db] all %d backups are corrupted — starting fresh', backups.length);
+      }
+    } catch { /* no backups dir */ }
   }
 }
 
@@ -104,14 +140,53 @@ try {
 
 // db.serialize() produces a consistent byte-for-byte snapshot without needing
 // WAL checkpointing or file copying. writeFileSync works on Azure File Share.
+const MAX_BACKUPS = 10;
+let _backupRotationCounter = 0;
+
+/** Write DB to persistent storage. Every 5th call also rotates a timestamped backup. */
 const syncDbToPersistent = () => {
   try {
-    mkdirSync(path.dirname(persistentDbPath), { recursive: true });
-    writeFileSync(persistentDbPath, db.serialize());
+    const data = db.serialize();
+    // Write to temp file first, then rename — avoids half-written files on crash.
+    // Azure Files SMB doesn't support atomic rename, but a write+unlink+write is
+    // still safer than overwriting in-place (partial write = corruption).
+    const tmpPath = persistentDbPath + '.tmp';
+    writeFileSync(tmpPath, data);
+    // Swap: remove old, rename new. If we crash between these two calls,
+    // the restore logic will fall back to the backup dir.
+    try { unlinkSync(persistentDbPath); } catch { /* may not exist */ }
+    // renameSync doesn't work on Azure Files cross-device; use copy+delete
+    writeFileSync(persistentDbPath, readFileSync(tmpPath));
+    try { unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
+
+    // Rotate a backup every 5th sync (~2.5 min with 30s interval)
+    _backupRotationCounter++;
+    if (_backupRotationCounter >= 5) {
+      _backupRotationCounter = 0;
+      try {
+        const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        writeFileSync(path.join(backupDir, `orcha-${ts}.db`), data);
+
+        // Prune old backups beyond MAX_BACKUPS
+        const files = readdirSync(backupDir)
+          .filter((f) => f.startsWith('orcha-') && f.endsWith('.db'))
+          .sort();
+        while (files.length > MAX_BACKUPS) {
+          const oldest = files.shift()!;
+          try { unlinkSync(path.join(backupDir, oldest)); } catch { /* ignore */ }
+        }
+      } catch (e) {
+        console.error('[db] backup rotation failed:', e);
+      }
+    }
   } catch (e) {
     console.error('[db] sync to persistent storage failed:', e);
   }
 };
+
+// Register the sync function so route handlers can trigger immediate syncs
+// after critical mutations (task/preset/repo writes).
+registerSyncFn(syncDbToPersistent);
 
 setInterval(syncDbToPersistent, 30_000).unref();
 
