@@ -150,6 +150,29 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+// Row action menu (table view)
+function toggleRowMenu(btn) {
+  closeRowMenus();
+  var menu = btn.parentElement.querySelector('.task-row-menu');
+  if (menu) {
+    menu.classList.toggle('is-open');
+    htmx.process(menu);
+  }
+}
+
+function closeRowMenus() {
+  document.querySelectorAll('.task-row-menu.is-open').forEach(function(m) {
+    m.classList.remove('is-open');
+  });
+}
+
+// Close row menus when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.task-row-menu-btn') && !e.target.closest('.task-row-menu')) {
+    closeRowMenus();
+  }
+});
+
 // Restore view preference
 (function() {
   var saved = localStorage.getItem('task-view');

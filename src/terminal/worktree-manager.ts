@@ -142,6 +142,17 @@ export class WorktreeManager {
     const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
     const cwd = repoRootOverride ?? undefined;
 
+    // Clean up stale state: if the directory already exists from a previous
+    // failed attempt (crash, timeout, partial cleanup), remove it and prune
+    // git's worktree tracking so the new `git worktree add` succeeds.
+    if (fs.existsSync(worktreePath)) {
+      console.warn('[worktree] stale directory %s exists — removing before addWorktree', worktreePath);
+      fs.rmSync(worktreePath, { recursive: true, force: true });
+      try {
+        await this.execGit(['worktree', 'prune'], cwd);
+      } catch { /* best-effort */ }
+    }
+
     // In a bare repo, HEAD points to the commit at clone time and is never
     // updated by fetchBareRepo (which only writes refs/remotes/origin/*).
     // If no explicit startPoint is given, resolve the default branch and use
@@ -201,7 +212,11 @@ export class WorktreeManager {
     const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
     const cwd = repoRootOverride ?? undefined;
 
-    // Clean stale entries pointing to old deleted paths
+    // Clean stale entries and leftover directories
+    if (fs.existsSync(worktreePath)) {
+      console.warn('[worktree] stale directory %s exists — removing before restoreWorktree', worktreePath);
+      fs.rmSync(worktreePath, { recursive: true, force: true });
+    }
     await this.execGit(['worktree', 'prune'], cwd);
 
     // Add worktree from existing branch (no -b flag)

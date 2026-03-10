@@ -27,54 +27,98 @@
     if (secs < 86400) return Math.floor(secs / 3600) + 'h ago';
     return Math.floor(secs / 86400) + 'd ago';
   }
+
+  const s = it.task.status;
 %>
 <tr>
   <td class="text-slate-400 font-mono text-xs"><%= it.task.displayId %></td>
   <td>
     <button
       class="text-left text-sm font-medium text-slate-200 hover:text-white bg-transparent border-0 p-0 cursor-pointer underline-offset-2 hover:underline"
-      hx-get="/api/tasks/<%= it.task.id %>"
-      hx-target="#form-panel-slot"
-      hx-swap="innerHTML"
-      onclick="document.getElementById('form-panel').classList.add('is-open')"
+      onclick="openModal('/api/tasks/<%= it.task.id %>/modal')"
     ><%= it.task.title %></button>
   </td>
   <td class="text-xs text-slate-400"><%= repoName %></td>
   <td>
-    <span class="badge <%= _taskStatusMap[it.task.status] || 'badge-neutral' %>"
+    <span class="badge <%= _taskStatusMap[s] || 'badge-neutral' %>"
       id="task-badge-<%= it.task.id %>"
       sse-swap="task-status-<%= it.task.id %>"
       hx-swap="outerHTML"
-    ><%= it.task.status %></span>
+    ><%= s %></span>
     <% if (it.task.prMerged) { %><span class="badge badge-success badge-sm ml-1">merged</span><% } %>
   </td>
   <td>
     <% if (it.task.investigationRating) { %>
       <span class="badge <%= _ratingMap[it.task.investigationRating] || 'badge-neutral' %>"><%= it.task.investigationRating %></span>
     <% } else { %>
-      <span class="text-xs text-slate-600">—</span>
+      <span class="text-xs text-slate-600">&mdash;</span>
     <% } %>
   </td>
   <td class="text-xs text-slate-500"><%= timeAgo(it.task.createdAt) %></td>
-  <td class="text-right">
+  <td class="text-right" style="position: relative;">
     <% if (it.task.prUrl) { %>
       <a href="<%= it.task.prUrl %>" target="_blank" class="btn btn-xs btn-ghost" title="View PR">PR</a>
     <% } %>
-    <% if (it.task.status !== 'done' && it.task.status !== 'cancelled' && it.task.status !== 'failed') { %>
-      <button
-        class="btn btn-xs btn-ghost text-red-400"
-        hx-post="/api/tasks/<%= it.task.id %>/cancel"
-        hx-swap="none"
-        hx-confirm="Cancel this task?"
-      >Cancel</button>
-    <% } %>
-    <% if (it.task.status === 'done' || it.task.status === 'cancelled' || it.task.status === 'failed') { %>
-      <button
-        class="btn btn-xs btn-ghost text-red-400"
-        hx-delete="/api/tasks/<%= it.task.id %>"
-        hx-swap="none"
-        hx-confirm="Delete this task permanently?"
-      >Delete</button>
-    <% } %>
+    <button class="btn btn-xs btn-ghost task-row-menu-btn" onclick="event.stopPropagation();toggleRowMenu(this)" title="Actions">&#x22EF;</button>
+    <div class="task-row-menu">
+      <%/* Move actions based on current status */%>
+      <% if (s === 'draft') { %>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/start-investigate" hx-swap="none"
+          onclick="closeRowMenus()">Investigate</button>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/force-queue" hx-swap="none"
+          onclick="closeRowMenus()">Queue</button>
+      <% } %>
+      <% if (s === 'investigating') { %>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/reject-investigate" hx-swap="none"
+          onclick="closeRowMenus()">Reject</button>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/force-queue" hx-swap="none"
+          onclick="closeRowMenus()">Force Queue</button>
+      <% } %>
+      <% if (s === 'rejected') { %>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/retry" hx-swap="none"
+          onclick="closeRowMenus()">Back to Draft</button>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/force-enrich" hx-swap="none"
+          onclick="closeRowMenus()">Force Enrich</button>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/force-queue" hx-swap="none"
+          onclick="closeRowMenus()">Force Queue</button>
+      <% } %>
+      <% if (s === 'failed') { %>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/retry" hx-swap="none"
+          onclick="closeRowMenus()">Retry (from Draft)</button>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/retry-execute" hx-swap="none"
+          onclick="closeRowMenus()">Retry Execute</button>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/mark-done" hx-swap="none"
+          onclick="closeRowMenus()">Mark Done</button>
+      <% } %>
+      <% if (s === 'cancelled') { %>
+        <button class="task-row-menu__item"
+          hx-post="/api/tasks/<%= it.task.id %>/retry" hx-swap="none"
+          onclick="closeRowMenus()">Retry</button>
+      <% } %>
+      <%/* Cancel for active states */%>
+      <% if (s !== 'done' && s !== 'cancelled' && s !== 'failed' && s !== 'rejected') { %>
+        <button class="task-row-menu__item task-row-menu__item--danger"
+          hx-post="/api/tasks/<%= it.task.id %>/cancel" hx-swap="none"
+          hx-confirm="Cancel this task?"
+          onclick="closeRowMenus()">Cancel</button>
+      <% } %>
+      <%/* Delete for terminal states */%>
+      <% if (s === 'done' || s === 'cancelled' || s === 'failed' || s === 'rejected') { %>
+        <button class="task-row-menu__item task-row-menu__item--danger"
+          hx-delete="/api/tasks/<%= it.task.id %>" hx-swap="none"
+          hx-confirm="Delete this task permanently?"
+          onclick="closeRowMenus()">Delete</button>
+      <% } %>
+    </div>
   </td>
 </tr>

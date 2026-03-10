@@ -1,6 +1,7 @@
 import type { Task, EnrichmentResult } from '../domain/task-types.js';
 import type { TaskStore } from '../db/task-store.js';
 import { buildEnrichmentPrompt, ENRICHMENT_TOOLS } from './prompts.js';
+import { extractJson } from './extract-json.js';
 import { spawnClaude } from './spawn-claude.js';
 
 export interface EnrichContext {
@@ -55,9 +56,22 @@ export async function enrich(ctx: EnrichContext): Promise<EnrichmentResult> {
 }
 
 function parseEnrichmentResult(text: string): EnrichmentResult {
+  if (!text.trim()) {
+    console.warn('[enrich] enrichment result text is empty — Claude may have hit the turn limit without producing a final response');
+    return {
+      improvedDescription: '',
+      affectedFiles: [],
+      approach: [],
+      risks: [{ description: 'Enrichment output was empty — Claude may have exhausted max turns', severity: 'medium', mitigation: 'Retry the task' }],
+      complexity: 'medium',
+      acceptanceCriteria: [],
+      relatedCode: [],
+    };
+  }
+
   const parsed = extractJson(text);
   if (!parsed) {
-    console.warn('[enrich] failed to parse enrichment JSON, text starts with: %s', text.slice(0, 200));
+    console.warn('[enrich] failed to parse enrichment JSON, full text (%d chars):\n%s', text.length, text.slice(0, 1000));
     return {
       improvedDescription: text.slice(0, 2000),
       affectedFiles: [],
@@ -78,41 +92,4 @@ function parseEnrichmentResult(text: string): EnrichmentResult {
     acceptanceCriteria: (parsed['acceptanceCriteria'] as string[]) ?? [],
     relatedCode: (parsed['relatedCode'] as EnrichmentResult['relatedCode']) ?? [],
   };
-}
-
-/**
- * Try multiple strategies to extract a JSON object from Claude's result text:
- * 1. Direct parse (clean JSON output)
- * 2. Markdown fenced code block extraction
- * 3. Find outermost { ... } braces
- */
-function extractJson(text: string): Record<string, unknown> | null {
-  const trimmed = text.trim();
-
-  // Strategy 1: direct parse
-  try {
-    const obj = JSON.parse(trimmed);
-    if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
-  } catch { /* continue */ }
-
-  // Strategy 2: extract from markdown fences (```json ... ``` or ``` ... ```)
-  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (fenceMatch?.[1]) {
-    try {
-      const obj = JSON.parse(fenceMatch[1].trim());
-      if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
-    } catch { /* continue */ }
-  }
-
-  // Strategy 3: find the outermost { ... } (skips preamble/suffix text from Claude)
-  const firstBrace = trimmed.indexOf('{');
-  const lastBrace = trimmed.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    try {
-      const obj = JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
-      if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, unknown>;
-    } catch { /* continue */ }
-  }
-
-  return null;
 }

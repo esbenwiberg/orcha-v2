@@ -34,24 +34,18 @@ ${screenshotSection(task.screenshots)}
 
 ## Output
 
-Return a single JSON object (no markdown fences, no extra text) matching this schema:
-
-{
-  "rating": "reject" | "weak" | "viable" | "good" | "excellent",
-  "summary": "2-3 sentence verdict",
-  "reasoning": "Detailed analysis paragraph",
-  "pros": ["advantage 1", "advantage 2"],
-  "cons": ["concern 1", "concern 2"],
-  "filesExamined": ["path/to/file1.ts", "path/to/file2.ts"],
-  "webResearch": "Summary of web findings, if any"
-}
+**CRITICAL**: Your ENTIRE final response must be a single JSON object — no prose, no markdown fences, no explanation before or after. Just the JSON object.
 
 Rating scale:
-- **reject**: Bad idea — conflicts with codebase, already exists, or actively harmful
-- **weak**: Significant issues that need major rethinking before proceeding
-- **viable**: Could work, some concerns to address during implementation
-- **good**: Solid idea with a clear implementation path
-- **excellent**: High impact and straightforward to implement`;
+- "reject": Bad idea — conflicts with codebase, already exists, or actively harmful
+- "weak": Significant issues that need major rethinking before proceeding
+- "viable": Could work, some concerns to address during implementation
+- "good": Solid idea with a clear implementation path
+- "excellent": High impact and straightforward to implement
+
+JSON schema:
+
+{"rating":"reject|weak|viable|good|excellent","summary":"2-3 sentence verdict","reasoning":"Detailed analysis paragraph","pros":["advantage 1"],"cons":["concern 1"],"filesExamined":["path/to/file.ts"],"webResearch":"Summary of web findings, if any"}`;
 }
 
 export function buildEnrichmentPrompt(task: Task): string {
@@ -98,25 +92,11 @@ ${screenshotSection(task.screenshots)}${investigationContext}
 
 ## Output
 
-Return a single JSON object (no markdown fences, no extra text) matching this schema:
+**CRITICAL**: Your ENTIRE final response must be a single JSON object — no prose, no markdown fences, no explanation before or after. Just the JSON object.
 
-{
-  "improvedDescription": "Detailed rewrite of the task description",
-  "affectedFiles": [
-    { "path": "src/foo.ts", "reason": "why this file changes", "changeType": "modify" | "create" | "delete" }
-  ],
-  "approach": [
-    { "step": 1, "description": "What to do", "files": ["src/foo.ts"] }
-  ],
-  "risks": [
-    { "description": "What could go wrong", "severity": "low" | "medium" | "high", "mitigation": "How to mitigate" }
-  ],
-  "complexity": "trivial" | "small" | "medium" | "large",
-  "acceptanceCriteria": ["Criterion 1", "Criterion 2"],
-  "relatedCode": [
-    { "path": "src/bar.ts", "lines": "42-58", "relevance": "Why this code matters" }
-  ]
-}`;
+JSON schema:
+
+{"improvedDescription":"Detailed rewrite","affectedFiles":[{"path":"src/foo.ts","reason":"why","changeType":"modify|create|delete"}],"approach":[{"step":1,"description":"What to do","files":["src/foo.ts"]}],"risks":[{"description":"What could go wrong","severity":"low|medium|high","mitigation":"How to mitigate"}],"complexity":"trivial|small|medium|large","acceptanceCriteria":["Criterion 1"],"relatedCode":[{"path":"src/bar.ts","lines":"42-58","relevance":"Why this matters"}]}`;
 }
 
 export function buildExecutionPrompt(task: Task): string {
