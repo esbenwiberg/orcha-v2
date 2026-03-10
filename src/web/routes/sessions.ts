@@ -531,10 +531,11 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       if (isPrMode) {
         try {
           // Fetch PR info (metadata + comments).
-          // For ADO, prefer the bootstrap PAT (full-access, server-side only) over the
-          // session PAT which may lack Code Read scope (intentionally scoped for the agent).
+          // Prefer the freshly provisioned session PAT (just minted, known valid) over
+          // the bootstrap PAT which may have expired. Fall back to bootstrap/ambient only
+          // when no session credentials were provisioned.
           const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'] ?? process.env['GH_TOKEN'] ?? '';
-          const adoToken = globalSettingsStore.get('devops_bootstrap_pat') ?? env['AZURE_DEVOPS_EXT_PAT'] ?? env['AZURE_DEVOPS_PAT'] ?? process.env['AZURE_DEVOPS_EXT_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? '';
+          const adoToken = env['AZURE_DEVOPS_EXT_PAT'] ?? env['AZURE_DEVOPS_PAT'] ?? globalSettingsStore.get('devops_bootstrap_pat') ?? process.env['AZURE_DEVOPS_EXT_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? '';
           prInfo = await fetchPrComments({ prUrl, ghToken, adoToken });
 
           // Use the PR's source branch

@@ -152,36 +152,70 @@ export class AuthTerminalManager {
 
     let bytesReceived = 0;
     let loginSent = false;
+    let authSelectHandled = false;
     console.log(`[auth-pty] spawned pid=${pty.pid} configId=${configId} token=${token.slice(0, 8)} home=${home}`);
 
     pty.onData((data) => {
       bytesReceived += data.length;
-      if (bytesReceived <= data.length) {
-        console.log(`[auth-pty] first data token=${token.slice(0, 8)} bytes=${data.length}`);
-        // .config.json suppresses onboarding/theme/trust prompts, so we can
-        // send /login directly once the REPL is ready (no dismiss-enter needed).
-        if (!loginSent) {
-          loginSent = true;
+      outputBuffer.push(data);
+      outputStream.push(data);
+
+      if (!loginSent) {
+        // Claude Code shows a "Select login method" interactive prompt when it
+        // has no cached credentials. .config.json suppresses onboarding/theme/
+        // trust, but NOT this auth-method picker. Detect it in the output and
+        // press Enter to select option 1 (Claude subscription / Pro/Max), then
+        // send /login once the REPL loads.
+        if (!authSelectHandled) {
+          const text = stripAnsi(outputBuffer.snapshot().toString('utf8'));
+          if (text.includes('Select login method') || text.includes('select login method')) {
+            authSelectHandled = true;
+            loginSent = true;
+            console.log(`[auth-pty] detected login-method prompt token=${token.slice(0, 8)}`);
+            // Press Enter to select the default option (option 1: subscription)
+            setTimeout(() => {
+              try { pty.write('\r'); } catch { /* may have exited */ }
+            }, 300);
+            // Once the REPL loads after auth-method selection, send /login
+            setTimeout(() => {
+              try {
+                pty.write('/login\r');
+                console.log(`[auth-pty] sent /login after auth-select token=${token.slice(0, 8)}`);
+              } catch { /* process may have exited */ }
+            }, 2000);
+          }
+        }
+
+        // If the auth-method prompt never appears (e.g. credentials are cached
+        // or a future Claude version skips it), send /login directly once the
+        // REPL is ready (1.2s after first output).
+        if (bytesReceived <= data.length && !authSelectHandled) {
+          console.log(`[auth-pty] first data token=${token.slice(0, 8)} bytes=${data.length}`);
           setTimeout(() => {
-            try {
-              pty.write('/login\r');
-              console.log(`[auth-pty] sent /login token=${token.slice(0, 8)}`);
-            } catch { /* process may have exited */ }
+            if (!loginSent) {
+              loginSent = true;
+              try {
+                pty.write('/login\r');
+                console.log(`[auth-pty] sent /login (direct) token=${token.slice(0, 8)}`);
+              } catch { /* process may have exited */ }
+            }
           }, 1200);
         }
       }
-      outputBuffer.push(data);
-      outputStream.push(data);
     });
 
-    // Fallback: if claude hasn't produced output in 5s, send /login anyway.
+    // Fallback: if claude hasn't produced output in 5s, try Enter + /login.
     setTimeout(() => {
       if (!loginSent) {
         loginSent = true;
-        try {
-          pty.write('/login\r');
-          console.log(`[auth-pty] sent /login (fallback) token=${token.slice(0, 8)} bytesReceived=${bytesReceived}`);
-        } catch { /* process may have exited */ }
+        console.log(`[auth-pty] fallback: sending Enter + /login token=${token.slice(0, 8)} bytesReceived=${bytesReceived}`);
+        try { pty.write('\r'); } catch { /* may have exited */ }
+        setTimeout(() => {
+          try {
+            pty.write('/login\r');
+            console.log(`[auth-pty] sent /login (fallback) token=${token.slice(0, 8)}`);
+          } catch { /* process may have exited */ }
+        }, 1200);
       }
     }, 5000);
 
