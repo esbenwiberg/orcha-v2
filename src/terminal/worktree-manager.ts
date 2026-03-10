@@ -242,13 +242,17 @@ export class WorktreeManager {
       }
     }
 
+    // Prune stale worktree entries first so `git branch` doesn't show `+`
+    // prefix for worktrees whose directories no longer exist.
+    try { await this.execGit(['worktree', 'prune'], cwd); } catch { /* best-effort */ }
+
     // Auto-suffix branch name if it already exists (e.g. fork from a completed session)
     let finalBranch = safeBranch;
     const existingBranches = new Set<string>();
     try {
       const raw = await this.execGit(['branch', '--list', '--no-color'], cwd);
       for (const line of raw.split('\n')) {
-        const name = line.replace(/^\*?\s+/, '').trim();
+        const name = line.replace(/^[*+]?\s+/, '').trim();
         if (name) existingBranches.add(name);
       }
     } catch {

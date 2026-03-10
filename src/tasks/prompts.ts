@@ -32,9 +32,9 @@ ${screenshotSection(task.screenshots)}
 
 4. Be honest — reject bad ideas early to save execution cost. Don't be a yes-machine.
 
-## Output
+## Output Format
 
-**CRITICAL**: Your ENTIRE final response must be a single JSON object — no prose, no markdown fences, no explanation before or after. Just the JSON object.
+You MUST output a single JSON object as your FINAL response. No prose before or after — just the JSON.
 
 Rating scale:
 - "reject": Bad idea — conflicts with codebase, already exists, or actively harmful
@@ -45,7 +45,9 @@ Rating scale:
 
 JSON schema:
 
-{"rating":"reject|weak|viable|good|excellent","summary":"2-3 sentence verdict","reasoning":"Detailed analysis paragraph","pros":["advantage 1"],"cons":["concern 1"],"filesExamined":["path/to/file.ts"],"webResearch":"Summary of web findings, if any"}`;
+{"rating":"reject|weak|viable|good|excellent","summary":"2-3 sentence verdict","reasoning":"Detailed analysis paragraph","pros":["advantage 1"],"cons":["concern 1"],"filesExamined":["path/to/file.ts"],"webResearch":"Summary of web findings, if any"}
+
+REMEMBER: Your final message must be ONLY the JSON object above. Do not write any analysis text — put all your analysis INSIDE the JSON fields.`;
 }
 
 export function buildEnrichmentPrompt(task: Task): string {
@@ -92,11 +94,13 @@ ${screenshotSection(task.screenshots)}${investigationContext}
 
 ## Output
 
-**CRITICAL**: Your ENTIRE final response must be a single JSON object — no prose, no markdown fences, no explanation before or after. Just the JSON object.
+You MUST output a single JSON object as your FINAL response. No prose before or after — just the JSON.
 
 JSON schema:
 
-{"improvedDescription":"Detailed rewrite","affectedFiles":[{"path":"src/foo.ts","reason":"why","changeType":"modify|create|delete"}],"approach":[{"step":1,"description":"What to do","files":["src/foo.ts"]}],"risks":[{"description":"What could go wrong","severity":"low|medium|high","mitigation":"How to mitigate"}],"complexity":"trivial|small|medium|large","acceptanceCriteria":["Criterion 1"],"relatedCode":[{"path":"src/bar.ts","lines":"42-58","relevance":"Why this matters"}]}`;
+{"improvedDescription":"Detailed rewrite","affectedFiles":[{"path":"src/foo.ts","reason":"why","changeType":"modify|create|delete"}],"approach":[{"step":1,"description":"What to do","files":["src/foo.ts"]}],"risks":[{"description":"What could go wrong","severity":"low|medium|high","mitigation":"How to mitigate"}],"complexity":"trivial|small|medium|large","acceptanceCriteria":["Criterion 1"],"relatedCode":[{"path":"src/bar.ts","lines":"42-58","relevance":"Why this matters"}]}
+
+REMEMBER: Your final message must be ONLY the JSON object above. Do not write any analysis text — put all your analysis INSIDE the JSON fields.`;
 }
 
 export function buildExecutionPrompt(task: Task): string {

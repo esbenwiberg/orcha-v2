@@ -20,12 +20,17 @@ export function extractJson(text: string): Record<string, unknown> | null {
     if (fenced) return fenced;
   }
 
-  // Strategy 3: find the outermost { ... }
-  const firstBrace = trimmed.indexOf('{');
+  // Strategy 3: scan for '{"' from right to left — avoids false positives like ${var} in prose
   const lastBrace = trimmed.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    const braced = tryParseObject(trimmed.slice(firstBrace, lastBrace + 1));
-    if (braced) return braced;
+  if (lastBrace !== -1) {
+    let searchFrom = lastBrace;
+    for (let i = 0; i < 10 && searchFrom >= 0; i++) {
+      const pos = trimmed.lastIndexOf('{"', searchFrom);
+      if (pos === -1) break;
+      const candidate = tryParseObject(trimmed.slice(pos, lastBrace + 1));
+      if (candidate) return candidate;
+      searchFrom = pos - 1;
+    }
   }
 
   return null;

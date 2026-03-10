@@ -1,4 +1,4 @@
-import type { Task, InvestigationResult } from '../domain/task-types.js';
+import type { Task, InvestigationResult, InvestigationRating } from '../domain/task-types.js';
 import type { TaskStore } from '../db/task-store.js';
 import { buildInvestigationPrompt, INVESTIGATION_TOOLS } from './prompts.js';
 import { extractJson } from './extract-json.js';
@@ -71,12 +71,14 @@ function parseInvestigationResult(text: string): InvestigationResult {
   const parsed = extractJson(text);
   if (!parsed) {
     console.warn('[investigate] failed to parse investigation JSON, full text (%d chars):\n%s', text.length, text.slice(0, 1000));
+    // Salvage a rating from the prose if possible
+    const rating = inferRatingFromProse(text);
     return {
-      rating: 'weak',
-      summary: 'Failed to parse structured investigation result.',
+      rating,
+      summary: `Investigation completed but output was not structured JSON (inferred rating: ${rating}).`,
       reasoning: text.slice(0, 2000),
       pros: [],
-      cons: ['Investigation output was not valid JSON'],
+      cons: ['Investigation output was not valid JSON — rating inferred from prose'],
       filesExamined: [],
     };
   }
@@ -90,4 +92,27 @@ function parseInvestigationResult(text: string): InvestigationResult {
     filesExamined: (parsed['filesExamined'] as string[]) ?? [],
     ...(parsed['webResearch'] !== undefined ? { webResearch: parsed['webResearch'] as string } : {}),
   };
+}
+
+const RATING_KEYWORDS: [RegExp, InvestigationRating][] = [
+  [/\bexcellent\b/i, 'excellent'],
+  [/\breject\b/i, 'reject'],
+  [/\bstraightforward\b/i, 'good'],
+  [/\bgood\b/i, 'good'],
+  [/\bviable\b/i, 'viable'],
+  [/\bweak\b/i, 'weak'],
+];
+
+/** Best-effort rating inference from prose text when JSON parsing fails. */
+function inferRatingFromProse(text: string): InvestigationRating {
+  const lower = text.toLowerCase();
+  // Check for explicit rating mentions first (e.g. 'rating: "excellent"' or 'Rating: excellent')
+  const explicit = lower.match(/rating[:\s]*["']?(reject|weak|viable|good|excellent)["']?/);
+  if (explicit) return explicit[1] as InvestigationRating;
+
+  // Fall back to keyword scanning
+  for (const [re, rating] of RATING_KEYWORDS) {
+    if (re.test(lower)) return rating;
+  }
+  return 'viable'; // default to viable — Claude did produce analysis, just not JSON
 }

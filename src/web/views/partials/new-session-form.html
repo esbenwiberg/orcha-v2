@@ -23,6 +23,12 @@
       placeholder="https://github.com/owner/repo/pull/123"
       autocomplete="off"
       value="<%= it.prUrl ?? '' %>"
+      oninput="(function(v){
+        var hide = v.trim().length > 0;
+        document.getElementById('ns-source-branch-group').style.display = hide ? 'none' : '';
+        document.getElementById('ns-branch-group').style.display = hide ? 'none' : '';
+        document.getElementById('ns-branch').required = !hide;
+      })(this.value)"
     />
   </div>
 
@@ -50,7 +56,7 @@
     </select>
   </div>
 
-  <div class="form-group">
+  <div class="form-group" id="ns-source-branch-group" style="<%= (it.prUrl ?? '').trim().length > 0 ? 'display:none' : '' %>">
     <label class="form-label" for="ns-source-branch">
       Source Branch
       <span id="ns-source-branch-loading" class="htmx-indicator ml-1 italic normal-case tracking-normal text-slate-500">(loading…)</span>
@@ -77,14 +83,14 @@
     </select>
   </div>
 
-  <div class="form-group">
+  <div class="form-group" id="ns-branch-group" style="<%= (it.prUrl ?? '').trim().length > 0 ? 'display:none' : '' %>">
     <label class="form-label" for="ns-branch">Branch Name</label>
     <input
       class="form-input"
       id="ns-branch"
       type="text"
       name="branch"
-      required
+      <%= (it.prUrl ?? '').trim().length > 0 ? '' : 'required' %>
       placeholder="feature/my-branch"
       autocomplete="off"
       value="<%= it.branch ?? '' %>"

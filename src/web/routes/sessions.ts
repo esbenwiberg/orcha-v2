@@ -795,7 +795,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      const shell = deps.sessionEngine.spawnHostShell(id);
+      const shell = deps.sessionEngine.spawnHostShell(id, { label: 'Host Shell' });
       const html = eta.render('partials/debug-shell-panel', {
         shellId: shell.shellId,
         sessionId: id,
@@ -829,12 +829,46 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const shell = deps.sessionEngine.spawnHostShell(id, {
         command: [repo.deployCommand],
         extraEnv: repo.deployEnvVars,
+        label: 'Deploy',
       });
       const html = eta.render('partials/debug-shell-panel', {
         shellId: shell.shellId,
         sessionId: id,
         label: 'Deploy',
       });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/shells — list active debug/host/deploy shells for reconnection
+  router.get('/sessions/:id/shells', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const active = deps.sessionEngine.getSessionByDbId(id);
+      if (active === undefined) {
+        res.status(200).send('');
+        return;
+      }
+
+      const shells = deps.sessionEngine.listDebugShells(active.sessionId);
+      if (shells.length === 0) {
+        res.status(200).send('');
+        return;
+      }
+
+      const html = shells
+        .map((shell) =>
+          eta.render('partials/debug-shell-panel', {
+            shellId: shell.shellId,
+            sessionId: id,
+            ...(shell.label !== undefined ? { label: shell.label } : {}),
+          }),
+        )
+        .join('');
+
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {

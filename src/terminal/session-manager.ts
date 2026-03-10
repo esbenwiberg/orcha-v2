@@ -78,6 +78,8 @@ export interface DebugShell {
   terminal: SessionTerminal;
   outputBuffer: OutputBuffer;
   createdAt: Date;
+  /** Display label for reconnection (e.g. 'Host Shell', 'Deploy'). Undefined = plain 'Shell'. */
+  label?: string;
 }
 
 export class SessionError extends Error {
@@ -627,7 +629,7 @@ export class SessionManager {
    * credentials. `az login` inside the shell writes to /tmp (session-scoped)
    * so all CLI auth is cleaned up when the session closes.
    */
-  spawnHostShell(parentSessionId: string, opts?: { extraEnv?: Record<string, string>; command?: string[] }): DebugShell {
+  spawnHostShell(parentSessionId: string, opts?: { extraEnv?: Record<string, string>; command?: string[]; label?: string }): DebugShell {
     const parent = this._active.get(parentSessionId) ?? this.getSessionByDbId(parentSessionId);
     if (parent === undefined) {
       throw new SessionError(`Parent session '${parentSessionId}' not found`, 'NOT_FOUND');
@@ -676,6 +678,7 @@ export class SessionManager {
       terminal,
       outputBuffer,
       createdAt: new Date(),
+      ...(opts?.label !== undefined ? { label: opts.label } : {}),
     };
 
     terminal.on('exit', () => {

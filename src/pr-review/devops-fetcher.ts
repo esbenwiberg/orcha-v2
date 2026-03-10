@@ -55,11 +55,25 @@ async function adoFetch<T>(url: string, token: string): Promise<T> {
     headers['Authorization'] = `Basic ${Buffer.from(`:${token}`).toString('base64')}`;
   }
 
-  const res = await fetch(url, { headers });
+  const res = await fetch(url, { headers, redirect: 'manual' });
+
+  // A redirect means ADO is sending us to a login page — PAT is missing/invalid
+  if (res.status >= 300 && res.status < 400) {
+    const location = res.headers.get('location') ?? '(none)';
+    throw new Error(`Azure DevOps API redirected (${res.status}) to ${location}. The PAT is likely missing, expired, or lacks the required scope.`);
+  }
+
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Azure DevOps API ${res.status}: ${url} — ${body.slice(0, 200)}`);
   }
+
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Azure DevOps API returned non-JSON (${contentType || 'no content-type'}). The PAT may be missing or expired. Response: ${body.slice(0, 200)}`);
+  }
+
   return res.json() as Promise<T>;
 }
 

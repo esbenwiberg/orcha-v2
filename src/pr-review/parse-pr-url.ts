@@ -31,10 +31,10 @@ export function parsePrUrl(url: string): PrIdentifier {
   if (adoMatch) {
     return {
       provider: 'azure-devops',
-      owner: adoMatch[1]!,
-      repo: adoMatch[3]!,
+      owner: decodeURIComponent(adoMatch[1]!),
+      repo: decodeURIComponent(adoMatch[3]!),
       prNumber: parseInt(adoMatch[4]!, 10),
-      project: adoMatch[2]!,
+      project: decodeURIComponent(adoMatch[2]!),
     };
   }
 
@@ -45,10 +45,10 @@ export function parsePrUrl(url: string): PrIdentifier {
   if (adoOldMatch) {
     return {
       provider: 'azure-devops',
-      owner: adoOldMatch[1]!,
-      repo: adoOldMatch[3]!,
+      owner: decodeURIComponent(adoOldMatch[1]!),
+      repo: decodeURIComponent(adoOldMatch[3]!),
       prNumber: parseInt(adoOldMatch[4]!, 10),
-      project: adoOldMatch[2]!,
+      project: decodeURIComponent(adoOldMatch[2]!),
     };
   }
 
