@@ -19,6 +19,7 @@ import { GlobalSettingsStore } from '../db/global-settings-store.js';
 import { registerSyncFn } from '../db/db-sync.js';
 import { installEnabledSdks } from '../sdk-installer.js';
 import { TaskProcessor } from '../tasks/task-processor.js';
+import { CleanupService } from '../terminal/cleanup-service.js';
 import { StatusMonitor } from '../terminal/status-monitor.js';
 import { eventBus } from './services/event-bus.js';
 
@@ -233,11 +234,21 @@ const authTerminalManager = new AuthTerminalManager();
 
 const deps: AppDeps = { sessionEngine, worktreeManager, db, authConfig, authTerminalManager, validationManager };
 
+// Start background cleanup service (stale sessions, orphaned worktrees, expired creds)
+const cleanupService = new CleanupService(sessionEngine, worktreeManager, sessionStore, 60_000, credentialStore);
+cleanupService.setValidationManager(validationManager);
+cleanupService.start();
+
+cleanupService.on('cleanup-error', (err) => {
+  console.error('[cleanup] background sweep failed:', err);
+});
+
 // Start the task pipeline processor (background loop)
 const taskProcessor = new TaskProcessor({ db, sessionManager: sessionEngine, worktreeManager });
 taskProcessor.start(10_000);
 
 process.on('SIGTERM', () => {
+  cleanupService.stop();
   taskProcessor.stop();
 });
 
