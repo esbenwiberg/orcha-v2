@@ -161,6 +161,42 @@ export class WorktreeManager {
   }
 
   /**
+   * Removes any existing worktree that has `branch` checked out.
+   * Git refuses to check out a branch in two worktrees simultaneously. Stale
+   * worktrees from dead sessions can linger, so we evict them before adding a
+   * new worktree for the same branch.
+   */
+  private async evictBranchFromWorktrees(branch: string, cwdOverride?: string): Promise<void> {
+    let output: string;
+    try {
+      output = await this.execGit(['worktree', 'list', '--porcelain'], cwdOverride);
+    } catch {
+      return; // can't list worktrees — nothing to evict
+    }
+
+    const blocks = output.trim().split(/\n\n+/);
+    for (const block of blocks) {
+      const lines = block.trim().split('\n');
+      let wtPath = '';
+      let wtBranch = '';
+      for (const line of lines) {
+        if (line.startsWith('worktree ')) wtPath = line.slice('worktree '.length);
+        if (line.startsWith('branch ')) wtBranch = line.slice('branch '.length).replace(/^refs\/heads\//, '');
+      }
+      if (wtBranch === branch && wtPath) {
+        console.warn('[worktree] branch %s already checked out at %s — evicting stale worktree', branch, wtPath);
+        try {
+          await this.execGit(['worktree', 'remove', '--force', wtPath], cwdOverride);
+        } catch { /* directory may not exist or git may not track it */ }
+        if (fs.existsSync(wtPath)) {
+          fs.rmSync(wtPath, { recursive: true, force: true });
+        }
+        try { await this.execGit(['worktree', 'prune'], cwdOverride); } catch { /* best-effort */ }
+      }
+    }
+  }
+
+  /**
    * Creates a worktree that checks out an existing remote branch (no new local branch).
    * Used for PR review sessions where we want to work directly on the PR branch.
    */
@@ -170,18 +206,28 @@ export class WorktreeManager {
     const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
     const cwd = repoRootOverride ?? undefined;
 
-    // Clean up stale state
+    // Always prune stale worktree entries first (cleans up entries where
+    // the on-disk directory was removed but git still tracks them).
+    try { await this.execGit(['worktree', 'prune'], cwd); } catch { /* best-effort */ }
+
+    // Clean up stale directory for THIS session's path
     if (fs.existsSync(worktreePath)) {
       console.warn('[worktree] stale directory %s exists — removing before checkoutWorktree', worktreePath);
-      fs.rmSync(worktreePath, { recursive: true, force: true });
       try {
-        await this.execGit(['worktree', 'prune'], cwd);
-      } catch { /* best-effort */ }
+        await this.execGit(['worktree', 'remove', '--force', worktreePath], cwd);
+      } catch { /* git may not track it */ }
+      if (fs.existsSync(worktreePath)) {
+        fs.rmSync(worktreePath, { recursive: true, force: true });
+      }
     }
 
     // Strip origin/ prefix if present for the local branch name
     const localBranch = remoteBranch.replace(/^origin\//, '');
     const trackingRef = remoteBranch.startsWith('origin/') ? remoteBranch : `origin/${remoteBranch}`;
+
+    // If the target branch is already checked out in another worktree (stale
+    // session that wasn't cleaned up), remove that worktree first.
+    await this.evictBranchFromWorktrees(localBranch, cwd);
 
     // Check if local branch already exists
     let branchExists = false;
@@ -305,12 +351,22 @@ export class WorktreeManager {
     const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
     const cwd = repoRootOverride ?? undefined;
 
+    // Prune stale worktree entries first
+    try { await this.execGit(['worktree', 'prune'], cwd); } catch { /* best-effort */ }
+
     // Clean stale entries and leftover directories
     if (fs.existsSync(worktreePath)) {
       console.warn('[worktree] stale directory %s exists — removing before restoreWorktree', worktreePath);
-      fs.rmSync(worktreePath, { recursive: true, force: true });
+      try {
+        await this.execGit(['worktree', 'remove', '--force', worktreePath], cwd);
+      } catch { /* git may not track it */ }
+      if (fs.existsSync(worktreePath)) {
+        fs.rmSync(worktreePath, { recursive: true, force: true });
+      }
     }
-    await this.execGit(['worktree', 'prune'], cwd);
+
+    // Evict branch from any stale worktree that still has it checked out
+    await this.evictBranchFromWorktrees(safeBranch, cwd);
 
     // Add worktree from existing branch (no -b flag)
     await this.execGit(['worktree', 'add', worktreePath, safeBranch], cwd);
