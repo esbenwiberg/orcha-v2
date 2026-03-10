@@ -76,6 +76,11 @@
           <td>Declarative AJAX — no custom JS for data fetching</td>
         </tr>
         <tr>
+          <td>Styling</td>
+          <td><code>Tailwind CSS</code></td>
+          <td>Utility-first CSS framework with custom design system</td>
+        </tr>
+        <tr>
           <td>Terminal</td>
           <td><code>xterm.js</code> + <code>node-pty</code></td>
           <td>In-browser terminal over WebSocket</td>
@@ -87,8 +92,13 @@
         </tr>
         <tr>
           <td>Real-time</td>
-          <td><code>ws</code></td>
-          <td>WebSocket server for terminal I/O</td>
+          <td><code>ws</code> + <code>SSE</code></td>
+          <td>WebSocket for terminal I/O, Server-Sent Events for kanban live updates</td>
+        </tr>
+        <tr>
+          <td>Drag &amp; drop</td>
+          <td><code>SortableJS</code></td>
+          <td>Kanban board drag-and-drop with animated card transitions</td>
         </tr>
         <tr>
           <td>Auth</td>
@@ -114,6 +124,11 @@
           <td>Proxy</td>
           <td><code>http-proxy</code></td>
           <td>Reverse proxy for live preview of validation apps (HTTP + WebSocket)</td>
+        </tr>
+        <tr>
+          <td>Diff viewer</td>
+          <td><code>diff2html</code></td>
+          <td>Rich git diff rendering in session cards (vendored locally)</td>
         </tr>
         <tr>
           <td>Security</td>
@@ -154,6 +169,9 @@
     <h3>Why scoped credentials?</h3>
     <p>AI agents shouldn't have permanent access to cloud resources. Orcha provisions credentials when a session starts and revokes them when it ends. If a session fails or is cancelled, cleanup runs automatically.</p>
 
+    <h3>Why an autonomous task pipeline?</h3>
+    <p>Sessions are great for interactive work, but many tasks don't need human oversight until the PR is ready. The task pipeline lets you queue work items and walk away — investigation, planning, execution, and PR creation all happen in the background. You review the result, not the process.</p>
+
     <h3>Why MCP for session extensions?</h3>
     <p>Instead of adding custom logic inside the sandbox, Orcha uses the Model Context Protocol to expose tools back to the agent. The validation MCP server lets Claude build, start, screenshot, and browse the app under development — all through a standard protocol that Claude Code already understands. Custom MCP servers can be registered globally and injected per-session or per-preset.</p>
   </div>
@@ -180,6 +198,10 @@
         <tr><td><code>src/web/routes/</code></td><td>Page routes (dashboard) and API routes (HTMX partials + JSON + validate proxy)</td></tr>
         <tr><td><code>src/web/views/</code></td><td>ETA templates — layouts, pages, partials</td></tr>
         <tr><td><code>src/credentials/</code></td><td>Credential providers (Azure, GitHub, DevOps) and manager</td></tr>
+        <tr><td><code>src/tasks/</code></td><td>Autonomous task pipeline — investigate, enrich, execute, PR creation</td></tr>
+        <tr><td><code>src/pr-review/</code></td><td>PR comment fetching from GitHub and Azure DevOps for review sessions</td></tr>
+        <tr><td><code>src/domain/</code></td><td>Shared domain types, task types, and status transition rules</td></tr>
+        <tr><td><code>src/diagnostics/</code></td><td>Startup diagnostics and health checks</td></tr>
         <tr><td><code>src/sandbox/</code></td><td>Landlock filesystem isolation</td></tr>
         <tr><td><code>src/validation/</code></td><td>Validation engine — port allocator, config resolver, serve/docker runners, Playwright browser manager</td></tr>
         <tr><td><code>src/mcp/</code></td><td>Streamable HTTP MCP server exposing validation and browser tools to sessions</td></tr>

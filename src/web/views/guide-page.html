@@ -123,6 +123,66 @@
 <div class="page-section mb-4">
   <div class="page-section__header">
     <div>
+      <h2 class="page-section__title">Tasks</h2>
+      <p class="page-section__subtitle">Autonomous task pipeline with kanban board</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Tasks let you queue work items that Orcha processes autonomously — from investigation through to a finished pull request. You manage tasks on a kanban board; Orcha handles the rest.</p>
+    <h3>Creating a task</h3>
+    <ol>
+      <li>Go to the <strong>Tasks</strong> page</li>
+      <li>Click <strong>+ New Task</strong></li>
+      <li>Select a <strong>repository</strong> and optionally a <strong>preset</strong> to pre-fill settings</li>
+      <li>Write a <strong>title</strong> and <strong>description</strong> — the description is the instruction for the agent</li>
+      <li>Optionally paste <strong>screenshots</strong> (Ctrl+V) to attach images</li>
+      <li>Hit <strong>Create</strong> — the task lands in the Inbox column</li>
+    </ol>
+    <h3>Pipeline stages</h3>
+    <p>When you drag a task from Inbox to Investigating (or it advances automatically), Orcha runs a multi-stage pipeline:</p>
+    <table class="data-table">
+      <thead>
+        <tr><th>Stage</th><th>What happens</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Investigate</strong></td><td>Claude reads the repo and task description, produces a structured analysis (affected files, approach, risk)</td></tr>
+        <tr><td><strong>Enrich</strong></td><td>The investigation is used to generate a detailed execution plan and branch name</td></tr>
+        <tr><td><strong>Execute</strong></td><td>A full Claude Code session runs in an isolated worktree, implementing the plan</td></tr>
+        <tr><td><strong>PR</strong></td><td>On success, a pull request is created on GitHub or Azure DevOps</td></tr>
+      </tbody>
+    </table>
+    <h3>Kanban columns</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Column</th><th>Statuses</th><th>Meaning</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Inbox</td><td>Draft</td><td>Waiting to be picked up</td></tr>
+        <tr><td>Investigating</td><td>Investigating</td><td>Agent is analyzing the task</td></tr>
+        <tr><td>Review</td><td>Rejected</td><td>Investigation was rejected — edit and retry</td></tr>
+        <tr><td>Pipeline</td><td>Enriching, Queued, Executing</td><td>Actively being processed</td></tr>
+        <tr><td>Done</td><td>Done</td><td>PR created or task completed</td></tr>
+        <tr><td>Failed</td><td>Failed, Cancelled</td><td>Something went wrong or was stopped</td></tr>
+      </tbody>
+    </table>
+    <h3>Real-time updates</h3>
+    <p>The kanban board updates live via SSE (Server-Sent Events). Cards animate between columns as tasks progress, and activity indicators show when an agent is actively working. A <span class="badge badge-warning">needs input</span> badge appears when the agent is waiting for user interaction.</p>
+    <h3>Task actions</h3>
+    <ul>
+      <li><strong>Drag-and-drop</strong> — move cards between columns to advance or reset tasks</li>
+      <li><strong>Terminal button</strong> — jump straight to the active session terminal</li>
+      <li><strong>Edit</strong> — update title, description, or screenshots on draft tasks</li>
+      <li><strong>Retry</strong> — reset a failed task back to draft for another attempt</li>
+      <li><strong>PR review</strong> — after a PR is created, Orcha can fetch review comments from GitHub/DevOps, run a follow-up session to address them, and post a summary</li>
+    </ul>
+    <h3>Task pipeline settings</h3>
+    <p>Configure how many tasks run in parallel and other pipeline behavior under <strong>Settings</strong> &rarr; <strong>General</strong> tab &rarr; <strong>Task Pipeline</strong>.</p>
+  </div>
+</div>
+
+<div class="page-section mb-4">
+  <div class="page-section__header">
+    <div>
       <h2 class="page-section__title">Presets</h2>
       <p class="page-section__subtitle">Reusable session templates</p>
     </div>
@@ -183,6 +243,10 @@
         <tr><td>Azure DevOps</td><td>PAT via VSSPS API</td></tr>
       </tbody>
     </table>
+    <h3>Direct PAT mode</h3>
+    <p>Azure DevOps profiles support a <strong>Direct PAT</strong> mode — instead of provisioning a short-lived token via the VSSPS API, the session uses the bootstrap PAT directly. Useful when your org restricts PAT creation APIs.</p>
+    <h3>Credential isolation</h3>
+    <p>When a credential profile is attached, Orcha strips ambient tokens (like <code>AZURE_DEVOPS_EXT_PAT</code>) from the session environment so the agent can only use the scoped credentials you configured — not whatever happens to be set on the host.</p>
     <p>Create profiles on the <strong>Credentials</strong> page, then attach them when creating sessions or presets.</p>
   </div>
 </div>
@@ -274,7 +338,7 @@
     <p>MCP (Model Context Protocol) servers expose additional tools to Claude Code inside sessions. Orcha has a built-in validation MCP server, and you can register your own.</p>
     <h3>Adding an MCP server</h3>
     <ol>
-      <li>Go to <strong>Settings</strong> &rarr; <strong>MCP Servers</strong> tab</li>
+      <li>Go to <strong>Settings</strong> &rarr; <strong>Integrations</strong> tab &rarr; <strong>MCP Servers</strong></li>
       <li>Click <strong>+ Add Server</strong></li>
       <li>Choose a type: <em>HTTP</em> (Streamable HTTP) or <em>Command</em> (stdio-based)</li>
       <li>Enter the URL or command</li>
@@ -295,7 +359,7 @@
     <p>Skills are reusable prompt templates exposed as <code>/slash-commands</code> inside Claude Code sessions. Define them once, and every session gets access.</p>
     <h3>Managing skills</h3>
     <ol>
-      <li>Go to <strong>Settings</strong> &rarr; <strong>Skills</strong> tab</li>
+      <li>Go to <strong>Settings</strong> &rarr; <strong>Integrations</strong> tab &rarr; <strong>Skills</strong></li>
       <li>Click <strong>+ Add Skill</strong></li>
       <li>Give it a name (becomes the <code>/command</code>) and write the prompt template</li>
     </ol>
@@ -311,17 +375,30 @@
     </div>
   </div>
   <div class="prose">
-    <p>The Settings page is organized into tabs, each controlling a different aspect of session behavior.</p>
-    <h3>Permissions</h3>
-    <p>Edit the shared <code>.claude/settings.json</code> that controls which tools Claude Code is allowed to use. Rules are split into <strong>allow</strong> and <strong>deny</strong> lists. Changes apply to all new sessions.</p>
-    <h3>CLAUDE.md / soul.md</h3>
-    <p>Edit the global <code>CLAUDE.md</code> and <code>soul.md</code> files that are injected into every session. Use these to set project-wide instructions, coding standards, or agent personality.</p>
-    <h3>Git Identity</h3>
-    <p>Configure the <code>user.name</code> and <code>user.email</code> that sessions use for git commits. Injected into each session's <code>.gitconfig</code> on startup.</p>
-    <h3>SDKs</h3>
-    <p>Enable global SDKs (TypeScript, .NET) that are installed at container boot. Sessions can then use these tools without needing to install them themselves.</p>
-    <h3>Bootstrap PATs</h3>
-    <p>Configure bootstrap Personal Access Tokens used by credential providers (e.g., Azure DevOps PATs for provisioning session-scoped tokens).</p>
+    <p>The Settings page is organized into four tabs.</p>
+    <h3>General</h3>
+    <ul>
+      <li><strong>Azure CLI</strong> — host-level <code>az</code> sign-in status for deployments</li>
+      <li><strong>Task Pipeline</strong> — configure how many tasks run concurrently in the background processor</li>
+      <li><strong>Git Identity</strong> — <code>user.name</code> and <code>user.email</code> injected into each session's <code>.gitconfig</code></li>
+    </ul>
+    <h3>Agent</h3>
+    <ul>
+      <li><strong>CLAUDE.md</strong> — global instructions injected into every session</li>
+      <li><strong>soul.md</strong> — voice and style guide merged into CLAUDE.md at session start</li>
+      <li><strong>Claude Permissions</strong> — tool allow/deny rules written to <code>.claude/settings.json</code></li>
+    </ul>
+    <h3>Integrations</h3>
+    <ul>
+      <li><strong>Private Feeds</strong> — Azure DevOps Artifacts feed config (org, project, PAT, feed names). When enabled on a session, Orcha injects <code>.npmrc</code> and <code>NuGet.Config</code> with authentication so agents can install private npm and NuGet packages.</li>
+      <li><strong>Global SDKs</strong> — enable TypeScript, .NET, or other SDKs installed at container boot</li>
+      <li><strong>MCP Servers</strong> — register custom MCP servers to inject into sessions (see MCP Servers section)</li>
+      <li><strong>Skills</strong> — define custom <code>/slash-commands</code> available in all sessions (see Skills section)</li>
+    </ul>
+    <h3>Credentials</h3>
+    <ul>
+      <li><strong>Bootstrap PATs</strong> — long-lived tokens used by credential providers to provision short-lived session credentials. PATs are validated on save with immediate feedback.</li>
+    </ul>
   </div>
 </div>
 
@@ -335,6 +412,7 @@
   <div class="prose">
     <p>The System page shows uptime, disk usage, and resource stats.</p>
     <h3>Cleanup</h3>
+    <p>A background <strong>CleanupService</strong> runs automatically on startup — it prunes expired credentials, orphaned worktrees, and stale session data on a schedule. You can also trigger cleanup manually:</p>
     <ul>
       <li><strong>Clean logs</strong> — remove old session log files</li>
       <li><strong>Clean worktrees</strong> — prune orphaned git worktrees from finished sessions</li>
