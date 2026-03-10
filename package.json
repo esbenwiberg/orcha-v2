@@ -70,6 +70,7 @@
     "compression": "^1.8.1",
     "cookie-session": "^2.1.1",
     "cors": "^2.8.6",
+    "diff2html": "^3.4.56",
     "eta": "^3.5.0",
     "express": "^5.2.1",
     "helmet": "^8.1.0",

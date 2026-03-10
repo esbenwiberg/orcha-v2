@@ -11,10 +11,10 @@ const helmetMiddleware = helmet({
   contentSecurityPolicy: {
     directives: {
       'default-src': ["'self'"],
-      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://esm.sh'],
+      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       'script-src-attr': ["'unsafe-inline'"],
-      'style-src': ["'self'", "'unsafe-inline'", 'https://esm.sh'],
-      'connect-src': ["'self'", 'wss:', 'ws:', 'https://esm.sh'],
+      'style-src': ["'self'", "'unsafe-inline'"],
+      'connect-src': ["'self'", 'wss:', 'ws:'],
       'img-src': ["'self'", 'data:'],
     },
   },

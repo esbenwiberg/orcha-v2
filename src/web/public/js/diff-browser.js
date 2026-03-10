@@ -6,27 +6,9 @@
   var currentBase = '';
   var currentPath = '';
   var viewMode = 'unified'; // 'unified' | 'split'
-  var diff2htmlMod = null;
-  var isLoadingLib = false;
-
-  /** Lazy-load diff2html from esm.sh. */
-  async function ensureDiff2Html() {
-    if (diff2htmlMod) return;
-    if (isLoadingLib) {
-      while (isLoadingLib) await new Promise(function (r) { setTimeout(r, 50); });
-      return;
-    }
-    isLoadingLib = true;
-    try {
-      diff2htmlMod = await import('https://esm.sh/diff2html@3');
-    } finally {
-      isLoadingLib = false;
-    }
-  }
 
   /** Render a unified diff string into the diff pane. */
-  async function renderDiff(diffText) {
-    await ensureDiff2Html();
+  function renderDiff(diffText) {
     var container = document.getElementById('diff-content');
     var empty = document.getElementById('diff-empty');
     if (!container) return;
@@ -40,8 +22,15 @@
       return;
     }
 
+    if (typeof Diff2Html === 'undefined') {
+      container.innerHTML = '<div class="diff-browser__error">diff2html library not loaded</div>';
+      container.classList.remove('hidden');
+      if (empty) empty.classList.add('hidden');
+      return;
+    }
+
     var outputFormat = viewMode === 'split' ? 'side-by-side' : 'line-by-line';
-    var html = diff2htmlMod.html(diffText, {
+    var html = Diff2Html.html(diffText, {
       drawFileList: false,
       matching: 'lines',
       outputFormat: outputFormat,
@@ -52,6 +41,17 @@
     if (empty) empty.classList.add('hidden');
   }
 
+  /** Show a loading state in the diff pane. */
+  function showLoading() {
+    var container = document.getElementById('diff-content');
+    var empty = document.getElementById('diff-empty');
+    if (container) container.classList.add('hidden');
+    if (empty) {
+      empty.querySelector('p').textContent = 'Loading diff\u2026';
+      empty.classList.remove('hidden');
+    }
+  }
+
   /** Fetch diff content for the current base + path. */
   async function loadDiff() {
     var url = '/api/sessions/' + sessionId + '/diff/content?base=' + encodeURIComponent(currentBase);
@@ -59,17 +59,21 @@
       url += '&path=' + encodeURIComponent(currentPath);
     }
 
+    showLoading();
+
     try {
       var resp = await fetch(url);
       var data = await resp.json();
-      await renderDiff(data.diff || '');
+      renderDiff(data.diff || '');
     } catch (err) {
       console.warn('[diff-browser] load diff failed:', err);
       var container = document.getElementById('diff-content');
+      var empty = document.getElementById('diff-empty');
       if (container) {
         container.innerHTML = '<div class="diff-browser__error">Failed to load diff</div>';
         container.classList.remove('hidden');
       }
+      if (empty) empty.classList.add('hidden');
     }
   }
 
