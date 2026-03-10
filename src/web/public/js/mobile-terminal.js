@@ -11,6 +11,70 @@
  *                    { type: 'error',  message: string }
  */
 
+/* -----------------------------------------------------------------------
+   PR link detection — scan terminal output for GitHub / Azure DevOps PR
+   URLs and show a dismissable banner with a clickable link.
+   ----------------------------------------------------------------------- */
+
+/** @type {RegExp} Matches GitHub and Azure DevOps PR URLs. */
+const _PR_URL_RE = /https?:\/\/(?:github\.com\/[^\s\x1b]+\/pull\/\d+|dev\.azure\.com\/[^\s\x1b]+\/pullrequest\/\d+|[^\s\x1b]+\.visualstudio\.com\/[^\s\x1b]+\/pullrequest\/\d+)/g;
+
+/** Track already-shown PR URLs so we don't spam banners. */
+const _shownPrUrls = new Set();
+
+/**
+ * Strip ANSI escape sequences for URL matching.
+ * @param {string} text
+ * @returns {string}
+ */
+function _stripAnsi(text) {
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
+}
+
+/**
+ * Scan terminal output for PR URLs and show a banner if found.
+ * @param {string} rawData
+ */
+function _detectPrLinks(rawData) {
+  const clean = _stripAnsi(rawData);
+  const matches = clean.match(_PR_URL_RE);
+  if (!matches) return;
+
+  for (const url of matches) {
+    if (_shownPrUrls.has(url)) continue;
+    _shownPrUrls.add(url);
+    _showMobilePrBanner(url);
+  }
+}
+
+/**
+ * Show a dismissable PR link banner above the terminal on mobile.
+ * @param {string} url
+ */
+function _showMobilePrBanner(url) {
+  const frame = document.getElementById('terminal-frame');
+  if (!frame) return;
+
+  const isGitHub = url.includes('github.com');
+  const label = isGitHub ? 'GitHub PR' : 'Azure DevOps PR';
+
+  const banner = document.createElement('div');
+  banner.className = 'pr-banner';
+  banner.innerHTML = `<svg class="pr-banner__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="3.5" r="2"/><circle cx="5" cy="12.5" r="2"/><circle cx="12" cy="5.5" r="2"/><path d="M5 5.5v5M10.2 5.8L7 10.5"/></svg><a class="pr-banner__link" href="${url}" target="_blank" rel="noopener">${label}</a><button class="pr-banner__dismiss" aria-label="Dismiss">&times;</button>`;
+
+  banner.querySelector('.pr-banner__dismiss').addEventListener('click', () => {
+    banner.remove();
+  });
+
+  // Insert before the xterm container so it appears above it
+  const xterm = frame.querySelector('#xterm-container');
+  if (xterm) {
+    xterm.before(banner);
+  } else {
+    frame.prepend(banner);
+  }
+}
+
 /** Active mobile terminal state — only one terminal open at a time on mobile. */
 let _activeTerm = null;
 let _activeWs = null;
@@ -390,6 +454,7 @@ function connectWs(wsUrl, term, fitAddon, retryCount) {
       const msg = JSON.parse(event.data);
       if (msg.type === 'output' && typeof msg.data === 'string') {
         term.write(msg.data);
+        _detectPrLinks(msg.data);
         // Track last output time for idle detection
         _lastOutputTime = Date.now();
         // Reset wake lock idle timer on terminal activity
@@ -719,6 +784,7 @@ function _disposeMobileTerminal() {
   _activeFitAddon = null;
   _baseWsUrl = null;
   _bootedFrame = null;
+  _shownPrUrls.clear();
 }
 
 /**

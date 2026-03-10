@@ -964,6 +964,75 @@
   }
 
   /* ===================================================================
+     PR link banner (shown when agent creates a pull request)
+     =================================================================== */
+
+  .pr-banner-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .pr-banner {
+    @apply flex items-center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    margin-top: 0.375rem;
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border: 1px solid var(--color-accent);
+    animation: pr-banner-in 0.3s ease;
+  }
+
+  @keyframes pr-banner-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .pr-banner__icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    stroke: var(--color-accent);
+  }
+
+  .pr-banner__link {
+    flex: 1;
+    min-width: 0;
+    color: var(--accent-400, var(--color-accent));
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    word-break: break-all;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .pr-banner__link:hover {
+    color: var(--accent-300, var(--color-accent));
+  }
+
+  .pr-banner__dismiss {
+    @apply flex items-center justify-center;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    border-radius: 2px;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .pr-banner__dismiss:hover {
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-text) 10%, transparent);
+  }
+
+  /* ===================================================================
      Expiry progress bar in credentials panel
      =================================================================== */
 
