@@ -61,19 +61,34 @@ class PtySessionTerminal extends EventEmitter implements SessionTerminal {
   }
 
   write(data: string): void {
-    if (this._exitCode === undefined) {
+    if (this._exitCode !== undefined) return;
+    try {
       this._pty.write(data);
+    } catch (err) {
+      // PTY fd may close between the exitCode check and the native call.
+      process.stderr.write(`[pty] write failed sessionId=${this.sessionId}: ${String(err)}\n`);
     }
   }
 
   resize(size: TerminalSize): void {
+    if (this._exitCode !== undefined) return;
     const cols = Math.max(1, size.cols);
     const rows = Math.max(1, size.rows);
-    this._pty.resize(cols, rows);
+    try {
+      this._pty.resize(cols, rows);
+    } catch (err) {
+      // PTY fd may close between the exitCode check and the native ioctl call.
+      // Without this catch, EBADF from node-pty kills the process.
+      process.stderr.write(`[pty] resize failed sessionId=${this.sessionId}: ${String(err)}\n`);
+    }
   }
 
   kill(signal = 'SIGTERM'): void {
-    this._pty.kill(signal);
+    try {
+      this._pty.kill(signal);
+    } catch {
+      // Already dead
+    }
   }
 }
 

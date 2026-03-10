@@ -218,15 +218,27 @@ export class AuthTerminalManager {
           return entry.exitCode;
         },
         write(data: string) {
-          if (entry.exitCode === undefined) {
+          if (entry.exitCode !== undefined) return;
+          try {
             entry.pty.write(data);
+          } catch {
+            // PTY fd already closed
           }
         },
         resize(size: { cols: number; rows: number }) {
-          entry.pty.resize(Math.max(1, size.cols), Math.max(1, size.rows));
+          if (entry.exitCode !== undefined) return;
+          try {
+            entry.pty.resize(Math.max(1, size.cols), Math.max(1, size.rows));
+          } catch {
+            // PTY fd already closed — ioctl EBADF
+          }
         },
         kill(signal = 'SIGTERM') {
-          entry.pty.kill(signal);
+          try {
+            entry.pty.kill(signal);
+          } catch {
+            // Already dead
+          }
         },
       },
       outputBuffer: entry.outputBuffer,
