@@ -18,6 +18,39 @@
     hx-on::after-request="if(event.detail.successful){ closeModal(); }"
     class="flex flex-col gap-5"
   >
+    <% if (it.presets && it.presets.length > 0) { %>
+    <div class="form-group">
+      <label class="form-label" for="ntm-preset">Preset</label>
+      <select class="form-select" id="ntm-preset"
+        onchange="(function(sel){
+          var opt = sel.options[sel.selectedIndex];
+          if (!opt.value) return;
+          var repoId = opt.getAttribute('data-repo-id') || '';
+          var credId = opt.getAttribute('data-credential-profile-id') || '';
+          var modelId = opt.getAttribute('data-model-config-id') || '';
+          var mcpIds = JSON.parse(opt.getAttribute('data-mcp-server-ids') || '[]');
+          var form = sel.closest('form');
+          form.querySelector('#ntm-repo').value = repoId;
+          form.querySelector('#ntm-cred-profile').value = credId;
+          form.querySelector('#ntm-model-config').value = modelId;
+          var boxes = form.querySelectorAll('input[name=mcpServerIds]');
+          boxes.forEach(function(cb){ cb.checked = mcpIds.indexOf(cb.value) !== -1; });
+        })(this)"
+      >
+        <option value="">Fill from preset...</option>
+        <% for (const p of it.presets) { %>
+          <option
+            value="<%= p.id %>"
+            data-repo-id="<%= p.repoId %>"
+            data-credential-profile-id="<%= p.credentialProfileId %>"
+            data-model-config-id="<%= p.modelConfigId %>"
+            data-mcp-server-ids="<%= JSON.stringify(p.mcpServerIds) %>"
+          ><%= p.name %></option>
+        <% } %>
+      </select>
+    </div>
+    <% } %>
+
     <div class="form-group">
       <label class="form-label" for="ntm-repo">Repository</label>
       <select class="form-select" id="ntm-repo" name="repoId" required>
@@ -99,46 +132,40 @@
       </label>
     </div>
 
-    <!-- Advanced (collapsible) -->
-    <details>
-      <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300">Advanced options</summary>
-      <div class="flex flex-col gap-4 mt-3">
-        <div class="form-group">
-          <label class="form-label" for="ntm-cred-profile">Credential Profile</label>
-          <select class="form-select" id="ntm-cred-profile" name="credentialProfileId">
-            <option value="">None &mdash; use ambient credentials</option>
-            <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
-              <option value="<%= p.id %>"><%= p.name %> (<%= p.durationHours %>h)</option>
-            <% } } %>
-          </select>
-        </div>
+    <div class="form-group">
+      <label class="form-label" for="ntm-cred-profile">Credential Profile</label>
+      <select class="form-select" id="ntm-cred-profile" name="credentialProfileId">
+        <option value="">None &mdash; use ambient credentials</option>
+        <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
+          <option value="<%= p.id %>"><%= p.name %> (<%= p.durationHours %>h)</option>
+        <% } } %>
+      </select>
+    </div>
 
-        <div class="form-group">
-          <label class="form-label" for="ntm-model-config">Model Config</label>
-          <select class="form-select" id="ntm-model-config" name="modelConfigId">
-            <option value="">None &mdash; use ambient config</option>
-            <% if (it.modelConfigs) { for (const mc of it.modelConfigs) { %>
-              <option value="<%= mc.id %>"><%= mc.name %> (<%= mc.provider === 'max' ? 'MAX/PRO' : mc.provider %>)</option>
-            <% } } %>
-          </select>
-        </div>
+    <div class="form-group">
+      <label class="form-label" for="ntm-model-config">Model Config</label>
+      <select class="form-select" id="ntm-model-config" name="modelConfigId">
+        <option value="">None &mdash; use ambient config</option>
+        <% if (it.modelConfigs) { for (const mc of it.modelConfigs) { %>
+          <option value="<%= mc.id %>"><%= mc.name %> (<%= mc.provider === 'max' ? 'MAX/PRO' : mc.provider %>)</option>
+        <% } } %>
+      </select>
+    </div>
 
-        <% if (it.mcpServers && it.mcpServers.length > 0) { %>
-        <div class="form-group">
-          <label class="form-label">MCP Servers</label>
-          <div class="flex flex-col gap-1.5 mt-1">
-            <% for (const srv of it.mcpServers) { %>
-              <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-                <input type="checkbox" name="mcpServerIds" value="<%= srv.id %>" class="form-checkbox" />
-                <span><%= srv.name %></span>
-                <span class="badge badge-info badge-sm"><%= srv.type %></span>
-              </label>
-            <% } %>
-          </div>
-        </div>
+    <% if (it.mcpServers && it.mcpServers.length > 0) { %>
+    <div class="form-group">
+      <label class="form-label">MCP Servers</label>
+      <div class="flex flex-col gap-1.5 mt-1">
+        <% for (const srv of it.mcpServers) { %>
+          <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+            <input type="checkbox" name="mcpServerIds" value="<%= srv.id %>" class="form-checkbox" />
+            <span><%= srv.name %></span>
+            <span class="badge badge-info badge-sm"><%= srv.type %></span>
+          </label>
         <% } %>
       </div>
-    </details>
+    </div>
+    <% } %>
 
     <div class="flex gap-2 pt-1 border-t border-slate-700/50">
       <button type="submit" class="btn btn-primary flex-1" aria-busy="false"

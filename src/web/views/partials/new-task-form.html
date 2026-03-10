@@ -10,6 +10,39 @@
     <p class="text-xs text-slate-500 m-0">Submit a rough idea for autonomous investigation, enrichment, and execution.</p>
   </div>
 
+  <% if (it.presets && it.presets.length > 0) { %>
+  <div class="form-group">
+    <label class="form-label" for="nt-preset">Preset</label>
+    <select class="form-select" id="nt-preset"
+      onchange="(function(sel){
+        var opt = sel.options[sel.selectedIndex];
+        if (!opt.value) return;
+        var repoId = opt.getAttribute('data-repo-id') || '';
+        var credId = opt.getAttribute('data-credential-profile-id') || '';
+        var modelId = opt.getAttribute('data-model-config-id') || '';
+        var mcpIds = JSON.parse(opt.getAttribute('data-mcp-server-ids') || '[]');
+        var form = sel.closest('form');
+        form.querySelector('#nt-repo').value = repoId;
+        form.querySelector('#nt-cred-profile').value = credId;
+        form.querySelector('#nt-model-config').value = modelId;
+        var boxes = form.querySelectorAll('input[name=mcpServerIds]');
+        boxes.forEach(function(cb){ cb.checked = mcpIds.indexOf(cb.value) !== -1; });
+      })(this)"
+    >
+      <option value="">Fill from preset...</option>
+      <% for (const p of it.presets) { %>
+        <option
+          value="<%= p.id %>"
+          data-repo-id="<%= p.repoId %>"
+          data-credential-profile-id="<%= p.credentialProfileId %>"
+          data-model-config-id="<%= p.modelConfigId %>"
+          data-mcp-server-ids="<%= JSON.stringify(p.mcpServerIds) %>"
+        ><%= p.name %></option>
+      <% } %>
+    </select>
+  </div>
+  <% } %>
+
   <div class="form-group">
     <label class="form-label" for="nt-repo">Repository</label>
     <select class="form-select" id="nt-repo" name="repoId" required>

@@ -6,6 +6,7 @@ import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import { McpServerStore } from '../../db/mcp-server-store.js';
+import { PresetStore } from '../../db/preset-store.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { parsePrUrl, fetchPrStatus, fetchNewComments } from '../../tasks/github-pr.js';
 import type { TaskStatus } from '../../domain/task-types.js';
@@ -17,6 +18,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
   const credentialStore = new CredentialStore(deps.db);
   const modelConfigStore = new ModelConfigStore(deps.db);
   const mcpServerStore = new McpServerStore(deps.db);
+  const presetStore = new PresetStore(deps.db);
 
   // GET /tasks — list all tasks (HTMX partial — table view)
   router.get('/tasks', (req, res, next) => {
@@ -67,11 +69,13 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       const credentialProfiles = credentialStore.listProfiles();
       const modelConfigs = modelConfigStore.listConfigs();
       const mcpServers = mcpServerStore.listServers();
+      const presets = presetStore.listPresets();
       const html = eta.render('partials/new-task-modal', {
         repos,
         credentialProfiles,
         modelConfigs,
         mcpServers,
+        presets,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -87,11 +91,13 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       const credentialProfiles = credentialStore.listProfiles();
       const modelConfigs = modelConfigStore.listConfigs();
       const mcpServers = mcpServerStore.listServers();
+      const presets = presetStore.listPresets();
       const html = eta.render('partials/new-task-form', {
         repos,
         credentialProfiles,
         modelConfigs,
         mcpServers,
+        presets,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -122,6 +128,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         const credentialProfiles = credentialStore.listProfiles();
         const modelConfigs = modelConfigStore.listConfigs();
         const mcpServers = mcpServerStore.listServers();
+        const presets = presetStore.listPresets();
         const html = eta.render('partials/form-error', {
           error: 'Repository, title, and description are required.',
           formPartial: 'new-task-form',
@@ -130,6 +137,7 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
             credentialProfiles,
             modelConfigs,
             mcpServers,
+            presets,
             repoId,
             title,
             description,
