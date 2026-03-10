@@ -598,17 +598,25 @@
      Terminal fullscreen
      =================================================================== */
 
-  .terminal-panel.is-fullscreen {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    border-radius: 0;
-    height: 100vh !important;
-    min-height: 100vh;
+  /* When a session is fullscreened, it fills the grid as the only visible card */
+  .session-grid.has-fullscreen-terminal {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    overflow: hidden;
   }
 
-  body.has-fullscreen-terminal {
-    overflow: hidden;
+  .session-grid.has-fullscreen-terminal > .session-card:not(.is-fullscreen-card) {
+    display: none;
+  }
+
+  .session-card.is-fullscreen-card {
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    border-radius: 0;
+  }
+
+  .session-card.is-fullscreen-card .terminal-panel.is-fullscreen {
+    border-radius: 0;
   }
 
   /* ===================================================================
@@ -743,11 +751,8 @@
   }
 
   .debug-shell-panel.is-fullscreen {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
     max-height: none;
-    min-height: 100vh;
+    border-radius: 0;
   }
 
   /* Auth slot — always visible even in compact mode when it has content */

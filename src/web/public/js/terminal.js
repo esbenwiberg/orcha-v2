@@ -136,6 +136,16 @@ function _setTranscript(sessionId, text) {
 /** Currently fullscreened session id (only one at a time). */
 let fullscreenId = null;
 
+/** Get the session grid container. */
+function getSessionGrid() {
+  return document.getElementById('session-grid');
+}
+
+/** Get the parent .session-card for a panel element. */
+function getParentCard(el) {
+  return el ? el.closest('.session-card') : null;
+}
+
 /* -----------------------------------------------------------------------
    Prefix-mode state (Ctrl+A shortcuts)
    ----------------------------------------------------------------------- */
@@ -700,16 +710,15 @@ function fullscreenShell(shellId) {
 
   // Exit any other fullscreen first (session or shell)
   if (fullscreenId && fullscreenId !== shellId) {
-    const prev = document.getElementById(`terminal-panel-${fullscreenId}`)
-      || document.getElementById(`debug-shell-${fullscreenId}`);
-    if (prev) prev.classList.remove('is-fullscreen');
-    document.body.classList.remove('has-fullscreen-terminal');
-    fullscreenId = null;
+    exitFullscreen(fullscreenId);
   }
 
   if (isFs) {
     panel.classList.remove('is-fullscreen');
-    document.body.classList.remove('has-fullscreen-terminal');
+    const grid = getSessionGrid();
+    if (grid) grid.classList.remove('has-fullscreen-terminal');
+    const card = getParentCard(panel);
+    if (card) card.classList.remove('is-fullscreen-card');
     fullscreenId = null;
 
     const btn = panel.querySelector('.terminal-header__btn[title="Exit fullscreen"]');
@@ -722,7 +731,10 @@ function fullscreenShell(shellId) {
     }
   } else {
     panel.classList.add('is-fullscreen');
-    document.body.classList.add('has-fullscreen-terminal');
+    const grid = getSessionGrid();
+    if (grid) grid.classList.add('has-fullscreen-terminal');
+    const card = getParentCard(panel);
+    if (card) card.classList.add('is-fullscreen-card');
     fullscreenId = shellId;
 
     const btn = panel.querySelector('.terminal-header__btn[title="Fullscreen"]');
@@ -784,7 +796,10 @@ function fullscreenTerminal(sessionId) {
     exitFullscreen(sessionId);
   } else {
     panel.classList.add('is-fullscreen');
-    document.body.classList.add('has-fullscreen-terminal');
+    const grid = getSessionGrid();
+    if (grid) grid.classList.add('has-fullscreen-terminal');
+    const card = getParentCard(panel);
+    if (card) card.classList.add('is-fullscreen-card');
     fullscreenId = sessionId;
 
     // Swap icon to collapse
@@ -811,7 +826,10 @@ function exitFullscreen(sessionId) {
   if (!panel) return;
 
   panel.classList.remove('is-fullscreen');
-  document.body.classList.remove('has-fullscreen-terminal');
+  const grid = getSessionGrid();
+  if (grid) grid.classList.remove('has-fullscreen-terminal');
+  const card = getParentCard(panel);
+  if (card) card.classList.remove('is-fullscreen-card');
   if (fullscreenId === sessionId) fullscreenId = null;
 
   // Swap icon back to expand
