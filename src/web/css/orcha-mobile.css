@@ -384,6 +384,13 @@
     padding: 8px 12px;
   }
 
+  /* PR link banner — mobile adjustments */
+  .terminal-frame .pr-link-banner {
+    @apply shrink-0;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent);
+    border-radius: 0;
+  }
+
   #mobile-shell .xterm-container {
     flex: 1 1 0;
     @apply overflow-hidden;

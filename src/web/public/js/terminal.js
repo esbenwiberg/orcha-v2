@@ -22,6 +22,65 @@
 /** @type {Map<string, {term: object, ws: WebSocket, fitAddon: object, observer: ResizeObserver}>} */
 const openTerminals = new Map();
 
+/** @type {Map<string, Set<string>>} Tracks PR URLs already shown per session to avoid duplicates. */
+const shownPrLinks = new Map();
+
+/**
+ * Strip ANSI escape sequences from terminal output so we can match plain-text URLs.
+ * @param {string} text
+ * @returns {string}
+ */
+function stripAnsi(text) {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07]*\x07|\x1b\]8;[^;]*;[^\x1b]*\x1b\\/g, '');
+}
+
+/**
+ * Scan text for GitHub and Azure DevOps PR URLs.
+ * @param {string} text - Plain text (ANSI-stripped).
+ * @returns {string[]} Array of matched PR URLs.
+ */
+function extractPrUrls(text) {
+  const pattern = /https:\/\/(?:github\.com\/[^\s"'<>)]+\/pull\/\d+|dev\.azure\.com\/[^\s"'<>)]+\/pullrequest\/\d+|[^\s"'<>)]+\.visualstudio\.com\/[^\s"'<>)]+\/pullrequest\/\d+)/g;
+  const matches = text.match(pattern);
+  return matches ? [...new Set(matches)] : [];
+}
+
+/**
+ * Show a dismissable PR link banner for a session.
+ * @param {string} sessionId
+ * @param {string} url - The PR URL.
+ */
+function showPrBanner(sessionId, url) {
+  const panel = document.getElementById(`terminal-panel-${sessionId}`);
+  if (!panel) return;
+
+  // Derive a short label from the URL
+  const isGitHub = url.includes('github.com');
+  const prNum = url.match(/\/pull\/(\d+)|\/pullrequest\/(\d+)/);
+  const num = prNum ? (prNum[1] || prNum[2]) : '';
+  const label = isGitHub ? `GitHub PR #${num}` : `Azure DevOps PR #${num}`;
+
+  const banner = document.createElement('div');
+  banner.className = 'pr-link-banner';
+  banner.innerHTML =
+    `<svg class="pr-link-banner__icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">` +
+    `<circle cx="5" cy="3.5" r="2" /><circle cx="5" cy="12.5" r="2" /><circle cx="12" cy="5.5" r="2" /><path d="M5 5.5v5M10.2 5.8L7 10.5" />` +
+    `</svg>` +
+    `<a class="pr-link-banner__link" href="${url}" target="_blank" rel="noopener">${label}</a>` +
+    `<button class="pr-link-banner__dismiss" aria-label="Dismiss" onclick="this.parentElement.remove()">` +
+    `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">` +
+    `<path d="M2 2l10 10M12 2L2 12" /></svg></button>`;
+
+  // Insert after the terminal-header, before the xterm-container
+  const header = panel.querySelector('.terminal-header');
+  if (header) {
+    header.after(banner);
+  } else {
+    panel.prepend(banner);
+  }
+}
+
 /* -----------------------------------------------------------------------
    Voice-to-text (Web Speech API)
    ----------------------------------------------------------------------- */
@@ -1088,6 +1147,20 @@ export async function openTerminal(sessionId, containerId, wsPrefix = '/ws/termi
       const msg = JSON.parse(event.data);
       if (msg.type === 'output' && typeof msg.data === 'string') {
         term.write(msg.data);
+
+        // Scan for PR links in output
+        const plain = stripAnsi(msg.data);
+        const urls = extractPrUrls(plain);
+        if (urls.length > 0) {
+          if (!shownPrLinks.has(sessionId)) shownPrLinks.set(sessionId, new Set());
+          const seen = shownPrLinks.get(sessionId);
+          for (const url of urls) {
+            if (!seen.has(url)) {
+              seen.add(url);
+              showPrBanner(sessionId, url);
+            }
+          }
+        }
       } else if (msg.type === 'error' && typeof msg.message === 'string') {
         term.write(`\r\n\x1b[31m[error] ${msg.message}\x1b[0m\r\n`);
       }
@@ -1154,4 +1227,5 @@ export function closeTerminal(sessionId) {
   term.dispose();
   observer.disconnect();
   openTerminals.delete(sessionId);
+  shownPrLinks.delete(sessionId);
 }
