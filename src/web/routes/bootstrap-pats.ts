@@ -12,10 +12,14 @@ async function validateDevOpsPat(pat: string): Promise<{ ok: boolean; reason?: s
   // 1. Profile check — verifies the PAT is valid at all
   const profileResp = await fetch(
     'https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1',
-    { headers: { Authorization: `Basic ${base64}`, 'User-Agent': 'orcha/1.0' } },
+    { headers: { Authorization: `Basic ${base64}`, 'User-Agent': 'orcha/1.0' }, redirect: 'manual' },
   );
   if (!profileResp.ok) {
-    return { ok: false, reason: `PAT rejected (${profileResp.status}). Check that the PAT is valid and not expired.` };
+    const body = await profileResp.text().catch(() => '');
+    const location = profileResp.headers.get('location') ?? '';
+    console.error(`[bootstrap-pat] profile check failed: status=${profileResp.status} location=${location} body=${body.slice(0, 300)} tokenLen=${pat.length} tokenPrefix=${pat.slice(0, 8)}`);
+    const redirect = profileResp.status >= 300 && profileResp.status < 400 ? ` Redirected to login — PAT is not being accepted.` : '';
+    return { ok: false, reason: `PAT rejected (${profileResp.status}).${redirect} tokenLen=${pat.length}, prefix=${pat.slice(0, 4)}…. Check that the PAT is valid, not expired, and was copied completely.` };
   }
 
   // 2. Token list check — verifies Token Administration scope
