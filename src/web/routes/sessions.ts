@@ -299,22 +299,36 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             provisionedCreds = await credentialManager.provision(profile);
             Object.assign(env, provisionedCreds.env);
           } catch (err) {
-            // Provisioning failed — check if ambient credentials exist as fallback.
-            // If not, and we're in PR mode, surface the error (PR fetch will also fail).
-            const hasAmbientAdo = !!(process.env['AZURE_DEVOPS_EXT_PAT'] || process.env['AZURE_DEVOPS_PAT']);
-            if (isPrMode && !hasAmbientAdo) {
-              const hint = String(err).includes('401')
-                ? ' The bootstrap PAT on the Settings page may be expired — update it and retry.'
-                : '';
-              const modelConfigs = modelConfigStore.listConfigs();
-              const mcpServers = mcpServerStore.listServers();
-              const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess, privateFeeds, prUrl });
-              const html = eta.render('partials/form-error', { errors: [`Credential provisioning failed: ${String(err)}.${hint}`], formHtml });
-              res.setHeader('Content-Type', 'text/html; charset=utf-8');
-              res.status(422).send(html);
-              return;
-            }
-            console.warn('Credential provisioning failed, continuing with ambient credentials:', err);
+            // Credential provisioning failed — surface the error. Don't silently
+            // fall back to ambient credentials (that defeats isolation).
+            const hint = String(err).includes('401')
+              ? ' The bootstrap PAT on the Settings page may be expired — update it and retry.'
+              : '';
+            console.error('Credential provisioning failed:', err);
+            const modelConfigs = modelConfigStore.listConfigs();
+            const mcpServers = mcpServerStore.listServers();
+            const formHtml = eta.render('partials/new-session-form', { repos, credentialProfiles, modelConfigs, mcpServers, repoId, branch, sourceBranch, credentialProfileId, modelConfigId, mcpServerIds, sandbox, skipPermissions, webAccess, privateFeeds, prUrl });
+            const html = eta.render('partials/form-error', { errors: [`Credential provisioning failed: ${String(err)}.${hint}`], formHtml });
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.status(422).send(html);
+            return;
+          }
+        }
+      }
+
+      // Credential isolation: when a credential profile is selected, strip ambient
+      // credential env vars from the spawned process so the session ONLY gets its
+      // provisioned (scoped, time-limited) credentials — not the host's long-lived tokens.
+      const deleteEnvKeys: string[] = [];
+      if (credentialProfileId) {
+        const credentialEnvKeys = [
+          'AZURE_DEVOPS_EXT_PAT', 'AZURE_DEVOPS_PAT', 'DEVOPS_BOOTSTRAP_PAT',
+          'GH_TOKEN', 'GITHUB_TOKEN',
+        ];
+        for (const key of credentialEnvKeys) {
+          // Only strip keys that weren't explicitly set by provisioning
+          if (env[key] === undefined) {
+            deleteEnvKeys.push(key);
           }
         }
       }
@@ -322,7 +336,6 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // Inject model config env vars if a model config was selected.
       // Collect keys to delete so they're truly removed from the spawned env
       // (not just absent from opts.env — process.env would still leak through).
-      const deleteEnvKeys: string[] = [];
       if (modelConfigId) {
         const modelConfig = modelConfigStore.getConfig(modelConfigId);
         if (modelConfig) {
@@ -546,11 +559,11 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       if (isPrMode) {
         try {
           // Fetch PR info (metadata + comments).
-          // Priority: session PAT (freshly minted) > ambient env > bootstrap PAT (may be stale).
-          // The bootstrap PAT is only for minting session PATs — prefer ambient process.env
-          // over it since ambient tokens are known to work for git operations.
+          // If a credential profile was selected, provisioning succeeded (failure is
+          // a hard error above) and env has the scoped PAT. If no profile was selected,
+          // fall back to ambient process.env tokens.
           const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'] ?? process.env['GH_TOKEN'] ?? '';
-          const adoToken = env['AZURE_DEVOPS_EXT_PAT'] ?? env['AZURE_DEVOPS_PAT'] ?? process.env['AZURE_DEVOPS_EXT_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? globalSettingsStore.get('devops_bootstrap_pat') ?? '';
+          const adoToken = env['AZURE_DEVOPS_EXT_PAT'] ?? env['AZURE_DEVOPS_PAT'] ?? (credentialProfileId ? '' : (process.env['AZURE_DEVOPS_EXT_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? ''));
           prInfo = await fetchPrComments({ prUrl, ghToken, adoToken });
 
           // Use the PR's source branch
