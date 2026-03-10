@@ -75,6 +75,13 @@
 <div class="modal-panel__body flex flex-col gap-5">
   <!-- Actions -->
   <div class="flex gap-2 flex-wrap pb-2 border-b border-slate-700/50">
+    <% if (['draft', 'rejected', 'failed', 'cancelled'].includes(it.task.status)) { %>
+      <button class="btn btn-xs btn-ghost"
+        hx-get="/api/tasks/<%= it.task.id %>/edit-modal"
+        hx-target="#modal-slot"
+        hx-swap="innerHTML"
+      >Edit</button>
+    <% } %>
     <% if (it.task.status === 'rejected') { %>
       <button class="btn btn-xs btn-primary"
         hx-post="/api/tasks/<%= it.task.id %>/force-enrich"

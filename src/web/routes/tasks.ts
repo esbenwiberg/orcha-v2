@@ -165,6 +165,103 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // Statuses that allow editing (not actively processing or completed)
+  const EDITABLE_STATUSES: Set<TaskStatus> = new Set(['draft', 'rejected', 'failed', 'cancelled']);
+
+  // GET /tasks/:id/edit-modal — render edit task form inside modal
+  router.get('/tasks/:id/edit-modal', (req, res, next) => {
+    try {
+      const task = taskStore.getTask(req.params['id']!);
+      if (!task) {
+        res.status(404).send('Task not found');
+        return;
+      }
+      if (!EDITABLE_STATUSES.has(task.status)) {
+        res.status(422).send('Task cannot be edited in its current status');
+        return;
+      }
+      const repos = repoStore.listRepos().filter((r) => r.status === 'ready');
+      const credentialProfiles = credentialStore.listProfiles();
+      const modelConfigs = modelConfigStore.listConfigs();
+      const mcpServers = mcpServerStore.listServers();
+      const html = eta.render('partials/edit-task-modal', {
+        task,
+        repos,
+        credentialProfiles,
+        modelConfigs,
+        mcpServers,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // PUT /tasks/:id — update a task
+  router.put('/tasks/:id', (req, res, next) => {
+    try {
+      const task = taskStore.getTask(req.params['id']!);
+      if (!task) {
+        res.status(404).send('Task not found');
+        return;
+      }
+      if (!EDITABLE_STATUSES.has(task.status)) {
+        res.status(422).send('Task cannot be edited in its current status');
+        return;
+      }
+
+      const { title, description, credentialProfileId, modelConfigId, branch } = req.body as Record<string, string>;
+      const autoEnrich = req.body['autoEnrich'] === '1';
+      const selfValidate = req.body['selfValidate'] === '1';
+      const mcpServerIds = Array.isArray(req.body['mcpServerIds'])
+        ? (req.body['mcpServerIds'] as string[])
+        : req.body['mcpServerIds']
+          ? [req.body['mcpServerIds'] as string]
+          : [];
+      const screenshots = Array.isArray(req.body['screenshots'])
+        ? (req.body['screenshots'] as string[]).filter(Boolean)
+        : req.body['screenshots']
+          ? [req.body['screenshots'] as string]
+          : [];
+
+      if (!title || !description) {
+        const repos = repoStore.listRepos().filter((r) => r.status === 'ready');
+        const credentialProfiles = credentialStore.listProfiles();
+        const modelConfigs = modelConfigStore.listConfigs();
+        const mcpServers = mcpServerStore.listServers();
+        const errors = ['Title and description are required.'];
+        const formHtml = eta.render('partials/edit-task-modal', {
+          task: { ...task, title: title || task.title, description: description || task.description, branch, autoEnrich, selfValidate, mcpServerIds, credentialProfileId: credentialProfileId || '', modelConfigId: modelConfigId || '', screenshots },
+          repos,
+          credentialProfiles,
+          modelConfigs,
+          mcpServers,
+        });
+        const html = eta.render('partials/form-error', { errors, formHtml });
+        res.status(422).send(html);
+        return;
+      }
+
+      taskStore.updateTask(task.id, {
+        title,
+        description,
+        screenshots,
+        autoEnrich,
+        selfValidate,
+        mcpServerIds,
+        ...(credentialProfileId !== undefined ? { credentialProfileId } : {}),
+        ...(modelConfigId !== undefined ? { modelConfigId } : {}),
+        ...(branch !== undefined ? { branch } : {}),
+      });
+
+      res.setHeader('HX-Trigger-After-Swap', 'refresh-task-list');
+      res.status(204).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // GET /tasks/:id — task detail view
   router.get('/tasks/:id', (req, res, next) => {
     try {
