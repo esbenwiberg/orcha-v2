@@ -1,4 +1,9 @@
 <div id="bootstrap-pats-panel">
+  <% if (it.flash) { %>
+    <div class="mb-2 text-xs px-2 py-1.5 rounded <%= it.flash.type === 'success' ? 'bg-emerald-900/40 text-emerald-300' : 'bg-red-900/40 text-red-300' %>">
+      <%= it.flash.msg %>
+    </div>
+  <% } %>
   <table class="data-table w-full">
     <thead>
       <tr>
