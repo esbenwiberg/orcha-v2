@@ -98,10 +98,11 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       // DevOps
-      let devops: { org: string; project: string; scopes: string[] } | undefined;
+      let devops: { org: string; project: string; scopes: string[]; pat?: string } | undefined;
       const adoOrg = String(body['devopsOrg'] ?? '').trim();
       if (adoOrg) {
         const rawScopes = body['devopsScopes'];
+        const adoPat = String(body['devopsPat'] ?? '').trim();
         devops = {
           org: adoOrg,
           project: String(body['devopsProject'] ?? '').trim(),
@@ -110,6 +111,7 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
             : typeof rawScopes === 'string'
               ? [rawScopes.trim()].filter(Boolean)
               : [],
+          ...(adoPat ? { pat: adoPat } : {}),
         };
       }
 
@@ -192,10 +194,11 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       // DevOps
-      let devops: { org: string; project: string; scopes: string[] } | undefined;
+      let devops: { org: string; project: string; scopes: string[]; pat?: string } | undefined;
       const adoOrg = String(body['devopsOrg'] ?? '').trim();
       if (adoOrg) {
         const rawScopes = body['devopsScopes'];
+        const adoPat = String(body['devopsPat'] ?? '').trim();
         devops = {
           org: adoOrg,
           project: String(body['devopsProject'] ?? '').trim(),
@@ -204,6 +207,7 @@ export function createCredentialsRouter(eta: Eta, deps: AppDeps): Router {
             : typeof rawScopes === 'string'
               ? [rawScopes.trim()].filter(Boolean)
               : [],
+          ...(adoPat ? { pat: adoPat } : {}),
         };
       }
 

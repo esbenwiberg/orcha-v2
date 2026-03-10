@@ -4,7 +4,7 @@ export interface CredentialProfile {
   durationHours: number;
   azure?: { subscriptionId: string; resourceGroups: string[]; role: string };
   github?: { pat?: string };
-  devops?: { org: string; project: string; scopes: string[] };
+  devops?: { org: string; project: string; scopes: string[]; pat?: string };
   createdAt: Date;
 }
 
@@ -27,7 +27,7 @@ export interface CreateCredentialProfileInput {
   durationHours: number;
   azure?: { subscriptionId: string; resourceGroups: string[]; role: string };
   github?: { pat?: string };
-  devops?: { org: string; project: string; scopes: string[] };
+  devops?: { org: string; project: string; scopes: string[]; pat?: string };
 }
 
 export interface CreateSessionCredentialsInput {

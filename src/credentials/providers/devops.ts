@@ -3,6 +3,7 @@ export interface DevOpsProfile {
   project: string;
   scopes: string[];
   durationHours: number;
+  pat?: string;
 }
 
 export interface DevOpsProvisionResult {
@@ -39,8 +40,19 @@ function getOrgName(org: string): string {
   return match ? (match[1] ?? org) : org;
 }
 
+function getDevOpsBaseUrl(org: string): string {
+  const orgName = getOrgName(org);
+  return `https://dev.azure.com/${orgName}`;
+}
+
 export class DevOpsProvider {
   async preflight(profile: DevOpsProfile): Promise<{ ok: boolean; reason?: string }> {
+    // Direct PAT mode — validate the PAT against the org
+    if (profile.pat) {
+      return this.#validateDirectPat(profile.pat, profile.org);
+    }
+
+    // Bootstrap mode — validate the bootstrap PAT
     try {
       const token = getBootstrapToken();
       const base64 = Buffer.from(`:${token}`).toString('base64');
@@ -50,7 +62,7 @@ export class DevOpsProvider {
         {
           headers: {
             Authorization: `Basic ${base64}`,
-            'User-Agent': 'devguard/1.0',
+            'User-Agent': 'orcha/1.0',
           },
         },
       );
@@ -66,6 +78,77 @@ export class DevOpsProvider {
   }
 
   async provision(profile: DevOpsProfile): Promise<DevOpsProvisionResult> {
+    // Direct PAT mode — validate and inject the PAT directly (no bootstrap minting)
+    if (profile.pat) {
+      return this.#provisionDirect(profile);
+    }
+
+    // Bootstrap mode — mint a short-lived session PAT
+    return this.#provisionBootstrap(profile);
+  }
+
+  async revoke(patId: string): Promise<void> {
+    // Direct PATs use 'direct:' prefix — no revocation needed (user-managed)
+    if (patId.startsWith('direct:')) return;
+
+    // Bootstrap-minted PATs — revoke via VSSPS API
+    try {
+      const token = getBootstrapToken();
+      const base64 = Buffer.from(`:${token}`).toString('base64');
+
+      const resp = await fetch(
+        `https://vssps.dev.azure.com/_apis/tokens/pats?authorizationId=${patId}&api-version=7.1-preview.1`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Basic ${base64}`,
+            'User-Agent': 'orcha/1.0',
+          },
+        },
+      );
+
+      if (!resp.ok && resp.status !== 404) {
+        throw new Error(`Failed to revoke DevOps PAT ${patId}: ${resp.status}`);
+      }
+    } catch (err) {
+      // Bootstrap PAT may be broken — log but don't throw (session cleanup shouldn't fail)
+      console.warn(`[devops] revoke failed for ${patId}:`, err);
+    }
+  }
+
+  /** Direct PAT mode: validate the PAT and inject it as AZURE_DEVOPS_EXT_PAT. */
+  async #provisionDirect(profile: DevOpsProfile): Promise<DevOpsProvisionResult> {
+    const pat = profile.pat!;
+    const baseUrl = getDevOpsBaseUrl(profile.org);
+
+    // Validate the PAT works against the org
+    const base64 = Buffer.from(`:${pat}`).toString('base64');
+    const resp = await fetch(
+      `${baseUrl}/_apis/projects?api-version=7.0&$top=1`,
+      {
+        headers: {
+          Authorization: `Basic ${base64}`,
+          'User-Agent': 'orcha/1.0',
+        },
+      },
+    );
+
+    if (!resp.ok) {
+      throw new Error(
+        `DevOps PAT validation failed (${resp.status}). Check that the PAT is valid and has access to ${getOrgName(profile.org)}.`,
+      );
+    }
+
+    console.log(`[devops] direct PAT validated for org=${getOrgName(profile.org)} tokenPrefix=${pat.slice(0, 8)}`);
+
+    return {
+      patId: `direct:${pat.slice(0, 8)}`,
+      env: { AZURE_DEVOPS_EXT_PAT: pat },
+    };
+  }
+
+  /** Bootstrap mode: mint a short-lived session PAT via the VSSPS API. */
+  async #provisionBootstrap(profile: DevOpsProfile): Promise<DevOpsProvisionResult> {
     const token = getBootstrapToken();
     const base64 = Buffer.from(`:${token}`).toString('base64');
     const orgName = getOrgName(profile.org);
@@ -75,7 +158,7 @@ export class DevOpsProvider {
     expiryDate.setHours(expiryDate.getHours() + profile.durationHours);
 
     const url = `${vsspsUrl}/_apis/tokens/pats?api-version=7.1-preview.1`;
-    console.log(`[devops] provision: url=${url} org=${orgName} tokenPrefix=${token.slice(0, 8)} scopes=${profile.scopes.join(' ')}`);
+    console.log(`[devops] provision (bootstrap): url=${url} org=${orgName} tokenPrefix=${token.slice(0, 8)} scopes=${profile.scopes.join(' ')}`);
 
     const resp = await fetch(
       url,
@@ -84,7 +167,7 @@ export class DevOpsProvider {
         headers: {
           Authorization: `Basic ${base64}`,
           'Content-Type': 'application/json',
-          'User-Agent': 'devguard/1.0',
+          'User-Agent': 'orcha/1.0',
         },
         body: JSON.stringify({
           displayName: `devguard-session-${Date.now()}`,
@@ -98,7 +181,7 @@ export class DevOpsProvider {
 
     if (!resp.ok) {
       const body = await resp.text();
-      console.error(`[devops] provision failed: status=${resp.status} body=${body.slice(0, 300)}`);
+      console.error(`[devops] provision (bootstrap) failed: status=${resp.status} body=${body.slice(0, 300)}`);
       throw new Error(
         `Failed to create DevOps PAT: ${resp.status} ${body}`,
       );
@@ -113,24 +196,29 @@ export class DevOpsProvider {
     };
   }
 
-  async revoke(patId: string): Promise<void> {
-    const token = getBootstrapToken();
-    const base64 = Buffer.from(`:${token}`).toString('base64');
+  /** Validate a direct PAT against the org. */
+  async #validateDirectPat(pat: string, org: string): Promise<{ ok: boolean; reason?: string }> {
+    try {
+      const baseUrl = getDevOpsBaseUrl(org);
+      const base64 = Buffer.from(`:${pat}`).toString('base64');
 
-    // Get org from stored data — we use the VSSPS global endpoint for revocation
-    const resp = await fetch(
-      `https://vssps.dev.azure.com/_apis/tokens/pats?authorizationId=${patId}&api-version=7.1-preview.1`,
-      {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Basic ${base64}`,
-          'User-Agent': 'devguard/1.0',
+      const resp = await fetch(
+        `${baseUrl}/_apis/projects?api-version=7.0&$top=1`,
+        {
+          headers: {
+            Authorization: `Basic ${base64}`,
+            'User-Agent': 'orcha/1.0',
+          },
         },
-      },
-    );
+      );
 
-    if (!resp.ok && resp.status !== 404) {
-      throw new Error(`Failed to revoke DevOps PAT ${patId}: ${resp.status}`);
+      if (!resp.ok) {
+        return { ok: false, reason: `DevOps PAT validation returned ${resp.status}` };
+      }
+
+      return { ok: true };
+    } catch (err: unknown) {
+      return { ok: false, reason: (err as Error).message };
     }
   }
 }
