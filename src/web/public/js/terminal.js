@@ -159,7 +159,7 @@ function showToast(message, type = 'success') {
   if (!container) return;
 
   const el = document.createElement('div');
-  el.className = `toast toast--${type}`;
+  el.className = `toast toast-${type}`;
   el.textContent = message;
   container.appendChild(el);
 

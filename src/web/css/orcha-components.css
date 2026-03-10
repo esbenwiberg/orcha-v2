@@ -805,12 +805,8 @@
     gap: 0.5rem;
   }
 
-  .toast--success {
-    background: var(--color-success);
-  }
-
-  .toast--error {
-    background: var(--color-error);
+  .toast {
+    color: var(--color-text-primary);
   }
 
   .toast.is-exiting {
