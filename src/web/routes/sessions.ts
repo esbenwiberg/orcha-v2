@@ -17,7 +17,7 @@ import { loadSkills } from './skills.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { McpServerStore } from '../../db/mcp-server-store.js';
-import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
+import { extractAuthUrl, isAuthUrl } from '../../terminal/auth-terminal-manager.js';
 import { executeGit } from '../utils/git-utils.js';
 import type { Session } from '@orcha/domain';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
@@ -1131,20 +1131,24 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      // Tier 2: Check terminal output for login URL
+      // Tier 2: Check terminal output
       const snapshot = active.outputBuffer.snapshot();
-      const authUrl = extractAuthUrl(snapshot);
+      const text = snapshot.toString('utf8');
+
+      // Tier 2a: If Claude Code already started (refresh token worked or already
+      // authenticated), auth succeeded without user interaction — stop polling.
+      if (/Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/i.test(text)) {
+        const html = eta.render('partials/session-auth-banner', { authenticated: true });
+        res.status(286).send(html);
+        return;
+      }
+
+      // Tier 2b: Check for login URL in output — only treat URLs that look like
+      // actual OAuth/login flows (ignore random docs/GitHub links Claude prints).
+      const rawUrl = extractAuthUrl(snapshot);
+      const authUrl = rawUrl !== undefined && isAuthUrl(rawUrl) ? rawUrl : undefined;
 
       if (authUrl) {
-        // Tier 2b: If Claude Code already started (refresh token worked), the URL
-        // is stale — auth succeeded without user interaction.
-        const text = snapshot.toString('utf8');
-        if (/Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/i.test(text)) {
-          const html = eta.render('partials/session-auth-banner', { authenticated: true });
-          res.status(286).send(html);
-          return;
-        }
-
         const html = eta.render('partials/session-auth-banner', { authenticated: false, authUrl, sessionId: id });
         res.status(200).send(html);
         return;

@@ -14,6 +14,14 @@ function stripAnsi(s: string): string {
   return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
 }
 
+/**
+ * Check whether a URL looks like an OAuth/login URL rather than a random link.
+ * Matches on common auth-related path segments and query parameters.
+ */
+export function isAuthUrl(url: string): boolean {
+  return /[/&?](oauth|authorize|login|signin|sign-in|device|auth\b|client_id=|response_type=|redirect_uri=)/i.test(url);
+}
+
 export function extractAuthUrl(snapshot: Buffer): string | undefined {
   const text = stripAnsi(snapshot.toString('utf8'));
   // Split into lines so we can rejoin wrapped URLs.
