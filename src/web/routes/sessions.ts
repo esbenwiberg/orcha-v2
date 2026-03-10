@@ -299,9 +299,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             provisionedCreds = await credentialManager.provision(profile);
             Object.assign(env, provisionedCreds.env);
           } catch (err) {
-            // If we're in PR mode, credential failure is fatal — the PR fetch
-            // will also fail without a valid token. Surface the real error.
-            if (isPrMode) {
+            // Provisioning failed — check if ambient credentials exist as fallback.
+            // If not, and we're in PR mode, surface the error (PR fetch will also fail).
+            const hasAmbientAdo = !!(process.env['AZURE_DEVOPS_EXT_PAT'] || process.env['AZURE_DEVOPS_PAT']);
+            if (isPrMode && !hasAmbientAdo) {
               const hint = String(err).includes('401')
                 ? ' The bootstrap PAT on the Settings page may be expired — update it and retry.'
                 : '';
@@ -545,11 +546,11 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       if (isPrMode) {
         try {
           // Fetch PR info (metadata + comments).
-          // Prefer the freshly provisioned session PAT (just minted, known valid) over
-          // the bootstrap PAT which may have expired. Fall back to bootstrap/ambient only
-          // when no session credentials were provisioned.
+          // Priority: session PAT (freshly minted) > ambient env > bootstrap PAT (may be stale).
+          // The bootstrap PAT is only for minting session PATs — prefer ambient process.env
+          // over it since ambient tokens are known to work for git operations.
           const ghToken = env['GH_TOKEN'] ?? env['GITHUB_TOKEN'] ?? process.env['GH_TOKEN'] ?? '';
-          const adoToken = env['AZURE_DEVOPS_EXT_PAT'] ?? env['AZURE_DEVOPS_PAT'] ?? globalSettingsStore.get('devops_bootstrap_pat') ?? process.env['AZURE_DEVOPS_EXT_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? '';
+          const adoToken = env['AZURE_DEVOPS_EXT_PAT'] ?? env['AZURE_DEVOPS_PAT'] ?? process.env['AZURE_DEVOPS_EXT_PAT'] ?? process.env['AZURE_DEVOPS_PAT'] ?? globalSettingsStore.get('devops_bootstrap_pat') ?? '';
           prInfo = await fetchPrComments({ prUrl, ghToken, adoToken });
 
           // Use the PR's source branch
