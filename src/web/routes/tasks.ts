@@ -52,7 +52,15 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
         .map((t) => t.id);
       const transcriptSummaries = taskStore.getTranscriptSummaries(activeTaskIds);
 
-      const html = eta.render('partials/kanban-board', { tasks, repos, transcriptSummaries });
+      // Build set of task IDs whose execution session is still alive
+      const activeSessionTaskIds = new Set<string>();
+      for (const t of tasks) {
+        if (t.sessionId && deps.sessionEngine.getSessionByDbId(t.sessionId) !== undefined) {
+          activeSessionTaskIds.add(t.id);
+        }
+      }
+
+      const html = eta.render('partials/kanban-board', { tasks, repos, transcriptSummaries, activeSessionTaskIds });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
     } catch (err) {

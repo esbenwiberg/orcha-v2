@@ -177,6 +177,25 @@
     background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
   }
 
+  .kanban-card__terminal-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    padding: 2px 4px;
+    border-radius: 4px;
+    color: var(--color-accent, #38bdf8);
+    opacity: 0.85;
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+    text-decoration: none;
+  }
+
+  .kanban-card__terminal-btn:hover {
+    opacity: 1;
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-surface-raised) 80%, transparent);
+  }
+
   .kanban-card__title {
     @apply text-xs font-medium text-slate-200 leading-snug;
     display: -webkit-box;
