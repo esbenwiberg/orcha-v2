@@ -6,6 +6,7 @@ import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import { McpServerStore } from '../../db/mcp-server-store.js';
+import { generateFunName } from '../utils/fun-name.js';
 
 export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
@@ -315,11 +316,8 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
 
       const mcpServers = mcpServerStore.listServers();
 
-      // Generate a random branch name: feature/<8 random lowercase letters>
-      const randomSuffix = Array.from({ length: 8 }, () =>
-        String.fromCharCode(97 + Math.floor(Math.random() * 26)),
-      ).join('');
-      const branch = `feature/${randomSuffix}`;
+      // Generate a fun branch name: feature/<adjective>-<noun>
+      const branch = `feature/${generateFunName()}`;
 
       // Eagerly fetch and resolve branches so the form is pre-populated
       // instead of lazy-loading on focus (which can miss if user doesn't click)
