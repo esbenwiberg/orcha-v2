@@ -14,10 +14,15 @@ export interface ValidationEnv {
   sessionId: string;
   mode: 'serve' | 'docker';
   port: number;
+  /** The URL Playwright/health checks use to reach the validation app. */
+  internalUrl: string;
+  /** The URL returned to users (may differ from internalUrl when proxied). */
   url: string;
   status: ValidationStatus;
   pid?: number;
   dockerProject?: string;
+  dockerNetworkName?: string;
+  dockerOrchaAttached?: boolean;
   composePath?: string;
   cwd?: string;
   output: string[];
@@ -87,17 +92,13 @@ export class ValidationManager {
     }
 
     const port = await allocatePort();
-    // Docker-mode containers run on the Docker host, not inside this container.
-    // VALIDATE_DOCKER_HOST (set in compose files) resolves to the host IP.
-    const host = config.mode === 'docker'
-      ? (process.env['VALIDATE_DOCKER_HOST'] || 'localhost')
-      : 'localhost';
-    const url = `http://${host}:${port}`;
+    const url = `http://localhost:${port}`;
 
     const env: ValidationEnv = {
       sessionId,
       mode: config.mode,
       port,
+      internalUrl: url, // May be updated by _startDocker to use container hostname
       url,
       status: 'building',
       output: [],
@@ -124,9 +125,7 @@ export class ValidationManager {
 
       // Start health polling if a health path is configured
       if (config.health) {
-        const healthPort = config.healthPort ?? port;
-        const healthUrl = `http://${host}:${healthPort}`;
-        this._pollHealth(sessionId, healthUrl, config.health, config.readyDelay, env);
+        this._pollHealth(sessionId, env.internalUrl, config.health, config.readyDelay, env);
       } else {
         // No health check — assume healthy after a short delay
         setTimeout(() => {
@@ -162,7 +161,7 @@ export class ValidationManager {
     if (env.mode === 'serve' && env.process) {
       await killServe(env.process);
     } else if (env.mode === 'docker' && env.dockerProject && env.composePath && env.cwd) {
-      await dockerDown(env.composePath, env.cwd, env.dockerProject, env.dockerLogsProcess);
+      await dockerDown(env.composePath, env.cwd, env.dockerProject, env.dockerLogsProcess, env.dockerNetworkName, env.dockerOrchaAttached);
     }
 
     env.status = 'stopped';
@@ -183,7 +182,7 @@ export class ValidationManager {
     if (env.mode === 'serve' && env.process) {
       try { env.process.kill('SIGKILL'); } catch { /* ignore */ }
     } else if (env.mode === 'docker' && env.dockerProject && env.composePath && env.cwd) {
-      await dockerDown(env.composePath, env.cwd, env.dockerProject, env.dockerLogsProcess);
+      await dockerDown(env.composePath, env.cwd, env.dockerProject, env.dockerLogsProcess, env.dockerNetworkName, env.dockerOrchaAttached);
     }
 
     env.status = 'stopped';
@@ -232,7 +231,7 @@ export class ValidationManager {
       throw new Error('Validation environment failed to start. Check validate_logs for details.');
     }
 
-    return this._browserManager.browse(sessionId, env.port, opts);
+    return this._browserManager.browse(sessionId, env.internalUrl, opts);
   }
 
   async screenshot(
@@ -361,8 +360,11 @@ export class ValidationManager {
     const composePath = config.composeFile ?? 'docker-compose.yml';
     const docker = await dockerUp(composePath, cwd, port, sessionId);
     env.dockerProject = docker.projectName;
+    env.dockerNetworkName = docker.networkName;
+    env.dockerOrchaAttached = docker.orchaAttached;
     env.composePath = composePath;
     env.output = docker.output;
+    env.internalUrl = `http://${docker.serviceHost}:${docker.servicePort}`;
     if (docker.logsProcess) {
       env.dockerLogsProcess = docker.logsProcess;
     }

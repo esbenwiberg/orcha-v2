@@ -39,13 +39,14 @@ export class BrowserManager {
 
   /**
    * Navigate to a page in the validation app and return a screenshot + metadata.
+   * @param baseUrl The base URL to browse (e.g. http://localhost:3001 or http://orcha-val-abc-orcha-1:3000)
    */
   async browse(
     sessionId: string,
-    port: number,
+    baseUrl: string,
     opts: { url?: string; path?: string; waitFor?: string },
   ): Promise<BrowseResult> {
-    const targetUrl = this._resolveUrl(opts.url, opts.path, port);
+    const targetUrl = this._resolveUrl(opts.url, opts.path, baseUrl);
     const session = await this._getOrCreateSession(sessionId);
 
     return this._serialized(session, async () => {
@@ -323,16 +324,15 @@ export class BrowserManager {
   private _resolveUrl(
     url: string | undefined,
     path: string | undefined,
-    port: number,
+    baseUrl: string,
   ): string {
-    const baseOrigin = `http://localhost:${port}`;
+    const baseOrigin = new URL(baseUrl).origin;
 
     if (url) {
       const parsed = new URL(url);
-      const allowedOrigin = `http://localhost:${port}`;
-      if (parsed.origin !== allowedOrigin) {
+      if (parsed.origin !== baseOrigin) {
         throw new Error(
-          `URL must be on ${allowedOrigin}. Got: ${parsed.origin}`,
+          `URL must be on ${baseOrigin}. Got: ${parsed.origin}`,
         );
       }
       return url;
