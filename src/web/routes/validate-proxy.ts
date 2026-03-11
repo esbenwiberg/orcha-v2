@@ -40,27 +40,62 @@ const reqSessionId = new WeakMap<IncomingMessage, string>();
 
 /**
  * Inline script injected into HTML responses from the proxied validation app.
- * Wraps the native WebSocket constructor so connections opened by the page
- * (Vite HMR, Storybook server channel, etc.) are routed through the
- * /validate/:sessionId/ reverse-proxy prefix rather than hitting the host root.
+ * Wraps both WebSocket and EventSource constructors so real-time connections
+ * opened by the page (Vite HMR, Storybook server channel, SSE, etc.) are
+ * routed through the /validate/:sessionId/ reverse-proxy prefix.
+ *
+ * Key fix: also intercepts connections to localhost:<any-port>, not just
+ * location.host.  The proxied app may open WebSockets to its own port
+ * (e.g. ws://localhost:41483/) which is unreachable from a remote browser.
  */
-function wsRewriteScript(sessionId: string): string {
+function connectionRewriteScript(sessionId: string): string {
   // Sanitise sessionId — only allow characters valid for our session IDs
   const safe = sessionId.replace(/[^a-zA-Z0-9\-_]/g, '');
   return [
     '<script>(function(){',
-    'var W=window.WebSocket,p="/validate/' + safe + '";',
+    'var p="/validate/' + safe + '";',
+
+    // Detect local addresses — the proxied app (e.g. Storybook/Vite) may open
+    // WebSockets or EventSources to localhost:<its-own-port> which differs from
+    // location.host when the browser reaches Orcha through a public URL or proxy.
+    'function isLocal(h){',
+    'var n=h.replace(/:\\d+$/,"").toLowerCase();',
+    'return n==="localhost"||n==="127.0.0.1"||n==="[::1]"||n==="0.0.0.0"||h===location.host',
+    '}',
+
+    // Rewrite a URL string: redirect local connections through the validate proxy.
+    'function rw(u,httpProto){',
+    'if(typeof u!=="string")return u;',
+    'try{var o=new URL(u);',
+    'if(isLocal(o.host)&&!o.pathname.startsWith(p)){',
+    'if(httpProto){o.protocol=location.protocol}',
+    'else{o.protocol=location.protocol==="https:"?"wss:":"ws:"}',
+    'o.host=location.host;',
+    'o.pathname=p+o.pathname;return o.toString()}}',
+    'catch(e){if(u.startsWith("/")&&!u.startsWith(p))return p+u}',
+    'return u}',
+
+    // --- WebSocket wrapper ---
+    'var W=window.WebSocket;',
     'window.WebSocket=function(u,pr){',
-    'if(typeof u==="string"){try{var o=new URL(u);',
-    'if(o.host===location.host&&!o.pathname.startsWith(p)){',
-    'o.pathname=p+o.pathname;u=o.toString()}}',
-    'catch(e){if(u.startsWith("/")&&!u.startsWith(p))u=p+u}}',
+    'u=rw(u,false);',
     'return pr!==undefined?new W(u,pr):new W(u)};',
     'window.WebSocket.prototype=W.prototype;',
     'window.WebSocket.CONNECTING=W.CONNECTING;',
     'window.WebSocket.OPEN=W.OPEN;',
     'window.WebSocket.CLOSING=W.CLOSING;',
-    'window.WebSocket.CLOSED=W.CLOSED',
+    'window.WebSocket.CLOSED=W.CLOSED;',
+
+    // --- EventSource wrapper (Storybook server channel / SSE) ---
+    'var E=window.EventSource;',
+    'if(E){',
+    'window.EventSource=function(u,opts){',
+    'return new E(rw(u,true),opts)};',
+    'window.EventSource.prototype=E.prototype;',
+    'window.EventSource.CONNECTING=E.CONNECTING;',
+    'window.EventSource.OPEN=E.OPEN;',
+    'window.EventSource.CLOSED=E.CLOSED}',
+
     '})()</script>',
   ].join('');
 }
@@ -112,7 +147,7 @@ export function createValidateProxy(validationManager: ValidationManager) {
     proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
     proxyRes.on('end', () => {
       let body = Buffer.concat(chunks).toString('utf-8');
-      const script = wsRewriteScript(sessionId);
+      const script = connectionRewriteScript(sessionId);
 
       // Inject right after the opening <head> tag.
       const headRe = /<head([^>]*)>/i;
