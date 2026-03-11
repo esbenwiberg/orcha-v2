@@ -4,20 +4,19 @@
     hx-target="#sdks-panel"
     hx-swap="outerHTML"
   >
-    <div class="flex flex-col gap-2 mb-4">
+    <div class="sdk-list">
       <% for (const sdk of it.sdks) { %>
-        <label class="flex items-center gap-2 cursor-pointer">
+        <label class="sdk-item">
           <input
             type="checkbox"
             name="sdk_<%= sdk.id %>"
             <%= sdk.enabled ? 'checked' : '' %>
-            class="form-checkbox"
           />
           <span><%= sdk.label %></span>
         </label>
       <% } %>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 mt-3">
       <button class="btn btn-primary btn-sm">Save</button>
       <% if (it.saved) { %>
         <span class="badge badge-success badge-sm">Saved — installs on next restart</span>

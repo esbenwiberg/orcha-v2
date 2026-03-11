@@ -27,7 +27,14 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
   // GET /api/model-configs — render list partial
   router.get('/model-configs', (_req, res, next) => {
     try {
-      const configs = store.listConfigs();
+      const configs = store.listConfigs().map((c) => ({
+        id: c.id,
+        name: c.name,
+        provider: c.provider,
+        modelId: c.modelId,
+        hasCredentials: c.credentialsJson !== undefined && c.credentialsJson.length > 0,
+        createdAt: c.createdAt,
+      }));
       const html = eta.render('partials/model-config-list', { configs });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -141,13 +148,14 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
         editId: config.id,
         name: config.name,
         provider: config.provider,
-        apiKey: config.apiKey,
+        // Never send secrets to the browser — only boolean flags
+        hasApiKey: config.apiKey !== undefined && config.apiKey.length > 0,
+        hasAuthToken: config.authToken !== undefined && config.authToken.length > 0,
+        hasCredentials: config.credentialsJson !== undefined && config.credentialsJson.length > 0,
         baseUrl: config.baseUrl,
         modelId: config.modelId,
         foundryResource: config.foundryResource,
-        authToken: config.authToken,
         extraEnv: config.extraEnv,
-        credentialsJson: config.credentialsJson,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

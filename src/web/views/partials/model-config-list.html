@@ -34,7 +34,7 @@
                 hx-swap="innerHTML"
                 onclick="document.getElementById('form-panel').classList.add('is-open')"
               >Edit</button>
-              <% if (c.provider === 'max' && c.credentialsJson) { %>
+              <% if (c.provider === 'max' && c.hasCredentials) { %>
               <span class="badge badge-success badge-sm">Authenticated</span>
               <% } else if (c.provider === 'max') { %>
               <button

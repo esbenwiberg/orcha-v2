@@ -29,20 +29,37 @@
   <!-- max: credentials JSON -->
   <div id="mc-fields-max" class="mc-provider-fields" style="display:<%= it.provider === 'max' ? 'block' : 'none' %>">
     <p class="text-xs text-muted my-2">Claude Code will use OAuth / Max plan. Any existing ANTHROPIC_API_KEY will be unset.</p>
-    <div class="form-group">
-      <label class="form-label" for="mc-credentials-json">Credentials JSON (<code>~/.claude/.credentials.json</code>)</label>
-      <textarea class="form-textarea font-mono text-[11px]" id="mc-credentials-json" name="credentialsJson" rows="6"
-        placeholder='{"claudeAiOauth":{"accessToken":"…","refreshToken":"…","expiresAt":…,"scopes":["user:inference"]}}'
-        style="resize:vertical;min-height:100px"><%= it.credentialsJson ?? '' %></textarea>
-      <p class="form-hint mt-1">Paste the contents of <code>~/.claude/.credentials.json</code> from your local machine after running <code>claude</code> there once.</p>
-    </div>
+    <% if (it.editId && it.hasCredentials) { %>
+      <div class="form-group" id="mc-creds-status">
+        <label class="form-label">Credentials</label>
+        <div class="flex items-center gap-2">
+          <span class="badge badge-success badge-sm">Configured</span>
+          <button type="button" class="btn btn-ghost btn-xs" onclick="document.getElementById('mc-creds-status').style.display='none';document.getElementById('mc-creds-replace').style.display='block'">Replace</button>
+        </div>
+      </div>
+      <div class="form-group" id="mc-creds-replace" style="display:none">
+        <label class="form-label" for="mc-credentials-json">New Credentials JSON</label>
+        <textarea class="form-textarea font-mono text-[11px]" id="mc-credentials-json" name="credentialsJson" rows="4"
+          placeholder='Paste new credentials to replace existing ones'
+          style="resize:vertical;min-height:80px"></textarea>
+        <p class="form-hint mt-1">Leave empty to keep current credentials.</p>
+      </div>
+    <% } else { %>
+      <div class="form-group">
+        <label class="form-label" for="mc-credentials-json">Credentials JSON (<code>~/.claude/.credentials.json</code>)</label>
+        <textarea class="form-textarea font-mono text-[11px]" id="mc-credentials-json" name="credentialsJson" rows="6"
+          placeholder='{"claudeAiOauth":{"accessToken":"…","refreshToken":"…","expiresAt":…,"scopes":["user:inference"]}}'
+          style="resize:vertical;min-height:100px"></textarea>
+        <p class="form-hint mt-1">Paste the contents of <code>~/.claude/.credentials.json</code> from your local machine after running <code>claude</code> there once.</p>
+      </div>
+    <% } %>
   </div>
 
   <!-- anthropic -->
   <div id="mc-fields-anthropic" class="mc-provider-fields" style="display:<%= it.provider === 'anthropic' ? 'block' : 'none' %>">
     <div class="form-group">
       <label class="form-label" for="mc-api-key">API Key</label>
-      <input class="form-input" id="mc-api-key" type="password" name="apiKey" placeholder="sk-ant-…" autocomplete="off" value="<%= it.apiKey ?? '' %>" />
+      <input class="form-input" id="mc-api-key" type="password" name="apiKey" placeholder="<%= it.editId && it.hasApiKey ? '••••••••  (leave empty to keep current)' : 'sk-ant-…' %>" autocomplete="off" />
     </div>
     <div class="form-group">
       <label class="form-label" for="mc-anthropic-url">
@@ -71,7 +88,7 @@
         API Key
         <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional — uses DefaultAzureCredential if empty)</span>
       </label>
-      <input class="form-input" id="mc-foundry-key" type="password" name="apiKey" placeholder="Foundry API key" autocomplete="off" value="<%= it.provider === 'foundry' ? (it.apiKey ?? '') : '' %>" />
+      <input class="form-input" id="mc-foundry-key" type="password" name="apiKey" placeholder="<%= it.editId && it.hasApiKey && it.provider === 'foundry' ? '••••••••  (leave empty to keep current)' : 'Foundry API key' %>" autocomplete="off" />
     </div>
   </div>
 
@@ -87,14 +104,14 @@
         API Key
         <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional — empty if not required)</span>
       </label>
-      <input class="form-input" id="mc-local-api-key" type="password" name="apiKey" placeholder="e.g. ollama" autocomplete="off" value="<%= it.provider === 'local' ? (it.apiKey ?? '') : '' %>" />
+      <input class="form-input" id="mc-local-api-key" type="password" name="apiKey" placeholder="<%= it.editId && it.hasApiKey && it.provider === 'local' ? '••••••••  (leave empty to keep current)' : 'e.g. ollama' %>" autocomplete="off" />
     </div>
     <div class="form-group">
       <label class="form-label" for="mc-local-auth-token">
         Auth Token
         <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional — defaults to "local")</span>
       </label>
-      <input class="form-input" id="mc-local-auth-token" type="password" name="authToken" placeholder="e.g. ollama" autocomplete="off" value="<%= it.provider === 'local' ? (it.authToken ?? '') : '' %>" />
+      <input class="form-input" id="mc-local-auth-token" type="password" name="authToken" placeholder="<%= it.editId && it.hasAuthToken ? '••••••••  (leave empty to keep current)' : 'e.g. ollama' %>" autocomplete="off" />
     </div>
   </div>
 

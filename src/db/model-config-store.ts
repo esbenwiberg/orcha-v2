@@ -116,14 +116,16 @@ export class ModelConfigStore {
     const provider = updates.provider ?? existing.provider;
 
     // Full replacement of form-editable fields — cleared fields are removed.
-    // Preserve credentialsJson from existing if not explicitly provided
-    // (it's set via the auth wizard, not the edit form).
+    // Preserve secrets from existing if not explicitly provided (the edit form
+    // never sends current secret values back to the browser).
     const configJson: Record<string, unknown> = {};
-    if (updates.apiKey !== undefined) configJson['apiKey'] = updates.apiKey;
+    const apiKey = updates.apiKey ?? existing.apiKey;
+    if (apiKey !== undefined) configJson['apiKey'] = apiKey;
     if (updates.baseUrl !== undefined) configJson['baseUrl'] = updates.baseUrl;
     if (updates.modelId !== undefined) configJson['modelId'] = updates.modelId;
     if (updates.foundryResource !== undefined) configJson['foundryResource'] = updates.foundryResource;
-    if (updates.authToken !== undefined) configJson['authToken'] = updates.authToken;
+    const authToken = updates.authToken ?? existing.authToken;
+    if (authToken !== undefined) configJson['authToken'] = authToken;
     if (updates.extraEnv !== undefined) configJson['extraEnv'] = updates.extraEnv;
     const creds = updates.credentialsJson ?? existing.credentialsJson;
     if (creds !== undefined) configJson['credentialsJson'] = creds;
