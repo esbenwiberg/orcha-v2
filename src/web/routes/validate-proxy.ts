@@ -35,6 +35,36 @@ const ERROR_PAGE = (sessionId: string) => `<!DOCTYPE html>
   <p style="margin-top:2rem"><a href="/" style="color:#7c8aff">← Back to Orcha</a></p>
 </body></html>`;
 
+/** Map from incoming request to its validate session ID (for the proxyRes handler). */
+const reqSessionId = new WeakMap<IncomingMessage, string>();
+
+/**
+ * Inline script injected into HTML responses from the proxied validation app.
+ * Wraps the native WebSocket constructor so connections opened by the page
+ * (Vite HMR, Storybook server channel, etc.) are routed through the
+ * /validate/:sessionId/ reverse-proxy prefix rather than hitting the host root.
+ */
+function wsRewriteScript(sessionId: string): string {
+  // Sanitise sessionId — only allow characters valid for our session IDs
+  const safe = sessionId.replace(/[^a-zA-Z0-9\-_]/g, '');
+  return [
+    '<script>(function(){',
+    'var W=window.WebSocket,p="/validate/' + safe + '";',
+    'window.WebSocket=function(u,pr){',
+    'if(typeof u==="string"){try{var o=new URL(u);',
+    'if(o.host===location.host&&!o.pathname.startsWith(p)){',
+    'o.pathname=p+o.pathname;u=o.toString()}}',
+    'catch(e){if(u.startsWith("/")&&!u.startsWith(p))u=p+u}}',
+    'return pr!==undefined?new W(u,pr):new W(u)};',
+    'window.WebSocket.prototype=W.prototype;',
+    'window.WebSocket.CONNECTING=W.CONNECTING;',
+    'window.WebSocket.OPEN=W.OPEN;',
+    'window.WebSocket.CLOSING=W.CLOSING;',
+    'window.WebSocket.CLOSED=W.CLOSED',
+    '})()</script>',
+  ].join('');
+}
+
 /**
  * Create a reverse proxy for validation environments.
  *
@@ -48,11 +78,60 @@ export function createValidateProxy(validationManager: ValidationManager) {
     ws: true,
     // Don't add X-Forwarded-* headers — the proxied app doesn't need them
     xfwd: false,
+    // We handle response piping ourselves so we can inject scripts into HTML.
+    selfHandleResponse: true,
   });
 
-  // Strip Orcha's helmet CSP so the proxied app's own assets load freely
-  proxy.on('proxyRes', (_proxyRes, _req, res) => {
-    (res as ServerResponse).removeHeader('content-security-policy');
+  // Prevent upstream compression so we can inspect/modify HTML bodies.
+  // The target is localhost so there's no bandwidth benefit from compression.
+  proxy.on('proxyReq', (proxyReq) => {
+    proxyReq.setHeader('accept-encoding', 'identity');
+  });
+
+  // With selfHandleResponse we pipe every response ourselves, injecting a
+  // WebSocket-rewriting script into HTML pages so that Vite HMR and similar
+  // WebSocket clients route through the /validate/:sessionId/ prefix.
+  proxy.on('proxyRes', (proxyRes, req, res) => {
+    const sr = res as ServerResponse;
+    // Strip Orcha's helmet CSP so the proxied app's own assets load freely
+    sr.removeHeader('content-security-policy');
+
+    const contentType = proxyRes.headers['content-type'] ?? '';
+    const isHtml = contentType.includes('text/html');
+    const sessionId = reqSessionId.get(req);
+
+    if (!isHtml || !sessionId) {
+      // Non-HTML (or no session context): pipe through unmodified
+      sr.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
+      proxyRes.pipe(sr);
+      return;
+    }
+
+    // HTML: buffer body, inject WebSocket-rewriting script, send.
+    const chunks: Buffer[] = [];
+    proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
+    proxyRes.on('end', () => {
+      let body = Buffer.concat(chunks).toString('utf-8');
+      const script = wsRewriteScript(sessionId);
+
+      // Inject right after the opening <head> tag.
+      const headRe = /<head([^>]*)>/i;
+      if (headRe.test(body)) {
+        body = body.replace(headRe, `<head$1>${script}`);
+      } else {
+        // No <head> — prepend to the entire response.
+        body = script + body;
+      }
+
+      const headers = { ...proxyRes.headers };
+      // We decoded (and possibly enlarged) the body — fix length headers.
+      delete headers['content-encoding'];
+      delete headers['transfer-encoding'];
+      headers['content-length'] = String(Buffer.byteLength(body));
+
+      sr.writeHead(proxyRes.statusCode ?? 200, headers);
+      sr.end(body);
+    });
   });
 
   proxy.on('error', (err, _req, res) => {
@@ -81,6 +160,8 @@ export function createValidateProxy(validationManager: ValidationManager) {
       return;
     }
 
+    // Stash the sessionId so the proxyRes handler can inject the WS-rewrite script.
+    reqSessionId.set(req, sessionId);
     proxy.web(req, res as ServerResponse, { target: `http://localhost:${env.port}` });
   });
 

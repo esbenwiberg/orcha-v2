@@ -34,7 +34,9 @@
                 hx-swap="innerHTML"
                 onclick="document.getElementById('form-panel').classList.add('is-open')"
               >Edit</button>
-              <% if (c.provider === 'max') { %>
+              <% if (c.provider === 'max' && c.credentialsJson) { %>
+              <span class="badge badge-success badge-sm">Authenticated</span>
+              <% } else if (c.provider === 'max') { %>
               <button
                 class="btn btn-ghost btn-xs"
                 hx-post="/api/model-configs/<%= c.id %>/auth/start"

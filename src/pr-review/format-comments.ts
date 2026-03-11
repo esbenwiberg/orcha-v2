@@ -1,9 +1,9 @@
 import type { PrInfo, PrComment } from './types.js';
 
-function escapeForMarkdown(text: string): string {
+function escapeForMarkdown(text: string | undefined | null): string {
   // Don't escape — we want the comment body to render naturally.
   // Just trim trailing whitespace per line.
-  return text
+  return (text ?? '')
     .split('\n')
     .map((line) => line.trimEnd())
     .join('\n');

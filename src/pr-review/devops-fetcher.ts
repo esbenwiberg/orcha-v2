@@ -118,7 +118,7 @@ export async function fetchDevOpsPr(pr: PrIdentifier, token: string): Promise<Pr
     const rootComment: PrComment = {
       id: `thread-${thread.id}`,
       author: first.author.displayName,
-      body: first.content,
+      body: first.content ?? '',
       status: mapAdoStatus(thread.status),
       createdAt: first.publishedDate,
       updatedAt: first.lastUpdatedDate,
@@ -127,7 +127,7 @@ export async function fetchDevOpsPr(pr: PrIdentifier, token: string): Promise<Pr
       replies: rest.map((r) => ({
         id: `thread-${thread.id}-${r.id}`,
         author: r.author.displayName,
-        body: r.content,
+        body: r.content ?? '',
         status: mapAdoStatus(thread.status) as CommentStatus,
         createdAt: r.publishedDate,
         updatedAt: r.lastUpdatedDate,
