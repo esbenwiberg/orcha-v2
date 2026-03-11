@@ -118,7 +118,7 @@ export function createValidateProxy(validationManager: ValidationManager) {
   });
 
   // Prevent upstream compression so we can inspect/modify HTML bodies.
-  // The target is localhost so there's no bandwidth benefit from compression.
+  // The target is local (or host.docker.internal) so there's no bandwidth benefit.
   proxy.on('proxyReq', (proxyReq) => {
     proxyReq.setHeader('accept-encoding', 'identity');
   });
@@ -197,7 +197,7 @@ export function createValidateProxy(validationManager: ValidationManager) {
 
     // Stash the sessionId so the proxyRes handler can inject the WS-rewrite script.
     reqSessionId.set(req, sessionId);
-    proxy.web(req, res as ServerResponse, { target: `http://localhost:${env.port}` });
+    proxy.web(req, res as ServerResponse, { target: env.url });
   });
 
   // --- WebSocket upgrade handler ---
@@ -218,7 +218,7 @@ export function createValidateProxy(validationManager: ValidationManager) {
     const query = qIdx !== -1 ? (req.url ?? '').slice(qIdx) : '';
     req.url = parsed.rest + query;
 
-    proxy.ws(req, socket, head, { target: `http://localhost:${env.port}` });
+    proxy.ws(req, socket, head, { target: env.url });
     return true; // handled
   }
 

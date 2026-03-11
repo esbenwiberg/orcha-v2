@@ -84,7 +84,12 @@ export class ValidationManager {
     }
 
     const port = await allocatePort();
-    const url = `http://localhost:${port}`;
+    // Docker-mode containers run on the Docker host, not inside this container.
+    // VALIDATE_DOCKER_HOST (set in compose files) resolves to the host IP.
+    const host = config.mode === 'docker'
+      ? (process.env['VALIDATE_DOCKER_HOST'] || 'localhost')
+      : 'localhost';
+    const url = `http://${host}:${port}`;
 
     const env: ValidationEnv = {
       sessionId,

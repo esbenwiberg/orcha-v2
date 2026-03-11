@@ -41,7 +41,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
        | gpg --dearmor -o /usr/share/keyrings/microsoft-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/microsoft-archive-keyring.gpg] https://packages.microsoft.com/repos/azure-cli/ bookworm main" \
        > /etc/apt/sources.list.d/azure-cli.list \
-    && apt-get update && apt-get install -y --no-install-recommends gh azure-cli \
+    # Docker CE CLI + Compose plugin — for docker-mode validation (DinD via socket mount)
+    && curl -fsSL https://download.docker.com/linux/debian/gpg \
+       | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bookworm stable" \
+       > /etc/apt/sources.list.d/docker.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+       gh azure-cli docker-ce-cli docker-compose-plugin gosu \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g @anthropic-ai/claude-code
@@ -96,6 +102,6 @@ ENV NODE_ENV=production \
     DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     COMMIT_SHA=${COMMIT_SHA}
 
-USER orcha
-
+# No USER directive — entrypoint runs as root to configure docker socket
+# group membership, then drops to orcha via gosu.
 CMD ["bash", "/app/entrypoint.sh"]
