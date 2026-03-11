@@ -82,7 +82,10 @@ export class CleanupService extends EventEmitter {
     }
 
     // --- Step 2: Find orphaned worktrees (on disk but no active DB session) ---
-    const fsWorktrees = await this._worktreeManager.listWorktrees();
+    // Uses a filesystem scan of the worktrees directory instead of git commands.
+    // This is more robust than `git worktree list` which requires a single valid
+    // repo root — Orcha manages multiple bare repos.
+    const fsWorktreeDirs = this._worktreeManager.listWorktreeDirsOnDisk();
 
     // Build a set of worktree paths for ALL DB sessions — worktrees are now
     // preserved until the session is deleted so users can reopen failed/cancelled ones.
@@ -90,18 +93,28 @@ export class CleanupService extends EventEmitter {
       allDbSessions.map((s) => s.worktree.worktreePath),
     );
 
-    for (const worktree of fsWorktrees) {
-      if (!activeWorktreePaths.has(worktree.path)) {
-        // Orphaned — attempt removal
+    let removedOrphans = false;
+    for (const dir of fsWorktreeDirs) {
+      if (!activeWorktreePaths.has(dir.path)) {
+        // Orphaned — remove directory
         try {
-          await this._worktreeManager.removeWorktree(worktree.id);
-          result.orphanedWorktreesRemoved.push(worktree.path);
+          this._worktreeManager.removeOrphanedWorktreeDir(dir.id);
+          result.orphanedWorktreesRemoved.push(dir.path);
+          removedOrphans = true;
         } catch (err) {
           result.errors.push({
-            sessionId: worktree.id,
+            sessionId: dir.id,
             error: String(err),
           });
         }
+      }
+    }
+    // Prune stale git worktree references across all bare repos (once, after all removals)
+    if (removedOrphans) {
+      try {
+        await this._worktreeManager.pruneAllBareRepos();
+      } catch {
+        // Best-effort
       }
     }
 

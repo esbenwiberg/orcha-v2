@@ -447,6 +447,53 @@ export class WorktreeManager {
   }
 
   /**
+   * Lists worktree directories on disk by scanning the worktreesBaseDir filesystem.
+   * Unlike listWorktrees() this does NOT require a valid git repo — it's purely
+   * filesystem-based and works across all bare repos.
+   */
+  listWorktreeDirsOnDisk(): Array<{ id: string; path: string }> {
+    const dir = this.options.worktreesBaseDir;
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => ({ id: d.name, path: path.join(dir, d.name) }));
+  }
+
+  /**
+   * Removes an orphaned worktree directory (no DB session).
+   * Does NOT prune git references — call pruneAllBareRepos() once after
+   * all orphan removals for efficiency.
+   */
+  removeOrphanedWorktreeDir(sessionId: string): void {
+    WorktreeManager.assertNoInjection(sessionId, 'sessionId');
+    const worktreePath = path.join(this.options.worktreesBaseDir, sessionId);
+    if (fs.existsSync(worktreePath)) {
+      fs.rmSync(worktreePath, { recursive: true, force: true });
+    }
+  }
+
+  /**
+   * Runs `git worktree prune` on every bare repo in the storage directory.
+   * Cleans up stale worktree references left behind after directory removal.
+   */
+  async pruneAllBareRepos(): Promise<void> {
+    const bareRepoDir = getStoragePaths().bareRepoDir;
+    if (!fs.existsSync(bareRepoDir)) return;
+    const entries = fs.readdirSync(bareRepoDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const repoPath = path.join(bareRepoDir, entry.name);
+      // Only prune if it looks like a bare repo
+      if (!fs.existsSync(path.join(repoPath, 'HEAD'))) continue;
+      try {
+        await this.execGit(['worktree', 'prune'], repoPath);
+      } catch {
+        // Best-effort — skip repos that fail
+      }
+    }
+  }
+
+  /**
    * Fetches the latest refs from origin for a bare repo.
    * Tries directly on the bare path first; if chmod fails (Azure File Share),
    * falls back to staging in /tmp, fetching there, and copying back.

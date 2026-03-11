@@ -42,13 +42,10 @@ function makeDbSession(
   };
 }
 
-function makeFsWorktree(id: string, worktreePath?: string) {
+function makeFsWorktreeDir(id: string, worktreePath?: string) {
   return {
     id,
     path: worktreePath ?? `/worktrees/${id}`,
-    branch: 'main',
-    commitSha: 'abc123',
-    createdAt: new Date(),
   };
 }
 
@@ -66,6 +63,9 @@ function makeMockSessionManager(overrides: Record<string, unknown> = {}) {
 
 function makeMockWorktreeManager(overrides: Record<string, unknown> = {}) {
   return {
+    listWorktreeDirsOnDisk: vi.fn().mockReturnValue([]),
+    removeOrphanedWorktreeDir: vi.fn(),
+    pruneAllBareRepos: vi.fn().mockResolvedValue(undefined),
     listWorktrees: vi.fn().mockResolvedValue([]),
     removeWorktree: vi.fn().mockResolvedValue(undefined),
     addWorktree: vi.fn(),
@@ -124,12 +124,12 @@ describe('CleanupService', () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  // (b) runOnce calls removeWorktree for a worktree with no corresponding active DB session
+  // (b) runOnce removes orphaned worktree dirs with no corresponding active DB session
   it('(b) runOnce removes orphaned worktrees that have no active DB session', async () => {
-    const fsWorktree = makeFsWorktree('orphan-wt', '/worktrees/orphan-wt');
+    const fsDir = makeFsWorktreeDir('orphan-wt', '/worktrees/orphan-wt');
     const sessionManager = makeMockSessionManager();
     const worktreeManager = makeMockWorktreeManager({
-      listWorktrees: vi.fn().mockResolvedValue([fsWorktree]),
+      listWorktreeDirsOnDisk: vi.fn().mockReturnValue([fsDir]),
     });
     const sessionStore = makeMockSessionStore({
       // No DB sessions at all
@@ -144,22 +144,23 @@ describe('CleanupService', () => {
 
     const result = await svc.runOnce();
 
-    expect(worktreeManager.removeWorktree).toHaveBeenCalledWith('orphan-wt');
+    expect(worktreeManager.removeOrphanedWorktreeDir).toHaveBeenCalledWith('orphan-wt');
+    expect(worktreeManager.pruneAllBareRepos).toHaveBeenCalled();
     expect(result.orphanedWorktreesRemoved).toContain('/worktrees/orphan-wt');
     expect(result.errors).toHaveLength(0);
   });
 
-  // (c) removeWorktree failure is recorded in errors and does not prevent processing remaining orphans
+  // (c) removeOrphanedWorktreeDir failure is recorded in errors and remaining orphans are still processed
   it('(c) removeWorktree failure is recorded in errors and remaining orphans are still processed', async () => {
-    const wt1 = makeFsWorktree('orphan-1', '/worktrees/orphan-1');
-    const wt2 = makeFsWorktree('orphan-2', '/worktrees/orphan-2');
+    const dir1 = makeFsWorktreeDir('orphan-1', '/worktrees/orphan-1');
+    const dir2 = makeFsWorktreeDir('orphan-2', '/worktrees/orphan-2');
     const sessionManager = makeMockSessionManager();
+    const removeOrphanedWorktreeDir = vi.fn()
+      .mockImplementationOnce(() => { throw new Error('rm failed'); })
+      .mockImplementationOnce(() => { /* success */ });
     const worktreeManager = makeMockWorktreeManager({
-      listWorktrees: vi.fn().mockResolvedValue([wt1, wt2]),
-      removeWorktree: vi
-        .fn()
-        .mockRejectedValueOnce(new Error('git remove failed')) // first fails
-        .mockResolvedValueOnce(undefined), // second succeeds
+      listWorktreeDirsOnDisk: vi.fn().mockReturnValue([dir1, dir2]),
+      removeOrphanedWorktreeDir,
     });
     const sessionStore = makeMockSessionStore({
       listSessions: vi.fn().mockReturnValue([]),
@@ -173,9 +174,9 @@ describe('CleanupService', () => {
 
     const result = await svc.runOnce();
 
-    expect(worktreeManager.removeWorktree).toHaveBeenCalledTimes(2);
+    expect(removeOrphanedWorktreeDir).toHaveBeenCalledTimes(2);
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toMatchObject({ sessionId: 'orphan-1', error: expect.stringContaining('git remove failed') });
+    expect(result.errors[0]).toMatchObject({ sessionId: 'orphan-1', error: expect.stringContaining('rm failed') });
     expect(result.orphanedWorktreesRemoved).toContain('/worktrees/orphan-2');
     expect(result.orphanedWorktreesRemoved).not.toContain('/worktrees/orphan-1');
   });
