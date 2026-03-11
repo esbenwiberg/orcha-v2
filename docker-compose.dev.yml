@@ -8,6 +8,10 @@ services:
       - "3000:3000"
     volumes:
       - ./data-dev:/data
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - AUTH_MODE=none
       - ORCHA_DATA_DIR=/data
+      - VALIDATE_DOCKER_HOST=host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

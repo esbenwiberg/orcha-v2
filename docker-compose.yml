@@ -8,9 +8,16 @@ services:
       target: runtime
     volumes:
       - orcha_data:/data
+      # Docker socket for docker-mode validation (agents can spin up compose stacks)
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - DATA_PATH=/data
       - NODE_ENV=production
+      # Docker-mode validation containers run on the host, not inside this container.
+      # host.docker.internal resolves to the host via extra_hosts below.
+      - VALIDATE_DOCKER_HOST=host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     networks:
       - internal
