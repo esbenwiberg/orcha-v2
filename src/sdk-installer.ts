@@ -17,6 +17,7 @@ interface SdkDef {
 }
 
 const DOTNET_DIR = '/data/sdks/dotnet';
+const PAC_DIR = '/data/sdks/pac';
 
 const SDK_DEFS: SdkDef[] = [
   {
@@ -92,6 +93,42 @@ const SDK_DEFS: SdkDef[] = [
       );
     },
     pathDirs: () => [DOTNET_DIR],
+  },
+  {
+    id: 'pac',
+    label: 'Power Platform CLI (pac)',
+    check: () => {
+      try {
+        const pacBin = join(PAC_DIR, 'pac');
+        if (existsSync(pacBin)) {
+          execSync(`${pacBin} --version`, { stdio: 'ignore' });
+          return true;
+        }
+        execSync('pac --version', { stdio: 'ignore' });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    install: () => {
+      // pac is a .NET global tool — requires the dotnet SDK to install.
+      const dotnetBin = existsSync(join(DOTNET_DIR, 'dotnet'))
+        ? join(DOTNET_DIR, 'dotnet')
+        : 'dotnet';
+      try {
+        execSync(`${dotnetBin} --version`, { stdio: 'ignore' });
+      } catch {
+        throw new Error(
+          'pac requires the .NET SDK — enable the ".NET SDK" toggle in Settings → SDKs first',
+        );
+      }
+      mkdirSync(PAC_DIR, { recursive: true });
+      execSync(
+        `${dotnetBin} tool install --tool-path ${PAC_DIR} Microsoft.PowerApps.CLI.Tool`,
+        { stdio: 'inherit' },
+      );
+    },
+    pathDirs: () => [PAC_DIR],
   },
 ];
 
