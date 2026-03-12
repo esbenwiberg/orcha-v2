@@ -3,6 +3,7 @@
 #
 # When Orcha runs inside Docker, it joins this project's network directly —
 # no host port publishing needed. For local dev, PORT is published to the host.
+# The validate tool sets $PORT dynamically via the environment.
 
 services:
   orcha:
@@ -19,3 +20,7 @@ services:
       - ORCHA_DATA_DIR=/data
       - NODE_ENV=development
       - SANDBOX_MODE=none
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
