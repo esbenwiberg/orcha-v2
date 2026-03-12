@@ -11,7 +11,15 @@ export type TaskSseEvent = {
   status?: string;
 };
 
-export type SseEvent = SessionSseEvent | TaskSseEvent;
+export type HandoffSseEvent = {
+  type: 'handoff';
+  sessionId: string;
+  status: 'started' | 'completed';
+  url?: string;
+  message?: string;
+};
+
+export type SseEvent = SessionSseEvent | TaskSseEvent | HandoffSseEvent;
 
 class EventBus {
   private subscribers = new Set<(event: SseEvent) => void>();

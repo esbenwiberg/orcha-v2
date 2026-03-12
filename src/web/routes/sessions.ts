@@ -2102,5 +2102,38 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // --- Browser handoff ---
+
+  // POST /api/sessions/:id/handoff-complete — user signals handoff is done
+  router.post('/sessions/:id/handoff-complete', async (req, res, next) => {
+    try {
+      const { validationManager } = deps;
+      if (!validationManager) {
+        res.status(501).json({ error: 'Validation not available' });
+        return;
+      }
+
+      const id = req.params['id'] ?? '';
+      const result = await validationManager.completeHandoff(id);
+
+      if (!result) {
+        res.status(404).json({ error: 'No active handoff for this session' });
+        return;
+      }
+
+      eventBus.publish({ type: 'handoff', sessionId: id, status: 'completed' });
+      res.json({ status: 'completed', url: result.url, title: result.title });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/browser-viewer — browser viewer page for handoff/spectating
+  router.get('/sessions/:id/browser-viewer', (req, res) => {
+    const id = req.params['id'] ?? '';
+    const html = eta.render('browser-viewer', { sessionId: id });
+    res.send(html);
+  });
+
   return router;
 }

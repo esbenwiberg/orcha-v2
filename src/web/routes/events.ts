@@ -53,6 +53,19 @@ export function createEventsRouter(eta: Eta): Router {
         res.write(`event: ${eventName}\ndata: ${badgeHtml}\n\n`);
       }
 
+      // For handoff events, send a named event so the session card can show/hide a banner
+      if (event.type === 'handoff' && 'sessionId' in event) {
+        const eventName = `handoff-${event.sessionId}`;
+        if (event.status === 'started') {
+          const msg = event.message ? ` — ${event.message}` : '';
+          const bannerHtml = `<div class="session-card__handoff-banner" id="handoff-banner-${event.sessionId}"><a href="/api/sessions/${event.sessionId}/browser-viewer" target="_blank" rel="noopener" class="btn btn-sm btn-accent">Browser Handoff${msg}</a></div>`;
+          res.write(`event: ${eventName}\ndata: ${bannerHtml.replace(/\n/g, '')}\n\n`);
+        } else {
+          // Completed — clear the banner
+          res.write(`event: ${eventName}\ndata: <div id="handoff-banner-${event.sessionId}"></div>\n\n`);
+        }
+      }
+
       // Flush if the method exists (some middleware adds it)
       if (typeof (res as unknown as { flush?: () => void }).flush === 'function') {
         (res as unknown as { flush: () => void }).flush();

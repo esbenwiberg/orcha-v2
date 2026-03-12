@@ -3,11 +3,13 @@ import WebSocket, { WebSocketServer } from 'ws';
 import type { AppDeps } from '../app.js';
 import { timingSafeCompare } from '../auth/token-auth.js';
 import { handleTerminalConnection, handleDebugShellConnection } from './terminal-ws.js';
+import { handleCdpRelay } from './cdp-relay.js';
 import { consumeTicket } from './ws-tickets.js';
 
 const WS_TERMINAL_PREFIX = '/ws/terminal/';
 const WS_AUTH_PREFIX = '/ws/auth/';
 const WS_SHELL_PREFIX = '/ws/shell/';
+const WS_CDP_PREFIX = '/ws/cdp/';
 
 type ValidateProxyUpgrade = (req: http.IncomingMessage, socket: import('node:stream').Duplex, head: Buffer) => boolean;
 
@@ -39,7 +41,8 @@ export function attachWebSocketServer(
     const isTerminal = pathname.startsWith(WS_TERMINAL_PREFIX);
     const isAuth = pathname.startsWith(WS_AUTH_PREFIX);
     const isShell = pathname.startsWith(WS_SHELL_PREFIX);
-    if (!isTerminal && !isAuth && !isShell) {
+    const isCdp = pathname.startsWith(WS_CDP_PREFIX);
+    if (!isTerminal && !isAuth && !isShell && !isCdp) {
       socket.destroy();
       return;
     }
@@ -151,6 +154,18 @@ export function attachWebSocketServer(
     if (pathname.startsWith(WS_SHELL_PREFIX)) {
       const shellId = pathname.slice(WS_SHELL_PREFIX.length);
       handleDebugShellConnection(ws, shellId, deps.sessionEngine);
+      return;
+    }
+
+    // CDP relay for browser handoff viewer
+    if (pathname.startsWith(WS_CDP_PREFIX)) {
+      const sessionId = pathname.slice(WS_CDP_PREFIX.length);
+      if (deps.validationManager) {
+        handleCdpRelay(ws, sessionId, deps.validationManager.browserManager);
+      } else {
+        ws.send(JSON.stringify({ type: 'error', message: 'Validation not available' }));
+        ws.close(4004);
+      }
       return;
     }
 

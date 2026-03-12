@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Browser Viewer — Orcha</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        background: #0d1117;
+        color: #c9d1d9;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+        background: #161b22;
+        border-bottom: 1px solid #30363d;
+        flex-shrink: 0;
+      }
+      .toolbar__status {
+        font-size: 13px;
+        color: #8b949e;
+      }
+      .toolbar__mode {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        padding: 2px 8px;
+        border-radius: 4px;
+      }
+      .toolbar__mode--active {
+        background: #238636;
+        color: #fff;
+      }
+      .toolbar__mode--spectating {
+        background: #1f6feb;
+        color: #fff;
+      }
+      .toolbar__message {
+        font-size: 13px;
+        color: #d29922;
+        flex: 1;
+      }
+      .btn-done {
+        background: #238636;
+        color: #fff;
+        border: none;
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn-done:hover { background: #2ea043; }
+      .btn-done:disabled { opacity: 0.5; cursor: not-allowed; }
+      .canvas-wrap {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+      }
+      #browser-canvas {
+        max-width: 100%;
+        max-height: 100%;
+        cursor: default;
+        image-rendering: auto;
+      }
+      #browser-canvas.interactive { cursor: pointer; }
+      .connecting {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 14px;
+        color: #8b949e;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar">
+      <span class="toolbar__status" id="browser-status">Connecting...</span>
+      <span class="toolbar__mode toolbar__mode--active" id="browser-mode">Interactive</span>
+      <span class="toolbar__message" id="browser-message"></span>
+      <button class="btn-done" id="browser-done-btn" onclick="BrowserViewer.sendDone()" title="Signal that you're done interacting">Done</button>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="browser-canvas" tabindex="0"></canvas>
+      <div class="connecting" id="browser-connecting">Connecting to browser...</div>
+    </div>
+
+    <script>
+    (function() {
+      'use strict';
+
+      var ws = null;
+      var canvas = document.getElementById('browser-canvas');
+      var ctx = canvas.getContext('2d');
+      var frameWidth = 1280;
+      var frameHeight = 720;
+      var mode = 'active';
+      var sessionId = '<%= it.sessionId %>';
+
+      function init() {
+        // Fetch a WS auth ticket, then connect
+        fetch('/api/ws-ticket').then(function(r) { return r.json(); }).then(function(data) {
+          var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          var url = protocol + '//' + location.host + '/ws/cdp/' + sessionId + '?ticket=' + data.ticket;
+          connect(url);
+        }).catch(function(err) {
+          updateStatus('Failed to get auth ticket: ' + err);
+        });
+
+        setupInputHandlers();
+      }
+
+      function connect(url) {
+        ws = new WebSocket(url);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = function() {
+          updateStatus('Connected');
+          document.getElementById('browser-connecting').style.display = 'none';
+        };
+
+        ws.onmessage = function(event) {
+          if (event.data instanceof ArrayBuffer) {
+            handleFrame(event.data);
+          } else {
+            handleJsonMessage(JSON.parse(event.data));
+          }
+        };
+
+        ws.onclose = function() {
+          updateStatus('Disconnected');
+        };
+
+        ws.onerror = function() {
+          updateStatus('Connection error');
+        };
+      }
+
+      function handleFrame(buffer) {
+        var view = new DataView(buffer);
+        frameWidth = view.getUint32(0);
+        frameHeight = view.getUint32(4);
+        var jpegData = buffer.slice(8);
+
+        var blob = new Blob([jpegData], { type: 'image/jpeg' });
+        var url = URL.createObjectURL(blob);
+        var img = new Image();
+        img.onload = function() {
+          canvas.width = frameWidth;
+          canvas.height = frameHeight;
+          ctx.drawImage(img, 0, 0);
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+      }
+
+      function handleJsonMessage(msg) {
+        if (msg.type === 'status') {
+          mode = msg.mode;
+          updateModeIndicator();
+        } else if (msg.type === 'error') {
+          updateStatus('Error: ' + msg.message);
+        }
+      }
+
+      function setupInputHandlers() {
+        canvas.addEventListener('mousedown', function(e) {
+          if (mode !== 'active') return;
+          e.preventDefault();
+          canvas.focus();
+          sendMouse('mousePressed', e, 1);
+        });
+
+        canvas.addEventListener('mouseup', function(e) {
+          if (mode !== 'active') return;
+          e.preventDefault();
+          sendMouse('mouseReleased', e, 1);
+        });
+
+        canvas.addEventListener('mousemove', function(e) {
+          if (mode !== 'active') return;
+          sendMouse('mouseMoved', e, 0);
+        });
+
+        canvas.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+        });
+
+        // Keyboard — canvas needs focus
+        canvas.addEventListener('keydown', function(e) {
+          if (mode !== 'active') return;
+          e.preventDefault();
+          sendKey('keyDown', e);
+          if (e.key.length === 1) {
+            sendKey('char', e);
+          }
+        });
+
+        canvas.addEventListener('keyup', function(e) {
+          if (mode !== 'active') return;
+          e.preventDefault();
+          sendKey('keyUp', e);
+        });
+      }
+
+      function sendMouse(type, event, clickCount) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+        var rect = canvas.getBoundingClientRect();
+        var scaleX = frameWidth / rect.width;
+        var scaleY = frameHeight / rect.height;
+
+        var buttons = { 0: 'left', 1: 'middle', 2: 'right' };
+
+        ws.send(JSON.stringify({
+          type: 'mouse',
+          params: {
+            type: type,
+            x: Math.round(event.offsetX * scaleX),
+            y: Math.round(event.offsetY * scaleY),
+            button: buttons[event.button] || 'none',
+            clickCount: clickCount,
+            modifiers: getModifiers(event)
+          }
+        }));
+      }
+
+      function sendKey(type, event) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+        var params = {
+          type: type,
+          key: event.key,
+          code: event.code,
+          modifiers: getModifiers(event),
+          windowsVirtualKeyCode: event.keyCode,
+          nativeVirtualKeyCode: event.keyCode
+        };
+
+        if (type === 'char') {
+          params.text = event.key;
+        }
+
+        ws.send(JSON.stringify({ type: 'key', params: params }));
+      }
+
+      function getModifiers(event) {
+        var modifiers = 0;
+        if (event.altKey) modifiers |= 1;
+        if (event.ctrlKey) modifiers |= 2;
+        if (event.metaKey) modifiers |= 4;
+        if (event.shiftKey) modifiers |= 8;
+        return modifiers;
+      }
+
+      function sendDone() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: 'done' }));
+
+        // Also hit the REST endpoint as belt-and-suspenders
+        fetch('/api/sessions/' + sessionId + '/handoff-complete', { method: 'POST' })
+          .catch(function() {});
+
+        document.getElementById('browser-done-btn').disabled = true;
+        document.getElementById('browser-done-btn').textContent = 'Completing...';
+      }
+
+      function updateStatus(text) {
+        document.getElementById('browser-status').textContent = text;
+      }
+
+      function updateModeIndicator() {
+        var el = document.getElementById('browser-mode');
+        var doneBtn = document.getElementById('browser-done-btn');
+
+        if (mode === 'active') {
+          el.textContent = 'Interactive';
+          el.className = 'toolbar__mode toolbar__mode--active';
+          canvas.classList.add('interactive');
+          doneBtn.style.display = '';
+        } else {
+          el.textContent = 'Spectating';
+          el.className = 'toolbar__mode toolbar__mode--spectating';
+          canvas.classList.remove('interactive');
+          doneBtn.style.display = 'none';
+        }
+      }
+
+      // Expose to global scope
+      window.BrowserViewer = { sendDone: sendDone };
+
+      // Auto-init on load
+      init();
+    })();
+    </script>
+  </body>
+</html>

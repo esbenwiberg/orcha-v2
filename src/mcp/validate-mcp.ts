@@ -6,6 +6,7 @@ import type Database from 'better-sqlite3';
 import { SessionStore } from '../db/session-store.js';
 import { ValidationManager } from '../validation/validation-manager.js';
 import { resolveOrchaHost } from '../host-url.js';
+import { eventBus } from '../web/services/event-bus.js';
 
 /**
  * Create an Express router that serves MCP over Streamable HTTP for validation tools.
@@ -380,6 +381,81 @@ function buildMcpServer(
       } catch (err) {
         return {
           content: [{ type: 'text' as const, text: `Extract failed: ${String(err)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- validate_handoff ---
+  mcp.tool(
+    'validate_handoff',
+    'Hand the browser to the human user for interactive tasks (login, MFA, etc.). ' +
+    'Navigates to the given URL and blocks until the user clicks Done or a wait_for selector appears. ' +
+    'After handoff the browser session persists — use validate_browse/validate_screenshot on the authenticated page. ' +
+    'Requires a prior validate_start call.',
+    {
+      url: z.string().describe('URL to navigate to before handing off (e.g. a Dataverse login page)'),
+      message: z.string().optional().describe('Message shown to the user in the Orcha UI (e.g. "Please log in to Dataverse")'),
+      proxy: z.string().optional().describe('HTTP proxy URL for the browser (e.g. "http://localhost:8642" for pcf-dev-proxy MITM)'),
+      wait_for: z.string().optional().describe('CSS selector — auto-completes handoff when this element appears in the DOM'),
+      timeout: z.number().optional().describe('Max seconds to wait for user interaction (default 300)'),
+    },
+    async (args) => {
+      try {
+        const dbSession = sessionStore.getSession(sessionId);
+        if (!dbSession) {
+          return { content: [{ type: 'text' as const, text: `Session ${sessionId} not found` }], isError: true };
+        }
+
+        if (!validationManager.has(sessionId)) {
+          return {
+            content: [{ type: 'text' as const, text: 'No validation environment running. Call validate_start first.' }],
+            isError: true,
+          };
+        }
+
+        // Notify UI that handoff is starting
+        eventBus.publish({
+          type: 'handoff',
+          sessionId,
+          status: 'started',
+          url: args.url,
+          ...(args.message !== undefined ? { message: args.message } : {}),
+        });
+
+        const result = await validationManager.handoff(sessionId, args.url, {
+          ...(args.message !== undefined ? { message: args.message } : {}),
+          ...(args.proxy !== undefined ? { proxy: args.proxy } : {}),
+          ...(args.wait_for !== undefined ? { waitFor: args.wait_for } : {}),
+          ...(args.timeout !== undefined ? { timeout: args.timeout } : {}),
+        });
+
+        // Notify UI that handoff completed
+        eventBus.publish({ type: 'handoff', sessionId, status: 'completed' });
+
+        const orchaHost = resolveOrchaHost();
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({
+                status: 'completed',
+                url: result.url,
+                title: result.title,
+                message: `Handoff completed. Browser is authenticated at ${result.url}. You can now use validate_browse and validate_screenshot.`,
+              }),
+            },
+            {
+              type: 'image' as const,
+              data: result.screenshot.toString('base64'),
+              mimeType: 'image/png' as const,
+            },
+          ],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: 'text' as const, text: `Handoff failed: ${String(err)}` }],
           isError: true,
         };
       }
