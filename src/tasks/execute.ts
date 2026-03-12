@@ -67,6 +67,20 @@ export async function execute(ctx: ExecuteContext): Promise<ActiveSession> {
   // Resolve MCP server IDs to settings entries
   const mcpServerIds = task.mcpServerIds.length > 0 ? task.mcpServerIds : undefined;
 
+  // Snapshot validation config from repo so the MCP validate tool has
+  // deterministic defaults without needing to look up the repo at runtime.
+  const validateConfig = repo.validateMode ? {
+    ...(repo.validateMode !== null ? { validateMode: repo.validateMode } : {}),
+    ...(repo.validateBuild !== null ? { validateBuild: repo.validateBuild } : {}),
+    ...(repo.validateStart !== null ? { validateStart: repo.validateStart } : {}),
+    ...(repo.validateHealth !== null ? { validateHealth: repo.validateHealth } : {}),
+    ...(repo.validateHealthPort !== null ? { validateHealthPort: repo.validateHealthPort } : {}),
+    ...(repo.validateComposeFile !== null ? { validateComposeFile: repo.validateComposeFile } : {}),
+    validateTimeout: repo.validateTimeout,
+    ...(repo.validateReadyDelay !== null ? { validateReadyDelay: repo.validateReadyDelay } : {}),
+    ...(Object.keys(repo.validateEnv).length > 0 ? { validateEnv: repo.validateEnv } : {}),
+  } : undefined;
+
   // Create the session via SessionManager (handles worktree, PTY, DB record)
   const session = await sessionManager.createSession({
     ...(ctx.sessionId !== undefined ? { sessionId: ctx.sessionId } : {}),
@@ -82,6 +96,7 @@ export async function execute(ctx: ExecuteContext): Promise<ActiveSession> {
     ...(ctx.deleteEnv !== undefined ? { deleteEnv: ctx.deleteEnv } : {}),
     ...(ctx.homeDir !== undefined ? { homeDir: ctx.homeDir } : {}),
     ...(ctx.modelProvider !== undefined ? { modelProvider: ctx.modelProvider } : {}),
+    ...(validateConfig !== undefined ? { validateConfig } : {}),
   });
 
   // Mark as task-owned so validation env survives session exit

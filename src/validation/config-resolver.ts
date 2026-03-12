@@ -31,8 +31,11 @@ interface DbFields {
   validateBuild?: string | null;
   validateStart?: string | null;
   validateHealth?: string | null;
+  validateHealthPort?: number | null;
   validateComposeFile?: string | null;
   validateTimeout?: number | null;
+  validateReadyDelay?: number | null;
+  validateEnv?: Record<string, string>;
 }
 
 interface AgentOverrides {
@@ -78,11 +81,11 @@ export function resolveConfig(
   merged.build = fileConfig.build ?? repoFields?.validateBuild ?? undefined;
   merged.start = fileConfig.start ?? repoFields?.validateStart ?? undefined;
   merged.health = fileConfig.health ?? repoFields?.validateHealth ?? undefined;
-  merged.healthPort = fileConfig.health_port ?? undefined;
+  merged.healthPort = fileConfig.health_port ?? repoFields?.validateHealthPort ?? undefined;
   merged.composeFile = fileConfig.compose_file ?? repoFields?.validateComposeFile ?? undefined;
   merged.timeout = fileConfig.timeout ?? repoFields?.validateTimeout ?? undefined;
-  merged.readyDelay = fileConfig.ready_delay ?? undefined;
-  merged.env = fileConfig.env ?? undefined;
+  merged.readyDelay = fileConfig.ready_delay ?? repoFields?.validateReadyDelay ?? undefined;
+  merged.env = fileConfig.env ?? (repoFields?.validateEnv && Object.keys(repoFields.validateEnv).length > 0 ? repoFields.validateEnv : undefined);
 
   // Layer 3: Preset overrides repo
   if (presetFields) {
@@ -90,8 +93,13 @@ export function resolveConfig(
     if (presetFields.validateBuild) merged.build = presetFields.validateBuild;
     if (presetFields.validateStart) merged.start = presetFields.validateStart;
     if (presetFields.validateHealth) merged.health = presetFields.validateHealth;
+    if (presetFields.validateHealthPort != null) merged.healthPort = presetFields.validateHealthPort;
     if (presetFields.validateComposeFile) merged.composeFile = presetFields.validateComposeFile;
     if (presetFields.validateTimeout != null) merged.timeout = presetFields.validateTimeout;
+    if (presetFields.validateReadyDelay != null) merged.readyDelay = presetFields.validateReadyDelay;
+    if (presetFields.validateEnv && Object.keys(presetFields.validateEnv).length > 0) {
+      merged.env = { ...(merged.env as Record<string, string> | undefined), ...presetFields.validateEnv };
+    }
   }
 
   // Layer 4: Agent tool params override everything

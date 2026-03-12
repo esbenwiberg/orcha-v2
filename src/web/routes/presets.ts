@@ -97,9 +97,13 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const validateBuild = (typeof req.body['validateBuild'] === 'string' ? req.body['validateBuild'] : '').trim();
       const validateStart = (typeof req.body['validateStart'] === 'string' ? req.body['validateStart'] : '').trim();
       const validateHealth = (typeof req.body['validateHealth'] === 'string' ? req.body['validateHealth'] : '').trim();
+      const validateHealthPortRaw = typeof req.body['validateHealthPort'] === 'string' ? req.body['validateHealthPort'] : '';
+      const validateHealthPort = validateHealthPortRaw ? parseInt(validateHealthPortRaw, 10) : undefined;
       const validateComposeFile = (typeof req.body['validateComposeFile'] === 'string' ? req.body['validateComposeFile'] : '').trim();
       const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
       const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
+      const validateReadyDelayRaw = typeof req.body['validateReadyDelay'] === 'string' ? req.body['validateReadyDelay'] : '';
+      const validateReadyDelay = validateReadyDelayRaw ? parseInt(validateReadyDelayRaw, 10) : undefined;
 
       // mcpServerIds comes as repeated checkbox values — ensure array
       const rawMcpIds = req.body['mcpServerIds'];
@@ -132,10 +136,12 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           validateBuild,
           validateStart,
           validateHealth,
+          validateHealthPort,
           webAccess,
           privateFeeds,
           validateComposeFile,
           validateTimeout,
+          validateReadyDelay,
           repos,
           credentialProfiles,
           modelConfigs,
@@ -154,8 +160,10 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         ...(validateBuild ? { validateBuild } : {}),
         ...(validateStart ? { validateStart } : {}),
         ...(validateHealth ? { validateHealth } : {}),
+        ...(validateHealthPort !== undefined && !isNaN(validateHealthPort) ? { validateHealthPort } : {}),
         ...(validateComposeFile ? { validateComposeFile } : {}),
         ...(validateTimeout !== undefined && !isNaN(validateTimeout) ? { validateTimeout } : {}),
+        ...(validateReadyDelay !== undefined && !isNaN(validateReadyDelay) ? { validateReadyDelay } : {}),
       });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -196,8 +204,10 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         validateBuild: preset.validateBuild ?? '',
         validateStart: preset.validateStart ?? '',
         validateHealth: preset.validateHealth ?? '',
+        validateHealthPort: preset.validateHealthPort,
         validateComposeFile: preset.validateComposeFile ?? '',
         validateTimeout: preset.validateTimeout,
+        validateReadyDelay: preset.validateReadyDelay,
         repos,
         credentialProfiles,
         modelConfigs,
@@ -226,9 +236,13 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       const validateBuild = (typeof req.body['validateBuild'] === 'string' ? req.body['validateBuild'] : '').trim();
       const validateStart = (typeof req.body['validateStart'] === 'string' ? req.body['validateStart'] : '').trim();
       const validateHealth = (typeof req.body['validateHealth'] === 'string' ? req.body['validateHealth'] : '').trim();
+      const validateHealthPortRaw = typeof req.body['validateHealthPort'] === 'string' ? req.body['validateHealthPort'] : '';
+      const validateHealthPort = validateHealthPortRaw ? parseInt(validateHealthPortRaw, 10) : undefined;
       const validateComposeFile = (typeof req.body['validateComposeFile'] === 'string' ? req.body['validateComposeFile'] : '').trim();
       const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
       const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
+      const validateReadyDelayRaw = typeof req.body['validateReadyDelay'] === 'string' ? req.body['validateReadyDelay'] : '';
+      const validateReadyDelay = validateReadyDelayRaw ? parseInt(validateReadyDelayRaw, 10) : undefined;
       const webAccess = req.body['webAccess'] === '1';
       const privateFeeds = req.body['privateFeeds'] === '1';
 
@@ -265,8 +279,10 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
           validateBuild,
           validateStart,
           validateHealth,
+          validateHealthPort,
           validateComposeFile,
           validateTimeout,
+          validateReadyDelay,
           repos,
           credentialProfiles,
           modelConfigs,
@@ -285,8 +301,10 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         ...(validateBuild ? { validateBuild } : {}),
         ...(validateStart ? { validateStart } : {}),
         ...(validateHealth ? { validateHealth } : {}),
+        ...(validateHealthPort !== undefined && !isNaN(validateHealthPort) ? { validateHealthPort } : {}),
         ...(validateComposeFile ? { validateComposeFile } : {}),
         ...(validateTimeout !== undefined && !isNaN(validateTimeout) ? { validateTimeout } : {}),
+        ...(validateReadyDelay !== undefined && !isNaN(validateReadyDelay) ? { validateReadyDelay } : {}),
       });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

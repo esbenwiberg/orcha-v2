@@ -625,6 +625,21 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const claudeArgs = skipPermissions ? ['--dangerously-skip-permissions'] : [];
       const sessionHome = env['HOME'];
       const modelConfig = modelConfigId ? modelConfigStore.getConfig(modelConfigId) : undefined;
+
+      // Snapshot validation config from repo so the MCP validate tool has
+      // deterministic defaults without needing to look up the repo at runtime.
+      const validateConfig = repo.validateMode ? {
+        ...(repo.validateMode !== null ? { validateMode: repo.validateMode } : {}),
+        ...(repo.validateBuild !== null ? { validateBuild: repo.validateBuild } : {}),
+        ...(repo.validateStart !== null ? { validateStart: repo.validateStart } : {}),
+        ...(repo.validateHealth !== null ? { validateHealth: repo.validateHealth } : {}),
+        ...(repo.validateHealthPort !== null ? { validateHealthPort: repo.validateHealthPort } : {}),
+        ...(repo.validateComposeFile !== null ? { validateComposeFile: repo.validateComposeFile } : {}),
+        validateTimeout: repo.validateTimeout,
+        ...(repo.validateReadyDelay !== null ? { validateReadyDelay: repo.validateReadyDelay } : {}),
+        ...(Object.keys(repo.validateEnv).length > 0 ? { validateEnv: repo.validateEnv } : {}),
+      } : undefined;
+
       const createOpts: Parameters<typeof deps.sessionEngine.createSession>[0] = {
         sessionId,
         branch,
@@ -640,6 +655,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         ...(mcpServerIds.length > 0 ? { mcpServerIds } : {}),
         ...(privateFeeds ? { privateFeeds } : {}),
         ...(existingWorktree !== undefined ? { existingWorktree } : {}),
+        ...(validateConfig !== undefined ? { validateConfig } : {}),
       };
       if (repo.barePath !== null) {
         createOpts.repoRoot = repo.barePath;

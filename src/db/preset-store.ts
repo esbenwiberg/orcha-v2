@@ -6,8 +6,11 @@ export interface PresetValidateFields {
   validateBuild: string | null;
   validateStart: string | null;
   validateHealth: string | null;
+  validateHealthPort: number | null;
   validateComposeFile: string | null;
   validateTimeout: number | null;
+  validateReadyDelay: number | null;
+  validateEnv: Record<string, string>;
 }
 
 export interface Preset extends PresetValidateFields {
@@ -33,8 +36,11 @@ export interface CreatePresetInput {
   validateBuild?: string;
   validateStart?: string;
   validateHealth?: string;
+  validateHealthPort?: number;
   validateComposeFile?: string;
   validateTimeout?: number;
+  validateReadyDelay?: number;
+  validateEnv?: Record<string, string>;
   mcpServerIds?: string[];
 }
 
@@ -60,6 +66,13 @@ export class PresetStore {
       validateHealth: (row['validate_health'] as string | null) ?? null,
       validateComposeFile: (row['validate_compose_file'] as string | null) ?? null,
       validateTimeout: (row['validate_timeout'] as number | null) ?? null,
+      validateHealthPort: (row['validate_health_port'] as number | null) ?? null,
+      validateReadyDelay: (row['validate_ready_delay'] as number | null) ?? null,
+      validateEnv: (() => {
+        const raw = row['validate_env_json'] as string | null;
+        if (!raw) return {};
+        try { return JSON.parse(raw) as Record<string, string>; } catch { return {}; }
+      })(),
       mcpServerIds: row['mcp_server_ids'] ? (JSON.parse(row['mcp_server_ids'] as string) as string[]) : [],
       createdAt: new Date(row['created_at'] as string),
     };
@@ -84,19 +97,23 @@ export class PresetStore {
     const id = randomUUID();
     const now = new Date().toISOString();
 
+    const hasValidateEnv = input.validateEnv && Object.keys(input.validateEnv).length > 0;
     this.#db
       .prepare(
         `INSERT INTO presets (id, name, repo_id, credential_profile_id, model_config_id, web_access, private_feeds,
-           validate_mode, validate_build, validate_start, validate_health, validate_compose_file, validate_timeout,
+           validate_mode, validate_build, validate_start, validate_health, validate_health_port,
+           validate_compose_file, validate_timeout, validate_ready_delay, validate_env_json,
            mcp_server_ids, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id, input.name, input.repoId || null, input.credentialProfileId || null, input.modelConfigId || null,
         input.webAccess === false ? 0 : 1,
         input.privateFeeds ? 1 : 0,
         input.validateMode || null, input.validateBuild || null, input.validateStart || null,
-        input.validateHealth || null, input.validateComposeFile || null, input.validateTimeout ?? null,
+        input.validateHealth || null, input.validateHealthPort ?? null,
+        input.validateComposeFile || null, input.validateTimeout ?? null,
+        input.validateReadyDelay ?? null, hasValidateEnv ? JSON.stringify(input.validateEnv) : null,
         input.mcpServerIds && input.mcpServerIds.length > 0 ? JSON.stringify(input.mcpServerIds) : null,
         now,
       );
@@ -117,11 +134,14 @@ export class PresetStore {
     const privateFeeds = input.privateFeeds ?? existing.privateFeeds;
     const mcpServerIds = input.mcpServerIds ?? existing.mcpServerIds;
 
+    const validateEnv = input.validateEnv ?? existing.validateEnv;
+    const hasValidateEnv = validateEnv && Object.keys(validateEnv).length > 0;
     this.#db
       .prepare(
         `UPDATE presets SET name = ?, repo_id = ?, credential_profile_id = ?, model_config_id = ?, web_access = ?, private_feeds = ?,
            validate_mode = ?, validate_build = ?, validate_start = ?,
-           validate_health = ?, validate_compose_file = ?, validate_timeout = ?,
+           validate_health = ?, validate_health_port = ?, validate_compose_file = ?,
+           validate_timeout = ?, validate_ready_delay = ?, validate_env_json = ?,
            mcp_server_ids = ?
          WHERE id = ?`,
       )
@@ -133,8 +153,11 @@ export class PresetStore {
         input.validateBuild ?? existing.validateBuild,
         input.validateStart ?? existing.validateStart,
         input.validateHealth ?? existing.validateHealth,
+        input.validateHealthPort ?? existing.validateHealthPort,
         input.validateComposeFile ?? existing.validateComposeFile,
         input.validateTimeout ?? existing.validateTimeout,
+        input.validateReadyDelay ?? existing.validateReadyDelay,
+        hasValidateEnv ? JSON.stringify(validateEnv) : null,
         mcpServerIds.length > 0 ? JSON.stringify(mcpServerIds) : null,
         id,
       );

@@ -36,16 +36,22 @@ export interface StartParams {
     validateBuild?: string | null;
     validateStart?: string | null;
     validateHealth?: string | null;
+    validateHealthPort?: number | null;
     validateComposeFile?: string | null;
     validateTimeout?: number | null;
+    validateReadyDelay?: number | null;
+    validateEnv?: Record<string, string>;
   };
   presetFields?: {
     validateMode?: string | null;
     validateBuild?: string | null;
     validateStart?: string | null;
     validateHealth?: string | null;
+    validateHealthPort?: number | null;
     validateComposeFile?: string | null;
     validateTimeout?: number | null;
+    validateReadyDelay?: number | null;
+    validateEnv?: Record<string, string>;
   };
   agentOverrides?: {
     mode?: string;

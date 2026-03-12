@@ -161,6 +161,11 @@
         <input class="form-input" id="sp-validate-health" type="text" name="validateHealth" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateHealth ?? '' %>" />
       </div>
 
+      <div class="form-group">
+        <label class="form-label" for="sp-validate-health-port">Health Port <span class="font-normal text-slate-500">(optional)</span></label>
+        <input class="form-input" id="sp-validate-health-port" type="number" name="validateHealthPort" min="1" max="65535" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateHealthPort ?? '' %>" />
+      </div>
+
       <div id="sp-docker-fields" style="<%= it.validateMode === 'docker' ? '' : 'display:none' %>">
         <div class="form-group">
           <label class="form-label" for="sp-validate-compose">Compose File</label>
@@ -171,6 +176,11 @@
       <div class="form-group">
         <label class="form-label" for="sp-validate-timeout">Timeout (seconds)</label>
         <input class="form-input" id="sp-validate-timeout" type="number" name="validateTimeout" min="30" max="3600" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateTimeout ?? '' %>" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="sp-validate-ready-delay">Ready Delay (seconds) <span class="font-normal text-slate-500">(optional)</span></label>
+        <input class="form-input" id="sp-validate-ready-delay" type="number" name="validateReadyDelay" min="0" max="120" placeholder="inherited from repo" autocomplete="off" value="<%= it.validateReadyDelay ?? '' %>" />
       </div>
     </div>
   </details>
