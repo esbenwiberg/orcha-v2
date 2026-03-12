@@ -41,6 +41,7 @@ import { createOrchaMcpRouter } from '../mcp/orcha-mcp.js';
 import { createMessageMcpRouter } from '../mcp/message-mcp.js';
 import { NudgeService } from '../terminal/pty-nudge.js';
 import { SessionStore } from '../db/session-store.js';
+import { MessageStore } from '../db/message-store.js';
 import { ValidationManager } from '../validation/validation-manager.js';
 import { createValidateProxy } from './routes/validate-proxy.js';
 import { loadDeployConfig, Deployer } from '../deploy/index.js';
@@ -92,6 +93,13 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
   // Inter-session messaging MCP — per-session endpoint at /mcp/messages/:sessionId
   const nudgeService = new NudgeService(deps.sessionEngine, new SessionStore(deps.db));
   app.use(createMessageMcpRouter(deps.db, nudgeService));
+
+  // Expire abandoned message channels every 5 minutes
+  const msgStore = new MessageStore(deps.db);
+  setInterval(() => {
+    const expired = msgStore.expireChannels();
+    if (expired > 0) console.log(`[messages] expired ${expired} abandoned channel(s)`);
+  }, 5 * 60 * 1000);
 
   // Parse JSON request bodies — skip /validate/ proxy routes so the raw body
   // is forwarded intact to the proxied app.

@@ -18,6 +18,7 @@ import { loadSkills } from './skills.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { McpServerStore } from '../../db/mcp-server-store.js';
+import { MessageStore } from '../../db/message-store.js';
 import { extractAuthUrl, stripAnsi } from '../../terminal/auth-terminal-manager.js';
 import { executeGit } from '../utils/git-utils.js';
 import type { Session } from '@orcha/domain';
@@ -2105,6 +2106,141 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       console.log(`[sessions] upload-image path=${outPath} size=${buffer.length}`);
       res.json({ path: outPath });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ── Inter-session messaging UI ───────────────────────────────────
+
+  const messageStore = new MessageStore(deps.db);
+
+  // GET /api/sessions/:id/messages — render the messages overlay
+  router.get('/sessions/:id/messages', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const session = store.getSession(id);
+      if (!session) { res.status(404).send(''); return; }
+
+      // Gather direct messages (sent + received)
+      const allMessages = messageStore.getAllForSession(id);
+      const directMessages = allMessages
+        .filter((m) => m.channelId === null)
+        .slice(0, 50)
+        .map((m) => {
+          const isSent = m.fromSession === id;
+          const otherId = isSent ? m.toSession : m.fromSession;
+          const otherSession = otherId ? store.getSession(otherId) : undefined;
+          return {
+            direction: isSent ? 'out' : 'in',
+            otherDisplayId: otherSession?.displayId ?? '?',
+            body: m.body,
+            readAt: m.readAt,
+            timeAgo: formatRelativeTime(m.createdAt),
+          };
+        });
+
+      // Gather channels
+      const channels = messageStore.listChannelsForSession(id);
+
+      const unreadCount = messageStore.countUnread(id);
+
+      const html = eta.render('partials/messages-panel', {
+        sessionId: id,
+        displayId: session.displayId,
+        directMessages,
+        channels,
+        unreadCount,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/messages/channel/:channelId — channel detail partial
+  router.get('/sessions/:id/messages/channel/:channelId', (req, res, next) => {
+    try {
+      const channelId = req.params['channelId'] ?? '';
+      const channel = messageStore.getChannel(channelId);
+      if (!channel) { res.status(404).send('Channel not found'); return; }
+
+      const members = messageStore.getChannelMembers(channelId).map((m) => {
+        const s = store.getSession(m.sessionId);
+        return { displayId: s?.displayId ?? '?', role: m.role };
+      });
+
+      const messages = messageStore.getChannelMessages(channelId).map((m) => {
+        const s = store.getSession(m.fromSession);
+        return {
+          fromDisplayId: s?.displayId ?? '?',
+          body: m.body,
+          timeAgo: formatRelativeTime(m.createdAt),
+        };
+      });
+
+      const html = eta.render('partials/messages-channel-detail', {
+        channel,
+        members,
+        messages,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // GET /api/sessions/:id/messages/send-form — render the send message form
+  router.get('/sessions/:id/messages/send-form', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+
+      // List active sessions excluding self
+      const allSessions = store.listSessions();
+      const activeSessions = allSessions
+        .filter((s) => s.status === 'running' && s.id !== id)
+        .map((s) => ({
+          id: s.id,
+          displayId: s.displayId,
+          branch: s.worktree.branch,
+        }));
+
+      const html = eta.render('partials/messages-send-form', {
+        sessionId: id,
+        activeSessions,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /api/sessions/:id/messages/send — send a direct message from UI
+  router.post('/sessions/:id/messages/send', (req, res, next) => {
+    try {
+      const fromId = req.params['id'] ?? '';
+      const targetSession = req.body?.target_session as string | undefined;
+      const body = req.body?.body as string | undefined;
+      const ptyNudge = req.body?.pty_nudge === '1';
+
+      if (!targetSession || !body?.trim()) {
+        res.status(422).send(eta.render('partials/form-error', { message: 'Target session and message are required.' }));
+        return;
+      }
+
+      messageStore.sendDirect({
+        fromSession: fromId,
+        toSession: targetSession,
+        body: body.trim(),
+        ...(ptyNudge ? {} : { ptyNudge: false }),
+      });
+
+      // Return empty + trigger refresh to close the form and update the list
+      res.setHeader('HX-Trigger', 'messages-refresh');
+      res.status(200).send('<div class="text-xs text-green-400 py-2">Message sent ✓</div>');
     } catch (err) {
       next(err);
     }
