@@ -63,6 +63,7 @@
   <div class="session-card__body">
     <p class="card__meta">Started <%= it.createdAt %></p>
     <p class="card__meta">Updated <%= it.updatedAt %></p>
+    <% if (it.exitCode !== undefined && it.exitCode !== null) { %><p class="card__meta">Exit code: <span style="color:<%= it.exitCode === 0 ? 'var(--color-success)' : 'var(--color-error)' %>"><%= it.exitCode %><%= it.exitCode === 137 ? ' (OOM killed)' : '' %></span></p><% } %>
     <%~ include('credential-status-strip', { sessionId: it.id, credentials: it.credentials }) %>
   </div>
   <% if (it.modelProvider === 'max' && it.status === 'running' && !it.taskInfo) { %>

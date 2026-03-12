@@ -56,6 +56,8 @@ interface SessionCardViewModel {
   deployCommand?: string;
   /** Linked task info — when set, shows a "Task #N" badge on the card. */
   taskInfo?: { taskId: string; displayId: number; status: string };
+  /** Exit code from the PTY process — shown on completed/failed cards. */
+  exitCode?: number;
 }
 
 /** UUID pattern for detecting bare-repo directory names that are UUIDs. */
@@ -99,6 +101,7 @@ function toViewModel(
     ...(modelProvider !== undefined ? { modelProvider } : {}),
     ...(deployCommand ? { deployCommand } : {}),
     ...(taskInfo !== undefined ? { taskInfo } : {}),
+    ...(session.exitCode !== undefined ? { exitCode: session.exitCode } : {}),
   };
 }
 
@@ -1809,6 +1812,13 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
+      // Fetch latest remote refs before listing branches (best-effort)
+      try {
+        await executeGit(['fetch', '--prune', '--quiet'], wt);
+      } catch {
+        // Network unavailable or no remote — continue with local refs
+      }
+
       // Discover branches
       let branches: string[] = [];
       try {
@@ -2005,6 +2015,11 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const session = store.getSession(id);
       if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
       const wt = session.worktree.worktreePath;
+
+      // Fetch latest remote refs before listing
+      try {
+        await executeGit(['fetch', '--prune', '--quiet'], wt);
+      } catch { /* network unavailable */ }
 
       let branches: string[] = [];
       try {

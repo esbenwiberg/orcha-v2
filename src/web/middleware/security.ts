@@ -6,15 +6,16 @@ import cors from 'cors';
 // styles to the DOM and the project deliberately avoids a client-side build
 // pipeline in this phase. `unsafe-eval` is required because htmx uses
 // new Function() to evaluate JS expressions in hx-on / hx-vals attributes.
+// `esm.sh` is required for the file browser's CodeMirror dynamic imports.
 // Remove both when a bundler-based nonce strategy is added.
 const helmetMiddleware = helmet({
   contentSecurityPolicy: {
     directives: {
       'default-src': ["'self'"],
-      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://esm.sh'],
       'script-src-attr': ["'unsafe-inline'"],
       'style-src': ["'self'", "'unsafe-inline'"],
-      'connect-src': ["'self'", 'wss:', 'ws:'],
+      'connect-src': ["'self'", 'wss:', 'ws:', 'https://esm.sh'],
       'img-src': ["'self'", 'data:'],
     },
   },

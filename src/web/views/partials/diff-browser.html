@@ -51,6 +51,29 @@
   </div>
 </div>
 <link rel="stylesheet" href="/vendor/diff2html.min.css" />
-<script src="/vendor/diff2html.min.js"></script>
-<script src="/js/diff-browser.js"></script>
-<script>window.__diffBrowserInit('<%= it.sessionId %>', '<%= it.defaultBase %>')</script>
+<script>
+(function() {
+  var sid = '<%= it.sessionId %>';
+  var base = '<%= it.defaultBase %>';
+  function init() { window.__diffBrowserInit(sid, base); }
+  if (typeof window.__diffBrowserInit === 'function' && typeof Diff2Html !== 'undefined') {
+    init();
+  } else {
+    // Load vendor + app scripts sequentially so Diff2Html is ready before init
+    function loadScript(src, cb) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = cb;
+      document.head.appendChild(s);
+    }
+    if (typeof Diff2Html === 'undefined') {
+      loadScript('/vendor/diff2html.min.js', function() {
+        if (typeof window.__diffBrowserInit === 'function') { init(); }
+        else { loadScript('/js/diff-browser.js', init); }
+      });
+    } else {
+      loadScript('/js/diff-browser.js', init);
+    }
+  }
+})();
+</script>
