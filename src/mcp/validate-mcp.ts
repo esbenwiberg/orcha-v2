@@ -3,8 +3,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import type Database from 'better-sqlite3';
-import { RepoStore } from '../db/repo-store.js';
-import { PresetStore } from '../db/preset-store.js';
 import { SessionStore } from '../db/session-store.js';
 import { ValidationManager } from '../validation/validation-manager.js';
 import { resolveOrchaHost } from '../host-url.js';
@@ -18,8 +16,6 @@ export function createValidateMcpRouter(
   validationManager: ValidationManager,
 ): Router {
   const router = Router();
-  const repoStore = new RepoStore(db);
-  const presetStore = new PresetStore(db);
   const sessionStore = new SessionStore(db);
 
   // Track active transports per Orcha session → MCP session
@@ -63,7 +59,7 @@ export function createValidateMcpRouter(
     };
 
     // Connect an MCP server to this transport
-    const mcpServer = buildMcpServer(orchaSessionId, db, validationManager, repoStore, presetStore, sessionStore);
+    const mcpServer = buildMcpServer(orchaSessionId, validationManager, sessionStore);
     // Cast needed: StreamableHTTPServerTransport's onclose is optional but Transport requires it.
     // The MCP SDK types are slightly misaligned under exactOptionalPropertyTypes.
     mcpServer.connect(transport as Parameters<typeof mcpServer.connect>[0]).catch((err) => {
@@ -141,10 +137,7 @@ export function createValidateMcpRouter(
 
 function buildMcpServer(
   sessionId: string,
-  db: Database.Database,
   validationManager: ValidationManager,
-  repoStore: RepoStore,
-  presetStore: PresetStore,
   sessionStore: SessionStore,
 ): McpServer {
   const mcp = new McpServer(
@@ -169,7 +162,7 @@ function buildMcpServer(
     },
     async (args) => {
       try {
-        // Look up session to get worktree path and repo ID
+        // Look up session to get worktree path and snapshotted validation config
         const dbSession = sessionStore.getSession(sessionId);
         if (!dbSession) {
           return { content: [{ type: 'text' as const, text: `Session ${sessionId} not found in database` }], isError: true };
@@ -177,27 +170,24 @@ function buildMcpServer(
 
         const worktreePath = dbSession.worktree.worktreePath;
 
-        // Get repo fields for config resolution
-        // We need to find the repo by matching the worktree path back to a bare repo.
-        // The session config has repoRoot which maps to the bare repo path.
-        const repos = repoStore.listRepos();
-        const repo = repos.find((r) => {
-          if (!r.barePath) return false;
-          return worktreePath.includes(r.barePath.replace(/\.git$/, ''));
-        });
+        // Use the snapshotted validation config from the session (merged repo + preset at creation time).
+        // This is deterministic — retries always use the same defaults regardless of later config edits.
+        const vc = dbSession.config.validateConfig;
+        const repoFields = vc ? {
+          validateMode: vc.validateMode ?? null,
+          validateBuild: vc.validateBuild ?? null,
+          validateStart: vc.validateStart ?? null,
+          validateHealth: vc.validateHealth ?? null,
+          validateHealthPort: vc.validateHealthPort ?? null,
+          validateComposeFile: vc.validateComposeFile ?? null,
+          validateTimeout: vc.validateTimeout ?? null,
+          validateReadyDelay: vc.validateReadyDelay ?? null,
+          validateEnv: vc.validateEnv ?? {},
+        } : undefined;
 
         const result = await validationManager.start(sessionId, {
           worktreePath,
-          ...(repo ? {
-            repoFields: {
-              validateMode: repo.validateMode,
-              validateBuild: repo.validateBuild,
-              validateStart: repo.validateStart,
-              validateHealth: repo.validateHealth,
-              validateComposeFile: repo.validateComposeFile,
-              validateTimeout: repo.validateTimeout,
-            },
-          } : {}),
+          ...(repoFields ? { repoFields } : {}),
           agentOverrides: {
             ...(args.mode ? { mode: args.mode } : {}),
             ...(args.build ? { build: args.build } : {}),

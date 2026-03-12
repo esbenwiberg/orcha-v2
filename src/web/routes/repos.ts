@@ -51,8 +51,11 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         validateBuild: repo.validateBuild ?? '',
         validateStart: repo.validateStart ?? '',
         validateHealth: repo.validateHealth ?? '',
+        validateHealthPort: repo.validateHealthPort,
         validateComposeFile: repo.validateComposeFile ?? '',
         validateTimeout: repo.validateTimeout,
+        validateReadyDelay: repo.validateReadyDelay,
+        validateEnv: repo.validateEnv,
         deployCommand: repo.deployCommand ?? '',
         deployEnvVars: repo.deployEnvVars,
         envVars: repo.envVars,
@@ -87,8 +90,11 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
           validateBuild: repo?.validateBuild ?? '',
           validateStart: repo?.validateStart ?? '',
           validateHealth: repo?.validateHealth ?? '',
+          validateHealthPort: repo?.validateHealthPort ?? null,
           validateComposeFile: repo?.validateComposeFile ?? '',
           validateTimeout: repo?.validateTimeout ?? 300,
+          validateReadyDelay: repo?.validateReadyDelay ?? null,
+          validateEnv: repo?.validateEnv ?? {},
           deployCommand: repo?.deployCommand ?? '',
           deployEnvVars: repo?.deployEnvVars ?? {},
           envVars: repo?.envVars ?? {},
@@ -134,10 +140,30 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
       const validateBuild = (typeof req.body['validateBuild'] === 'string' ? req.body['validateBuild'] : '').trim();
       const validateStart = (typeof req.body['validateStart'] === 'string' ? req.body['validateStart'] : '').trim();
       const validateHealth = (typeof req.body['validateHealth'] === 'string' ? req.body['validateHealth'] : '').trim();
+      const validateHealthPortRaw = typeof req.body['validateHealthPort'] === 'string' ? req.body['validateHealthPort'] : '';
+      const validateHealthPort = validateHealthPortRaw ? parseInt(validateHealthPortRaw, 10) : undefined;
       const validateComposeFile = (typeof req.body['validateComposeFile'] === 'string' ? req.body['validateComposeFile'] : '').trim();
       const validateTimeoutRaw = typeof req.body['validateTimeout'] === 'string' ? req.body['validateTimeout'] : '';
       const validateTimeout = validateTimeoutRaw ? parseInt(validateTimeoutRaw, 10) : undefined;
+      const validateReadyDelayRaw = typeof req.body['validateReadyDelay'] === 'string' ? req.body['validateReadyDelay'] : '';
+      const validateReadyDelay = validateReadyDelayRaw ? parseInt(validateReadyDelayRaw, 10) : undefined;
       const deployCommand = (typeof req.body['deployCommand'] === 'string' ? req.body['deployCommand'] : '').trim();
+
+      // Parse validate env vars
+      const valEnvKeys = req.body['validateEnvKeys[]'];
+      const valEnvValues = req.body['validateEnvValues[]'];
+      const valEnvKeysArr: string[] = Array.isArray(valEnvKeys) ? valEnvKeys : (valEnvKeys ? [valEnvKeys] : []);
+      const valEnvValuesArr: string[] = Array.isArray(valEnvValues) ? valEnvValues : (valEnvValues ? [valEnvValues] : []);
+      const validateEnv: Record<string, string> = {};
+      for (let i = 0; i < valEnvKeysArr.length; i++) {
+        const rawKey = valEnvKeysArr[i];
+        const rawVal = valEnvValuesArr[i];
+        const k = (typeof rawKey === 'string' ? rawKey : '').trim();
+        const v = typeof rawVal === 'string' ? rawVal : '';
+        if (k.length > 0) {
+          validateEnv[k] = v;
+        }
+      }
 
       // Parse deploy env vars
       const deployEnvKeys = req.body['deployEnvKeys[]'];
@@ -163,7 +189,10 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         validateComposeFile,
         deployCommand,
         deployEnvVars,
+        validateEnv,
+        ...(validateHealthPort !== undefined && !isNaN(validateHealthPort) ? { validateHealthPort } : {}),
         ...(validateTimeout !== undefined && !isNaN(validateTimeout) ? { validateTimeout } : {}),
+        ...(validateReadyDelay !== undefined && !isNaN(validateReadyDelay) ? { validateReadyDelay } : {}),
       });
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');

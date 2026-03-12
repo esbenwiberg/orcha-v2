@@ -160,6 +160,11 @@
           <input class="form-input" id="ar-validate-health" type="text" name="validateHealth" placeholder="/health" autocomplete="off" value="<%= it.validateHealth ?? '' %>" />
         </div>
 
+        <div class="form-group">
+          <label class="form-label" for="ar-validate-health-port">Health Port <span class="font-normal text-slate-500">(optional, if different from app port)</span></label>
+          <input class="form-input" id="ar-validate-health-port" type="number" name="validateHealthPort" min="1" max="65535" placeholder="same as app port" autocomplete="off" value="<%= it.validateHealthPort ?? '' %>" />
+        </div>
+
         <div id="ar-docker-fields" style="<%= it.validateMode === 'docker' ? '' : 'display:none' %>">
           <div class="form-group">
             <label class="form-label" for="ar-validate-compose">Compose File</label>
@@ -170,6 +175,36 @@
         <div class="form-group">
           <label class="form-label" for="ar-validate-timeout">Timeout (seconds)</label>
           <input class="form-input" id="ar-validate-timeout" type="number" name="validateTimeout" min="30" max="3600" placeholder="300" autocomplete="off" value="<%= it.validateTimeout ?? 300 %>" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="ar-validate-ready-delay">Ready Delay (seconds) <span class="font-normal text-slate-500">(optional, wait after health OK before marking healthy)</span></label>
+          <input class="form-input" id="ar-validate-ready-delay" type="number" name="validateReadyDelay" min="0" max="120" placeholder="0" autocomplete="off" value="<%= it.validateReadyDelay ?? '' %>" />
+        </div>
+
+        <div class="mt-2">
+          <label class="form-label text-xs">Validate Env Vars <span class="font-normal text-slate-500">(injected into build &amp; start)</span></label>
+          <div id="validate-env-container">
+            <% const vEntries = it.validateEnv ? Object.entries(it.validateEnv) : []; %>
+            <% if (vEntries.length > 0) { %>
+              <% vEntries.forEach(function([key, val]) { %>
+                <div class="env-row flex gap-1 mb-1 items-center">
+                  <input type="text" name="validateEnvKeys[]" placeholder="KEY" autocomplete="off" value="<%= key %>" class="form-input flex-1 font-mono text-xs" />
+                  <input type="text" name="validateEnvValues[]" placeholder="value" autocomplete="off" value="<%= val %>" class="form-input flex-[2] font-mono text-xs" />
+                  <button type="button" class="btn btn-ghost btn-xs" onclick="this.parentElement.remove()">x</button>
+                </div>
+              <% }); %>
+            <% } %>
+          </div>
+          <button type="button" class="btn btn-ghost text-[11px] mt-1" onclick="
+            var c = document.getElementById('validate-env-container');
+            var row = document.createElement('div');
+            row.className = 'env-row flex gap-1 mb-1 items-center';
+            row.innerHTML = '<input type=&quot;text&quot; name=&quot;validateEnvKeys[]&quot; placeholder=&quot;KEY&quot; autocomplete=&quot;off&quot; class=&quot;form-input flex-1 font-mono text-xs&quot; />'
+              + '<input type=&quot;text&quot; name=&quot;validateEnvValues[]&quot; placeholder=&quot;value&quot; autocomplete=&quot;off&quot; class=&quot;form-input flex-[2] font-mono text-xs&quot; />'
+              + '<button type=&quot;button&quot; class=&quot;btn btn-ghost btn-xs&quot; onclick=&quot;this.parentElement.remove()&quot;>x</button>';
+            c.appendChild(row);
+          ">+ Add Variable</button>
         </div>
       </div>
     </details>

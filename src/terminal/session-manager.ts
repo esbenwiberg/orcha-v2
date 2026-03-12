@@ -11,6 +11,7 @@ import { SessionStore } from '@orcha/db';
 import { CredentialStore } from '../db/credential-store.js';
 import { ModelConfigStore } from '../db/model-config-store.js';
 import { credentialManager } from '../credentials/credential-manager.js';
+import type { SessionValidateConfig } from '@orcha/domain';
 import type { StatusMonitor } from './status-monitor.js';
 import type { ValidationManager } from '../validation/validation-manager.js';
 
@@ -42,6 +43,8 @@ export interface CreateSessionOptions {
   privateFeeds?: boolean;
   /** Pre-existing worktree to reuse (skips worktree creation). */
   existingWorktree?: WorktreeInfo;
+  /** Snapshotted validation config (merged repo + preset fields). */
+  validateConfig?: SessionValidateConfig;
 }
 
 export interface ActiveSession {
@@ -239,6 +242,7 @@ export class SessionManager {
           ...(opts.modelProvider !== undefined ? { modelProvider: opts.modelProvider } : {}),
           ...(opts.mcpServerIds !== undefined && opts.mcpServerIds.length > 0 ? { mcpServerIds: opts.mcpServerIds } : {}),
           ...(opts.privateFeeds ? { privateFeeds: true } : {}),
+          ...(opts.validateConfig !== undefined ? { validateConfig: opts.validateConfig } : {}),
         },
         {
           worktreePath: worktree.path,

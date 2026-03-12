@@ -12,8 +12,11 @@ export interface RepoValidateFields {
   validateBuild: string | null;
   validateStart: string | null;
   validateHealth: string | null;
+  validateHealthPort: number | null;
   validateComposeFile: string | null;
   validateTimeout: number;
+  validateReadyDelay: number | null;
+  validateEnv: Record<string, string>;
 }
 
 export interface Repo extends RepoValidateFields {
@@ -93,8 +96,15 @@ export class RepoStore {
       validateBuild: (row['validate_build'] as string | null) ?? null,
       validateStart: (row['validate_start'] as string | null) ?? null,
       validateHealth: (row['validate_health'] as string | null) ?? null,
+      validateHealthPort: (row['validate_health_port'] as number | null) ?? null,
       validateComposeFile: (row['validate_compose_file'] as string | null) ?? null,
       validateTimeout: (row['validate_timeout'] as number | null) ?? 300,
+      validateReadyDelay: (row['validate_ready_delay'] as number | null) ?? null,
+      validateEnv: (() => {
+        const raw = row['validate_env_json'] as string | null;
+        if (!raw) return {};
+        try { return JSON.parse(raw) as Record<string, string>; } catch { return {}; }
+      })(),
       deployCommand: (row['deploy_command'] as string | null) ?? null,
       deployEnvVars: (() => {
         const raw = row['deploy_env_json'] as string | null;
@@ -196,8 +206,11 @@ export class RepoStore {
       validateBuild?: string;
       validateStart?: string;
       validateHealth?: string;
+      validateHealthPort?: number;
       validateComposeFile?: string;
       validateTimeout?: number;
+      validateReadyDelay?: number;
+      validateEnv?: Record<string, string>;
       deployCommand?: string;
       deployEnvVars?: Record<string, string>;
     },
@@ -207,11 +220,13 @@ export class RepoStore {
 
     const now = new Date().toISOString();
     const hasDeployEnv = fields.deployEnvVars && Object.keys(fields.deployEnvVars).length > 0;
+    const hasValidateEnv = fields.validateEnv && Object.keys(fields.validateEnv).length > 0;
     this.#db
       .prepare(
         `UPDATE repos SET
            validate_mode = ?, validate_build = ?, validate_start = ?,
-           validate_health = ?, validate_compose_file = ?, validate_timeout = ?,
+           validate_health = ?, validate_health_port = ?, validate_compose_file = ?,
+           validate_timeout = ?, validate_ready_delay = ?, validate_env_json = ?,
            deploy_command = ?, deploy_env_json = ?,
            updated_at = ?
          WHERE id = ?`,
@@ -221,8 +236,11 @@ export class RepoStore {
         fields.validateBuild || null,
         fields.validateStart || null,
         fields.validateHealth || null,
+        fields.validateHealthPort ?? null,
         fields.validateComposeFile || null,
         fields.validateTimeout ?? existing.validateTimeout,
+        fields.validateReadyDelay ?? null,
+        hasValidateEnv ? JSON.stringify(fields.validateEnv) : null,
         fields.deployCommand || null,
         hasDeployEnv ? encryptJson(fields.deployEnvVars!) : null,
         now,

@@ -15,6 +15,18 @@ export interface WorktreeInfo {
   createdAt: Date;
 }
 
+export interface SessionValidateConfig {
+  validateMode?: string;
+  validateBuild?: string;
+  validateStart?: string;
+  validateHealth?: string;
+  validateHealthPort?: number;
+  validateComposeFile?: string;
+  validateTimeout?: number;
+  validateReadyDelay?: number;
+  validateEnv?: Record<string, string>;
+}
+
 export interface SessionConfig {
   instanceId: string;
   repoRoot: string;
@@ -29,6 +41,8 @@ export interface SessionConfig {
   modelProvider?: string;
   mcpServerIds?: string[];
   privateFeeds?: boolean;
+  /** Snapshotted validation config (merged repo + preset fields at session creation time). */
+  validateConfig?: SessionValidateConfig;
 }
 
 export interface Session {
