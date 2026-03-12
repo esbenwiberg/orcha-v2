@@ -25,6 +25,7 @@ import { createClaudeFilesRouter } from './routes/claude-files.js';
 import { createMcpServersRouter } from './routes/mcp-servers.js';
 import { createGitIdentityRouter } from './routes/git-identity.js';
 import { createSystemRouter } from './routes/system.js';
+import { createHistoryRouter } from './routes/history.js';
 import { createModelConfigsRouter } from './routes/model-configs.js';
 import { createBootstrapPatsRouter } from './routes/bootstrap-pats.js';
 import { createTaskSettingsRouter } from './routes/task-settings.js';
@@ -206,6 +207,9 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
 
   // Tasks pipeline router
   app.use('/api', createTasksRouter(eta, deps));
+
+  // History browsing + admin session router
+  app.use('/api', createHistoryRouter(eta, deps));
 
   // Self-deploy (optional — only if DEPLOY_* env vars are set)
   const deployConfig = loadDeployConfig();

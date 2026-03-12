@@ -202,6 +202,24 @@ export function createDashboardRouter(eta: Eta): Router {
     }
   });
 
+  // GET /history — session history browser
+  router.get('/history', (_req, res, next) => {
+    try {
+      const body = eta.render('history-page', {});
+      const html = eta.render('layout', {
+        ...shared,
+        title: 'Orcha – History',
+        pageTitle: 'History',
+        activeNav: 'history',
+        body,
+      });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // GET /system — system health + disk usage
   router.get('/system', (_req, res, next) => {
     try {

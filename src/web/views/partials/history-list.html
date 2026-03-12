@@ -1,0 +1,77 @@
+<div class="page-section__header">
+  <div>
+    <h2 class="page-section__title">Session History</h2>
+    <p class="page-section__subtitle"><%= it.count %> session(s) · <%= it.totalFormatted %> total</p>
+  </div>
+  <div class="flex gap-2">
+    <button class="btn btn-ghost btn-sm"
+      hx-post="/api/history/clean"
+      hx-vals='{"days":"30"}'
+      hx-target="#history-clean-result"
+      hx-swap="innerHTML"
+      hx-confirm="Delete history older than 30 days?">Clean old</button>
+    <button class="btn btn-primary btn-sm"
+      hx-post="/api/history/admin-session"
+      hx-swap="none">Analyze with Claude</button>
+  </div>
+</div>
+
+<div id="history-clean-result" class="mb-3"></div>
+
+<% if (it.items.length === 0) { %>
+  <p class="text-muted">No captured history yet. History is automatically saved when sessions exit.</p>
+<% } else { %>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Session</th>
+        <th>Repo / Branch</th>
+        <th>Status</th>
+        <th>Messages</th>
+        <th>Size</th>
+        <th>Captured</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% for (const item of it.items) { %>
+      <tr id="history-row-<%= item.sessionId %>">
+        <td>
+          <% if (item.displayId !== null) { %>
+            <span class="text-mono">#<%= item.displayId %></span>
+          <% } else { %>
+            <span class="text-muted text-mono"><%= item.sessionId.slice(0, 8) %></span>
+          <% } %>
+        </td>
+        <td>
+          <span><%= item.repoName %></span>
+          <span class="text-muted"> / <%= item.branch %></span>
+        </td>
+        <td><span class="badge badge-sm badge-neutral"><%= item.status %></span></td>
+        <td><%= item.messageCount %></td>
+        <td><%= item.sizeFormatted %></td>
+        <td class="text-muted"><%= item.capturedAt %></td>
+        <td class="text-right">
+          <div class="flex gap-1 justify-end">
+            <button class="btn btn-ghost btn-xs"
+              hx-get="/api/history/<%= item.sessionId %>"
+              hx-target="#form-panel-slot"
+              hx-swap="innerHTML"
+              onclick="document.getElementById('form-panel').classList.add('is-open')"
+              title="View detail">Detail</button>
+            <a class="btn btn-ghost btn-xs"
+              href="/api/history/<%= item.sessionId %>/download"
+              title="Download JSONL">Download</a>
+            <button class="btn btn-ghost btn-xs text-red"
+              hx-delete="/api/history/<%= item.sessionId %>"
+              hx-target="#history-row-<%= item.sessionId %>"
+              hx-swap="outerHTML"
+              hx-confirm="Delete history for this session?"
+              title="Delete history">Delete</button>
+          </div>
+        </td>
+      </tr>
+      <% } %>
+    </tbody>
+  </table>
+<% } %>

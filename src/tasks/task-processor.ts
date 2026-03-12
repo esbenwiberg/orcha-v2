@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, appendFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { captureSessionHistory } from '../history/capture.js';
 import type Database from 'better-sqlite3';
 import { TaskStore } from '../db/task-store.js';
+import { SessionStore } from '../db/session-store.js';
 import { RepoStore } from '../db/repo-store.js';
 import { McpServerStore } from '../db/mcp-server-store.js';
 import { ModelConfigStore } from '../db/model-config-store.js';
@@ -274,6 +276,23 @@ export class TaskProcessor {
 
       // Persist refreshed OAuth credentials (if any)
       this.#persistRefreshedCredentials(task);
+
+      // Capture Claude conversation history (best-effort)
+      if (homeDir && session.dbSessionId) {
+        try {
+          const historyResult = captureSessionHistory(
+            session.dbSessionId,
+            homeDir,
+            getStoragePaths().dataDir,
+          );
+          if (historyResult) {
+            new SessionStore(this.#db).updateHistory(session.dbSessionId, historyResult);
+            console.log('[task-processor] TASK-%d captured history: messages=%d', task.displayId, historyResult.messageCount);
+          }
+        } catch (err) {
+          console.warn('[task-processor] TASK-%d history capture failed:', task.displayId, err);
+        }
+      }
 
       // Detect silent failures — if Claude produced almost no output, it likely
       // failed to start or authenticate (the "Starting claude..." prefix is ~40 chars).

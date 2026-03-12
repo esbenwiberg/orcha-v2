@@ -211,7 +211,7 @@ const now = new Date();
 instanceRegistry.upsertInstance({ id: instanceId, repoRoot, registeredAt: now, lastSeenAt: now });
 
 const modelConfigStore = new ModelConfigStore(db);
-const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionStore, credentialStore, instanceId, modelConfigStore);
+const sessionEngine = new SessionManager(worktreeManager, ptyManager, sessionStore, credentialStore, instanceId, modelConfigStore, dataDir);
 
 const validationManager = new ValidationManager();
 sessionEngine.setValidationManager(validationManager);

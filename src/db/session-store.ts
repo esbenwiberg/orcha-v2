@@ -56,6 +56,19 @@ export class SessionStore {
       session.errorMessage = errorMessage;
     }
 
+    const historyCapturedAt = row['history_captured_at'] as string | null;
+    const historySizeBytes = row['history_size_bytes'] as number | null;
+    const historyMessageCount = row['history_message_count'] as number | null;
+    if (historyCapturedAt !== null) {
+      session.historyCapturedAt = new Date(historyCapturedAt);
+    }
+    if (historySizeBytes !== null) {
+      session.historySizeBytes = historySizeBytes;
+    }
+    if (historyMessageCount !== null) {
+      session.historyMessageCount = historyMessageCount;
+    }
+
     return session;
   }
 
@@ -246,6 +259,22 @@ export class SessionStore {
     this.#db
       .prepare('UPDATE sessions SET worktree_json = ?, updated_at = ? WHERE id = ?')
       .run(worktreeJson, now, id);
+
+    return this.getSession(id)!;
+  }
+
+  updateHistory(id: string, patch: { capturedAt: string; sizeBytes: number; messageCount: number }): Session {
+    const session = this.getSession(id);
+    if (session === undefined) {
+      throw new TypeError(`Session not found: ${id}`);
+    }
+
+    const now = new Date().toISOString();
+    this.#db
+      .prepare(
+        'UPDATE sessions SET history_captured_at = ?, history_size_bytes = ?, history_message_count = ?, updated_at = ? WHERE id = ?',
+      )
+      .run(patch.capturedAt, patch.sizeBytes, patch.messageCount, now, id);
 
     return this.getSession(id)!;
   }

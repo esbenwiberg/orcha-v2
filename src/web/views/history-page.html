@@ -1,0 +1,8 @@
+<div class="page-section">
+  <div id="history-list-slot"
+    hx-get="/api/history/list"
+    hx-trigger="load, refresh-history from:body"
+    hx-swap="innerHTML">
+    <div class="stat-card skeleton h-20"></div>
+  </div>
+</div>

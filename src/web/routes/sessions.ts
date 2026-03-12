@@ -58,6 +58,10 @@ interface SessionCardViewModel {
   taskInfo?: { taskId: string; displayId: number; status: string };
   /** Exit code from the PTY process — shown on completed/failed cards. */
   exitCode?: number;
+  /** True when this is an admin history analysis session. */
+  isAdmin?: boolean;
+  /** True when the session has captured JSONL history. */
+  hasHistory?: boolean;
 }
 
 /** UUID pattern for detecting bare-repo directory names that are UUIDs. */
@@ -102,6 +106,8 @@ function toViewModel(
     ...(deployCommand ? { deployCommand } : {}),
     ...(taskInfo !== undefined ? { taskInfo } : {}),
     ...(session.exitCode !== undefined ? { exitCode: session.exitCode } : {}),
+    ...(session.config.repoRoot === '__admin__' ? { isAdmin: true } : {}),
+    ...(session.historyCapturedAt !== undefined ? { hasHistory: true } : {}),
   };
 }
 
@@ -1163,27 +1169,50 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
-      // Clean up worktree on disk before removing the DB record
       const worktreePath = existing.worktree.worktreePath;
       const worktreeSessionId = basename(worktreePath);
-      try {
-        await deps.worktreeManager.removeWorktree(worktreeSessionId);
-      } catch {
-        // Best-effort: worktree may already be gone
+      const isAdmin = existing.config.repoRoot === '__admin__';
+
+      // Safety-net history capture before cleanup
+      if (!existing.historyCapturedAt && !isAdmin) {
+        const homeDir = existing.config.env?.['HOME'] ?? join('/tmp', `orcha-home-${worktreeSessionId}`);
+        if (existsSync(homeDir)) {
+          try {
+            const { captureSessionHistory } = await import('../../history/capture.js');
+            const { getStoragePaths } = await import('../../storage/paths.js');
+            captureSessionHistory(id, homeDir, getStoragePaths().dataDir);
+          } catch { /* best-effort */ }
+        }
       }
 
-      // Clean up the git branch so the name can be reused
-      try {
-        await deps.worktreeManager.deleteBranch(existing.worktree.branch, existing.config.repoRoot);
-      } catch {
-        // Best-effort: branch may already be gone or have been merged
-      }
+      if (isAdmin) {
+        // Admin session: clean up workspace + admin HOME dirs (no git worktree)
+        try { rmSync(worktreePath, { recursive: true, force: true }); } catch { /* best-effort */ }
+        const adminHomeDir = existing.config.env?.['HOME'];
+        if (adminHomeDir) {
+          try { rmSync(adminHomeDir, { recursive: true, force: true }); } catch { /* best-effort */ }
+        }
+      } else {
+        // Clean up worktree on disk before removing the DB record
+        try {
+          await deps.worktreeManager.removeWorktree(worktreeSessionId);
+        } catch {
+          // Best-effort: worktree may already be gone
+        }
 
-      // Clean up per-session isolated HOME dir
-      try {
-        rmSync(join('/tmp', `orcha-home-${worktreeSessionId}`), { recursive: true, force: true });
-      } catch {
-        // Best-effort
+        // Clean up the git branch so the name can be reused
+        try {
+          await deps.worktreeManager.deleteBranch(existing.worktree.branch, existing.config.repoRoot);
+        } catch {
+          // Best-effort: branch may already be gone or have been merged
+        }
+
+        // Clean up per-session isolated HOME dir
+        try {
+          rmSync(join('/tmp', `orcha-home-${worktreeSessionId}`), { recursive: true, force: true });
+        } catch {
+          // Best-effort
+        }
       }
 
       store.deleteSession(id);

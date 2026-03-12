@@ -1,0 +1,43 @@
+<div class="p-4">
+  <h3 class="form-panel__title">
+    History Detail
+    <% if (it.displayId !== null) { %>
+      — Session #<%= it.displayId %>
+    <% } else { %>
+      — <%= it.sessionId.slice(0, 12) %>
+    <% } %>
+  </h3>
+  <p class="text-muted mb-3">Branch: <%= it.branch %> · <%= it.totalMessages %> total messages</p>
+
+  <% if (it.files.length === 0) { %>
+    <p class="text-muted">No JSONL files found.</p>
+  <% } else { %>
+    <% for (const file of it.files) { %>
+    <div class="page-section mt-3">
+      <div class="page-section__header">
+        <div>
+          <h4 class="page-section__title text-mono text-sm"><%= file.relPath %></h4>
+          <p class="page-section__subtitle"><%= file.lineCount %> messages · <%= file.sizeFormatted %></p>
+        </div>
+      </div>
+      <div class="code-preview">
+        <% for (const line of file.preview) { %>
+          <div class="code-preview__line text-xs text-muted"><%= line %></div>
+        <% } %>
+        <% if (file.lineCount > 5) { %>
+          <div class="code-preview__line text-xs text-muted">... and <%= file.lineCount - 5 %> more messages</div>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+  <% } %>
+
+  <div class="mt-4 flex gap-2">
+    <a class="btn btn-ghost btn-sm" href="/api/history/<%= it.sessionId %>/download">Download JSONL</a>
+    <button class="btn btn-ghost btn-sm text-red"
+      hx-delete="/api/history/<%= it.sessionId %>"
+      hx-swap="none"
+      hx-confirm="Delete history for this session?"
+      onclick="document.getElementById('form-panel').classList.remove('is-open')">Delete</button>
+  </div>
+</div>

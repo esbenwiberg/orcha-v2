@@ -58,6 +58,9 @@ export interface Session {
   completedAt?: Date | undefined;
   exitCode?: number | undefined;
   errorMessage?: string | undefined;
+  historyCapturedAt?: Date | undefined;
+  historySizeBytes?: number | undefined;
+  historyMessageCount?: number | undefined;
 }
 
 export interface InstanceInfo {

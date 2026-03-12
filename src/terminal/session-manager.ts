@@ -12,6 +12,7 @@ import { CredentialStore } from '../db/credential-store.js';
 import { ModelConfigStore } from '../db/model-config-store.js';
 import { credentialManager } from '../credentials/credential-manager.js';
 import type { SessionValidateConfig } from '@orcha/domain';
+import { captureSessionHistory } from '../history/capture.js';
 import type { StatusMonitor } from './status-monitor.js';
 import type { ValidationManager } from '../validation/validation-manager.js';
 
@@ -116,6 +117,7 @@ export class SessionManager {
     private readonly _credentialStore?: CredentialStore,
     private readonly _instanceId: string = 'local',
     private readonly _modelConfigStore?: ModelConfigStore,
+    private readonly _dataDir?: string,
   ) {}
 
   setStatusMonitor(monitor: StatusMonitor): void {
@@ -350,6 +352,19 @@ export class SessionManager {
       }
     }
 
+    // Capture Claude conversation history (best-effort)
+    if (session?.homeDir && session.dbSessionId && this._dataDir) {
+      try {
+        const result = captureSessionHistory(session.dbSessionId, session.homeDir, this._dataDir);
+        if (result) {
+          this._sessionStore.updateHistory(session.dbSessionId, result);
+          console.log(`[session] captured history sessionId=${sessionId} messages=${result.messageCount}`);
+        }
+      } catch (err) {
+        console.warn(`[session] history capture failed sessionId=${sessionId}:`, err);
+      }
+    }
+
     // Kill any debug shells attached to this session
     for (const shell of this._debugShells.values()) {
       if (shell.parentSessionId === sessionId) {
@@ -502,6 +517,103 @@ export class SessionManager {
 
     this._active.set(sessionId, activeSession);
 
+    this._statusMonitor?.watch(sessionId, terminal);
+
+    terminal.on('exit', (code: number) => {
+      void this._handleExit(sessionId, code);
+    });
+
+    return activeSession;
+  }
+
+  async createAdminSession(opts: {
+    workspaceDir: string;
+    homeDir: string;
+    prompt?: string;
+    args?: string[];
+  }): Promise<ActiveSession> {
+    const sessionId = randomUUID();
+
+    const env: Record<string, string> = {
+      HOME: opts.homeDir,
+    };
+
+    const spawnArgs = opts.args ?? ['--dangerously-skip-permissions'];
+    if (opts.prompt) {
+      spawnArgs.push('-p', opts.prompt);
+    }
+
+    let terminal: SessionTerminal;
+    try {
+      terminal = this._ptyManager.spawn({
+        sessionId,
+        cwd: opts.workspaceDir,
+        command: 'claude',
+        args: spawnArgs,
+        env,
+        size: { cols: 220, rows: 50 },
+        sandbox: false,
+      });
+    } catch (err) {
+      throw new SessionError(
+        `Failed to spawn admin session: ${String(err)}`,
+        'PTY_FAILED',
+        err,
+      );
+    }
+
+    const outputBuffer = new OutputBuffer();
+    outputBuffer.push('\r\n\x1b[33mStarting admin session...\x1b[0m\r\n');
+    terminal.output.on('data', (chunk: Buffer | string) => {
+      outputBuffer.push(chunk);
+    });
+
+    // Persist to DB with sentinel repoRoot
+    let dbSessionId: string | undefined;
+    try {
+      const dbSession = this._sessionStore.createSession(
+        {
+          instanceId: this._instanceId,
+          repoRoot: '__admin__',
+          branch: 'admin-history-analysis',
+          worktreePath: opts.workspaceDir,
+          prompt: opts.prompt ?? '',
+          env,
+          maxRuntimeSeconds: 0,
+        },
+        {
+          worktreePath: opts.workspaceDir,
+          branch: 'admin-history-analysis',
+          headSha: '',
+          repoRoot: '__admin__',
+          createdAt: new Date(),
+        },
+        sessionId,
+      );
+      dbSessionId = dbSession.id;
+      this._sessionStore.updateStatus(dbSessionId, 'starting');
+      this._sessionStore.updateStatus(dbSessionId, 'running');
+    } catch (err) {
+      console.error('[session-manager] DB write failed for admin session', sessionId, err);
+    }
+
+    const activeSession: ActiveSession = {
+      sessionId,
+      dbSessionId,
+      worktree: {
+        id: sessionId,
+        path: opts.workspaceDir,
+        branch: 'admin-history-analysis',
+        commitSha: '',
+        createdAt: new Date(),
+      },
+      terminal,
+      outputBuffer,
+      createdAt: new Date(),
+      homeDir: opts.homeDir,
+    };
+
+    this._active.set(sessionId, activeSession);
     this._statusMonitor?.watch(sessionId, terminal);
 
     terminal.on('exit', (code: number) => {
