@@ -319,23 +319,8 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
       // Generate a fun branch name: feature/<adjective>-<noun>
       const branch = `feature/${generateFunName()}`;
 
-      // Eagerly fetch and resolve branches so the form is pre-populated
-      // instead of lazy-loading on focus (which can miss if user doesn't click)
-      const repo = preset.repoId ? repoStore.getRepo(preset.repoId) : undefined;
-      let branches: { name: string; isDefault: boolean }[] = [];
-      let defaultBranch: string | undefined;
-      if (repo?.barePath) {
-        try {
-          await deps.worktreeManager.fetchBareRepo(repo.barePath);
-          const branchNames = await deps.worktreeManager.listRemoteBranches(repo.barePath);
-          defaultBranch = await deps.worktreeManager.getDefaultBranch(repo.barePath);
-          branches = branchNames
-            .filter((b) => b !== 'HEAD')
-            .map((b) => ({ name: b, isDefault: b === defaultBranch }));
-        } catch (err) {
-          console.warn(`[presets] branch fetch failed for repo ${preset.repoId}:`, err);
-        }
-      }
+      // Branches are lazy-loaded on dropdown focus via HTMX (GET /api/repos/:id/branches)
+      // to avoid blocking the panel open with a slow git fetch.
 
       const html = eta.render('partials/new-session-form', {
         repoId: preset.repoId,
@@ -348,8 +333,6 @@ export function createPresetsRouter(eta: Eta, deps: AppDeps): Router {
         modelConfigs,
         mcpServers,
         branch,
-        branches,
-        defaultBranch,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

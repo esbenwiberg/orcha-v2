@@ -161,8 +161,11 @@ function buildMcpServer(
       build: z.string().optional().describe('Build command to run before starting (e.g. "npm run build")'),
       start: z.string().optional().describe('Start command for serve mode (e.g. "node dist/server.js")'),
       health: z.string().optional().describe('Health check path, e.g. "/health"'),
+      health_port: z.number().optional().describe('Port to health-check on if different from the app port (for multi-process apps where backend and frontend run on separate ports)'),
       compose_file: z.string().optional().describe('Docker compose file path for docker mode'),
       timeout: z.number().optional().describe('Auto-stop timeout in seconds (default 300)'),
+      ready_delay: z.number().optional().describe('Seconds to wait after health check passes before marking as healthy. Gives bundlers (esbuild/Vite) time to warm their cache before Playwright navigates. Default 0.'),
+      env: z.record(z.string()).optional().describe('Extra environment variables to inject into build and start commands (e.g. {"PATH": "/custom/sdk/bin:/usr/bin", "NODE_ENV": "development"})'),
     },
     async (args) => {
       try {
@@ -200,8 +203,11 @@ function buildMcpServer(
             ...(args.build ? { build: args.build } : {}),
             ...(args.start ? { start: args.start } : {}),
             ...(args.health ? { health: args.health } : {}),
+            ...(args.health_port !== undefined ? { health_port: args.health_port } : {}),
             ...(args.compose_file ? { compose_file: args.compose_file } : {}),
             ...(args.timeout !== undefined ? { timeout: args.timeout } : {}),
+            ...(args.ready_delay !== undefined ? { ready_delay: args.ready_delay } : {}),
+            ...(args.env ? { env: args.env } : {}),
           },
         });
 

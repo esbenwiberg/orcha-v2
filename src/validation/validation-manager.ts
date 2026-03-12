@@ -52,8 +52,11 @@ export interface StartParams {
     build?: string;
     start?: string;
     health?: string;
+    health_port?: number;
     compose_file?: string;
     timeout?: number;
+    ready_delay?: number;
+    env?: Record<string, string>;
   };
 }
 
@@ -108,7 +111,7 @@ export class ValidationManager {
       // Optional build step
       if (config.build) {
         env.output.push(`$ ${config.build}`);
-        await this._runBuild(config.build, params.worktreePath, port, env.output);
+        await this._runBuild(config.build, params.worktreePath, port, env.output, config.env);
       }
 
       env.status = 'starting';
@@ -121,7 +124,9 @@ export class ValidationManager {
 
       // Start health polling if a health path is configured
       if (config.health) {
-        this._pollHealth(sessionId, url, config.health, env);
+        const healthPort = config.healthPort ?? port;
+        const healthUrl = `http://${host}:${healthPort}`;
+        this._pollHealth(sessionId, healthUrl, config.health, config.readyDelay, env);
       } else {
         // No health check — assume healthy after a short delay
         setTimeout(() => {
@@ -218,6 +223,15 @@ export class ValidationManager {
     if (!env) {
       throw new Error('No validation environment running. Call validate_start first.');
     }
+
+    // Wait for healthy status before navigating (prevents esbuild EPIPE from premature requests)
+    if (env.status === 'building' || env.status === 'starting') {
+      await this._waitForHealthy(env, 120_000);
+    }
+    if (env.status === 'failed') {
+      throw new Error('Validation environment failed to start. Check validate_logs for details.');
+    }
+
     return this._browserManager.browse(sessionId, env.port, opts);
   }
 
@@ -267,16 +281,37 @@ export class ValidationManager {
     return this._envs.has(sessionId);
   }
 
+  private _waitForHealthy(env: ValidationEnv, timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (env.status === 'healthy') { resolve(); return; }
+      if (env.status === 'failed' || env.status === 'stopped') { resolve(); return; }
+
+      const interval = setInterval(() => {
+        if (env.status === 'healthy' || env.status === 'failed' || env.status === 'stopped') {
+          clearInterval(interval);
+          clearTimeout(timer);
+          resolve();
+        }
+      }, 500);
+
+      const timer = setTimeout(() => {
+        clearInterval(interval);
+        reject(new Error(`Timed out waiting for validation environment to become healthy (${timeoutMs / 1000}s)`));
+      }, timeoutMs);
+    });
+  }
+
   private async _runBuild(
     command: string,
     cwd: string,
     port: number,
     output: string[],
+    extraEnv?: Record<string, string>,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       execFile('sh', ['-c', command], {
         cwd,
-        env: { ...process.env, PORT: String(port) },
+        env: { ...process.env, ...extraEnv, PORT: String(port) },
         timeout: 120_000,
       }, (err, stdout, stderr) => {
         if (stdout) {
@@ -302,7 +337,7 @@ export class ValidationManager {
       throw new Error('serve mode requires a "start" command');
     }
 
-    const serve = spawnServe(config.start, cwd, port);
+    const serve = spawnServe(config.start, cwd, port, config.env);
     env.process = serve.process;
     env.pid = serve.pid;
     // Share output buffer reference
@@ -337,11 +372,28 @@ export class ValidationManager {
     sessionId: string,
     baseUrl: string,
     healthPath: string,
+    readyDelay: number,
     env: ValidationEnv,
   ): void {
     const url = `${baseUrl}${healthPath.startsWith('/') ? healthPath : `/${healthPath}`}`;
     let attempts = 0;
     const maxAttempts = 60; // 60 * 2s = 2 min max polling
+
+    const markHealthy = () => {
+      if (readyDelay > 0) {
+        env.output.push(`[health] ${url} responded OK — waiting ${readyDelay}s ready delay before marking healthy`);
+        env.healthTimer = setTimeout(() => {
+          if (env.status === 'stopped' || env.status === 'failed') return;
+          env.status = 'healthy';
+          env.output.push(`[health] ready delay elapsed — status is now healthy`);
+          console.log(`[validation] health check passed for session ${sessionId} (after ${readyDelay}s ready delay)`);
+        }, readyDelay * 1000);
+      } else {
+        env.status = 'healthy';
+        env.output.push(`[health] ${url} → OK`);
+        console.log(`[validation] health check passed for session ${sessionId}`);
+      }
+    };
 
     const check = () => {
       if (env.status === 'stopped' || env.status === 'failed') return;
@@ -350,9 +402,7 @@ export class ValidationManager {
       fetch(url, { signal: AbortSignal.timeout(5000) })
         .then((res) => {
           if (res.ok) {
-            env.status = 'healthy';
-            env.output.push(`[health] ${url} → ${res.status} OK`);
-            console.log(`[validation] health check passed for session ${sessionId}`);
+            markHealthy();
           } else if (attempts < maxAttempts) {
             env.healthTimer = setTimeout(check, 2000);
           } else {
