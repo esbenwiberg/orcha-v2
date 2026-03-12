@@ -1,0 +1,28 @@
+<div class="text-xs mb-2 text-slate-500">
+  Members:
+  <% for (const m of it.members) { %>
+    <span class="text-slate-400">#<%= m.displayId %></span><% if (m.role) { %> (<%= m.role %>)<% } %><%= it.members.indexOf(m) < it.members.length - 1 ? ', ' : '' %>
+  <% } %>
+</div>
+
+<% if (it.messages.length === 0) { %>
+  <div class="text-xs text-slate-500 py-1">No messages yet.</div>
+<% } else { %>
+  <div style="max-height:300px;overflow-y:auto">
+    <% for (const m of it.messages) { %>
+      <div class="py-1.5 border-b border-slate-800/50 last:border-0">
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] font-medium text-slate-400">#<%= m.fromDisplayId %></span>
+          <span class="text-[10px] text-slate-600"><%= m.timeAgo %></span>
+        </div>
+        <div class="text-xs text-slate-300 whitespace-pre-wrap mt-0.5"><%= m.body %></div>
+      </div>
+    <% } %>
+  </div>
+<% } %>
+
+<% if (it.channel.summary) { %>
+  <div class="mt-2 p-2 rounded bg-slate-800/50 text-xs text-slate-400">
+    <strong>Summary:</strong> <%= it.channel.summary %>
+  </div>
+<% } %>

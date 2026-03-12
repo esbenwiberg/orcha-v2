@@ -17,7 +17,11 @@ interface SdkDef {
 }
 
 const DOTNET_DIR = '/data/sdks/dotnet';
-const PAC_DIR = '/data/sdks/pac';
+// pac must live on the same filesystem as the NuGet temp/staging dir (overlayfs)
+// because `dotnet tool install` uses rename() internally which fails across
+// filesystem boundaries (EXDEV) when --tool-path is on SMB2 (/data).
+// Trade-off: pac gets reinstalled on container restart (~30s), but it actually works.
+const PAC_DIR = '/tmp/orcha-sdks/pac';
 
 const SDK_DEFS: SdkDef[] = [
   {

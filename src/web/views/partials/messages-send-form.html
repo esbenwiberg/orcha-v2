@@ -1,0 +1,32 @@
+<div class="task-card mb-3">
+  <div class="task-card__header">Send Message</div>
+  <div class="task-card__body">
+    <form hx-post="/api/sessions/<%= it.sessionId %>/messages/send"
+      hx-target="#messages-send-slot"
+      hx-swap="innerHTML">
+      <div class="mb-2">
+        <label class="form-label text-xs">To Session</label>
+        <select name="target_session" class="form-select text-xs" required>
+          <option value="">Select session...</option>
+          <% for (const s of it.activeSessions) { %>
+            <option value="<%= s.id %>">#<%= s.displayId %> — <%= s.branch %></option>
+          <% } %>
+        </select>
+      </div>
+      <div class="mb-2">
+        <label class="form-label text-xs">Message</label>
+        <textarea name="body" class="form-textarea text-xs" rows="4" required
+          placeholder="Share context, findings, or code snippets..."></textarea>
+      </div>
+      <div class="flex items-center gap-3">
+        <button type="submit" class="btn btn-primary btn-sm">Send</button>
+        <button type="button" class="btn btn-ghost btn-sm"
+          onclick="document.getElementById('messages-send-slot').innerHTML=''">Cancel</button>
+        <label class="flex items-center gap-1.5 text-[10px] text-slate-500 ml-auto">
+          <input type="checkbox" name="pty_nudge" value="1" checked class="form-checkbox" style="width:12px;height:12px">
+          PTY nudge
+        </label>
+      </div>
+    </form>
+  </div>
+</div>
