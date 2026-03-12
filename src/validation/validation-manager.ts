@@ -4,6 +4,7 @@ import { resolveConfig } from './config-resolver.js';
 import type { ValidationConfig } from './config-resolver.js';
 import { spawnServe, killServe } from './serve-runner.js';
 import { dockerUp, dockerDown, listOrchaProjects, killOrchaProject } from './docker-runner.js';
+import { isRemoteDocker, getDockerVmIp } from './docker-env.js';
 import { execFile } from 'node:child_process';
 import { BrowserManager } from './browser-manager.js';
 import type { BrowseResult, ExtractResult, ConsoleEntry } from './browser-manager.js';
@@ -93,7 +94,13 @@ export class ValidationManager {
     }
 
     const port = await allocatePort();
-    const url = `http://localhost:${port}`;
+
+    // When Docker runs on a remote VM, the validation app is reachable at the VM IP,
+    // not localhost. For serve mode, it's always localhost (runs in-process).
+    const host = config.mode === 'docker' && isRemoteDocker()
+      ? (getDockerVmIp() ?? 'localhost')
+      : 'localhost';
+    const url = `http://${host}:${port}`;
 
     const env: ValidationEnv = {
       sessionId,

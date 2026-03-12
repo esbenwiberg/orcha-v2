@@ -47,6 +47,47 @@ export function isInsideDocker(): boolean {
 }
 
 /**
+ * Check if Docker commands target a remote daemon (DOCKER_HOST is set to tcp://).
+ * When true, we can't attach to compose networks — containers live on the VM, not here.
+ */
+export function isRemoteDocker(): boolean {
+  const host = process.env['DOCKER_HOST'];
+  return !!host && host.startsWith('tcp://');
+}
+
+/**
+ * Check if we can join a Docker compose network directly.
+ * Requires: running inside Docker locally (not remote) AND we can find our container ID.
+ * False when DOCKER_HOST points to a remote VM — the network is over there, not here.
+ */
+export function canJoinDockerNetwork(): boolean {
+  if (isRemoteDocker()) return false;
+  if (!isInsideDocker()) return false;
+  return getOwnContainerId() !== null;
+}
+
+/**
+ * Get the IP of the remote Docker VM for reaching published ports.
+ * Prefers explicit DOCKER_VM_IP env var, falls back to parsing DOCKER_HOST.
+ * Returns null if not using remote Docker.
+ */
+export function getDockerVmIp(): string | null {
+  const explicit = process.env['DOCKER_VM_IP'];
+  if (explicit) return explicit;
+
+  const host = process.env['DOCKER_HOST'];
+  if (!host) return null;
+
+  // Parse tcp://10.0.1.4:2376 → 10.0.1.4
+  try {
+    const url = new URL(host);
+    return url.hostname || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Attach a container to a Docker network.
  * No-op if already attached (docker returns error which we ignore).
  */

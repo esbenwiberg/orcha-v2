@@ -47,6 +47,7 @@ const DOCKER_CLI_VARS = [
   'DOCKER_TLS_VERIFY',
   'DOCKER_CERT_PATH',
   'DOCKER_CONTEXT',
+  'DOCKER_VM_IP',
 ];
 
 /**

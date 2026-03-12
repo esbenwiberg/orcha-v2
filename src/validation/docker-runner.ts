@@ -1,6 +1,6 @@
 import { execFile, type ChildProcess, spawn } from 'node:child_process';
 import { join, isAbsolute } from 'node:path';
-import { getOwnContainerId, isInsideDocker, networkConnect, networkDisconnect } from './docker-env.js';
+import { getOwnContainerId, isRemoteDocker, canJoinDockerNetwork, getDockerVmIp, networkConnect, networkDisconnect } from './docker-env.js';
 import { enforceComposeGuard } from './compose-guard.js';
 import { sanitizeEnvForDocker } from './env-allowlist.js';
 
@@ -37,18 +37,23 @@ export async function dockerUp(
   internalPort: number = 3000,
 ): Promise<DockerEnv> {
   const absComposePath = isAbsolute(composePath) ? composePath : join(cwd, composePath);
-  enforceComposeGuard(absComposePath);
+  const warnings = enforceComposeGuard(absComposePath);
 
   const projectName = `orcha-val-${sessionId.slice(0, 12)}`;
   const networkName = `${projectName}_default`;
   const output: string[] = [];
-  const containerized = isInsideDocker();
+
+  // Surface non-blocking warnings (e.g., bind mount issues with remote Docker)
+  for (const w of warnings) {
+    output.push(`[warn] ${w}`);
+  }
+  const joinable = canJoinDockerNetwork();
 
   const composeEnv = sanitizeEnvForDocker({
     PORT: String(port),
-    // Tell compose not to publish ports when Orcha is containerized —
-    // we'll talk directly on the bridge network.
-    ...(containerized ? { ORCHA_NO_HOST_PORT: '1' } : {}),
+    // Tell compose not to publish ports when Orcha can join the network directly —
+    // we'll talk on the bridge network. Remote Docker always needs published ports.
+    ...(joinable ? { ORCHA_NO_HOST_PORT: '1' } : {}),
   });
 
   await execFilePromise('docker', [
@@ -61,26 +66,46 @@ export async function dockerUp(
   // Determine the service name (first service in the compose project)
   const serviceName = await getFirstServiceName(projectName, composePath, cwd);
 
-  // If Orcha is in Docker, join the compose network so Playwright can reach the service.
+  // Determine how Orcha reaches the validation containers.
+  // Three modes:
+  //   1. canJoinDockerNetwork() → attach to bridge network, use service hostname
+  //   2. isRemoteDocker()      → VM IP + published port (containers live on the VM)
+  //   3. else                  → localhost + published port (local dev)
   let orchaAttached = false;
   let serviceHost: string;
   let servicePort: number;
 
-  const ownContainerId = containerized ? getOwnContainerId() : null;
-
-  if (containerized && ownContainerId) {
-    try {
-      await networkConnect(networkName, ownContainerId);
-      orchaAttached = true;
-      // Reach the service by its compose service name on the internal port
-      serviceHost = serviceName;
-      servicePort = internalPort;
-      output.push(`[docker] attached Orcha to network ${networkName}, browsing via ${serviceName}:${internalPort}`);
-    } catch (err) {
-      // Fallback: try host.docker.internal
-      output.push(`[docker] failed to attach to network: ${String(err)}, falling back to host port`);
-      serviceHost = 'host.docker.internal';
+  if (joinable) {
+    const ownContainerId = getOwnContainerId();
+    if (ownContainerId) {
+      try {
+        await networkConnect(networkName, ownContainerId);
+        orchaAttached = true;
+        serviceHost = serviceName;
+        servicePort = internalPort;
+        output.push(`[docker] attached Orcha to network ${networkName}, browsing via ${serviceName}:${internalPort}`);
+      } catch (err) {
+        output.push(`[docker] failed to attach to network: ${String(err)}, falling back to host port`);
+        serviceHost = 'host.docker.internal';
+        servicePort = port;
+      }
+    } else {
+      // Shouldn't happen (canJoinDockerNetwork checks for container ID), but be safe
+      serviceHost = 'localhost';
       servicePort = port;
+    }
+  } else if (isRemoteDocker()) {
+    const vmIp = getDockerVmIp();
+    if (vmIp) {
+      serviceHost = vmIp;
+      servicePort = port;
+      output.push(`[docker] remote Docker — browsing via ${vmIp}:${port}`);
+    } else {
+      // DOCKER_HOST is set but we can't parse an IP — this is a config problem
+      throw new Error(
+        'Remote Docker detected (DOCKER_HOST is set) but cannot determine VM IP. ' +
+        'Set DOCKER_VM_IP explicitly or use tcp://IP:PORT format for DOCKER_HOST.',
+      );
     }
   } else {
     // Local dev — access via published host port

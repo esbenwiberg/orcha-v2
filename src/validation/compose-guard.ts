@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import yaml from 'js-yaml';
+import { isRemoteDocker } from './docker-env.js';
 
 export interface ComposeViolation {
   service: string;
@@ -110,19 +111,78 @@ export function auditComposeFile(composePath: string): ComposeViolation[] {
 }
 
 /**
- * Audit a compose file and throw if violations are found.
- * Returns a formatted error message listing all issues.
+ * Check for bind mount volumes that won't work with remote Docker.
+ * Bind mounts reference the local filesystem, but with remote Docker the
+ * daemon runs on a VM — only `build:` contexts are transferred over the wire.
+ *
+ * Returns warnings (not violations) — these don't block execution.
  */
-export function enforceComposeGuard(composePath: string): void {
-  const violations = auditComposeFile(composePath);
-  if (violations.length === 0) return;
+export function checkRemoteDockerWarnings(composePath: string): string[] {
+  if (!isRemoteDocker()) return [];
 
-  const lines = violations.map(
-    (v) => `  - [${v.service}] ${v.issue}`,
-  );
-  throw new Error(
-    `Compose file rejected — security violations found:\n${lines.join('\n')}\n\n` +
-    'These configurations could compromise host isolation. ' +
-    'Remove them from the compose file and try again.',
-  );
+  const warnings: string[] = [];
+
+  let doc: Record<string, unknown>;
+  try {
+    const raw = readFileSync(composePath, 'utf8');
+    doc = yaml.load(raw) as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+
+  if (!doc || typeof doc !== 'object') return [];
+
+  const services = doc['services'] as Record<string, Record<string, unknown>> | undefined;
+  if (!services || typeof services !== 'object') return [];
+
+  for (const [name, svc] of Object.entries(services)) {
+    if (!svc || typeof svc !== 'object') continue;
+
+    const volumes = svc['volumes'];
+    if (!Array.isArray(volumes)) continue;
+
+    for (const vol of volumes) {
+      const volStr = typeof vol === 'string'
+        ? vol
+        : (vol as Record<string, unknown>)?.['source'] as string | undefined;
+      if (!volStr) continue;
+
+      // Detect relative bind mounts (./foo, ../foo) and absolute host paths
+      // Named volumes (no path separator) are fine — Docker manages them on the VM.
+      const source = volStr.split(':')[0];
+      if (source && (source.startsWith('./') || source.startsWith('../') || source.startsWith('/'))) {
+        // Skip already-flagged dangerous volumes (those will throw anyway)
+        const isDangerous = DANGEROUS_VOLUMES.some((d) => source.includes(d));
+        if (!isDangerous) {
+          warnings.push(
+            `[${name}] bind mount "${volStr}" won't work with remote Docker — ` +
+            'files are not on the VM. Use build: context instead.',
+          );
+        }
+      }
+    }
+  }
+
+  return warnings;
+}
+
+/**
+ * Audit a compose file and throw if violations are found.
+ * Also returns remote Docker warnings (non-blocking).
+ */
+export function enforceComposeGuard(composePath: string): string[] {
+  const violations = auditComposeFile(composePath);
+  if (violations.length > 0) {
+    const lines = violations.map(
+      (v) => `  - [${v.service}] ${v.issue}`,
+    );
+    throw new Error(
+      `Compose file rejected — security violations found:\n${lines.join('\n')}\n\n` +
+      'These configurations could compromise host isolation. ' +
+      'Remove them from the compose file and try again.',
+    );
+  }
+
+  // Return non-blocking warnings (e.g., bind mounts with remote Docker)
+  return checkRemoteDockerWarnings(composePath);
 }
