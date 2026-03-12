@@ -1,0 +1,21 @@
+# Self-validation compose — spun up by the MCP validate tool.
+# Fully isolated: no auth, ephemeral data, no prod env vars.
+# The validate tool sets $PORT dynamically via the environment.
+
+services:
+  orcha:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    ports:
+      - "${PORT:-3001}:3000"
+    environment:
+      - AUTH_MODE=none
+      - ORCHA_DATA_DIR=/data
+      - NODE_ENV=development
+      - SANDBOX_MODE=none
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
