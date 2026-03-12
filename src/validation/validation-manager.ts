@@ -7,7 +7,7 @@ import { dockerUp, dockerDown, listOrchaProjects, killOrchaProject } from './doc
 import { isRemoteDocker, getDockerVmIp } from './docker-env.js';
 import { execFile } from 'node:child_process';
 import { BrowserManager } from './browser-manager.js';
-import type { BrowseResult, ExtractResult, ConsoleEntry } from './browser-manager.js';
+import type { BrowseResult, ExtractResult, ConsoleEntry, HandoffResult } from './browser-manager.js';
 import { sanitizeEnvForValidation } from './env-allowlist.js';
 
 export type ValidationStatus = 'building' | 'starting' | 'healthy' | 'failed' | 'stopped';
@@ -226,6 +226,28 @@ export class ValidationManager {
     return env.output.slice(-lines);
   }
 
+  /** Expose the BrowserManager for the CDP relay and handoff routes. */
+  get browserManager(): BrowserManager {
+    return this._browserManager;
+  }
+
+  // --- Handoff (delegated to BrowserManager) ---
+
+  async handoff(
+    sessionId: string,
+    url: string,
+    opts: { message?: string; proxy?: string; waitFor?: string; timeout?: number },
+  ): Promise<HandoffResult> {
+    if (!this._envs.has(sessionId)) {
+      throw new Error('No validation environment running. Call validate_start first.');
+    }
+    return this._browserManager.startHandoff(sessionId, url, opts);
+  }
+
+  async completeHandoff(sessionId: string): Promise<HandoffResult | undefined> {
+    return this._browserManager.completeHandoff(sessionId);
+  }
+
   // --- Browser tools (delegated to BrowserManager) ---
 
   async browse(
@@ -245,7 +267,12 @@ export class ValidationManager {
       throw new Error('Validation environment failed to start. Check validate_logs for details.');
     }
 
-    return this._browserManager.browse(sessionId, env.internalUrl, opts);
+    // After a handoff, the browser may be on an external origin (e.g. Dataverse).
+    // Use that origin as baseUrl so validate_browse works on the authenticated page.
+    const handoffOrigin = this._browserManager.getHandoffOrigin(sessionId);
+    const baseUrl = handoffOrigin ?? env.internalUrl;
+
+    return this._browserManager.browse(sessionId, baseUrl, opts);
   }
 
   async screenshot(

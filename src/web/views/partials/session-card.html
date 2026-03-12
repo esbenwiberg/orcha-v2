@@ -80,6 +80,7 @@
        hx-trigger="load, every 3s"
        hx-swap="innerHTML"></div>
   <% } %>
+  <div id="handoff-slot-<%= it.id %>" sse-swap="handoff-<%= it.id %>" hx-swap="innerHTML"></div>
   <div class="terminal-slot" id="terminal-slot-<%= it.id %>"
     hx-get="/api/sessions/<%= it.id %>/terminal"
     hx-trigger="load"
