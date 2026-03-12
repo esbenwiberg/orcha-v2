@@ -23,6 +23,7 @@ import { executeGit } from '../utils/git-utils.js';
 import type { Session } from '@orcha/domain';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
 import { eventBus } from '../services/event-bus.js';
+import { resolveOrchaHost } from '../../host-url.js';
 import { ensureSdksInstalled } from '../../sdk-installer.js';
 import { getStoragePaths } from '../../storage/paths.js';
 import { writeFeedConfigs } from '../../credentials/feed-config.js';
@@ -406,14 +407,14 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           }
 
           // Inject built-in MCP servers (type 'http' = StreamableHTTP)
-          const orchaPort = process.env['PORT'] ?? '3000';
+          const orchaHost = resolveOrchaHost();
           mcpServers['validate'] = {
             type: 'http',
-            url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
+            url: `${orchaHost}/mcp/validate/${sessionId}`,
           };
           mcpServers['orcha'] = {
             type: 'http',
-            url: `http://localhost:${orchaPort}/mcp/orcha`,
+            url: `${orchaHost}/mcp/orcha`,
           };
           settings['mcpServers'] = mcpServers;
 
@@ -1000,14 +1001,14 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             Object.assign(reopenMcpServers, entries);
           }
 
-          const orchaPort = process.env['PORT'] ?? '3000';
+          const orchaHost = resolveOrchaHost();
           reopenMcpServers['validate'] = {
             type: 'http',
-            url: `http://localhost:${orchaPort}/mcp/validate/${id}`,
+            url: `${orchaHost}/mcp/validate/${id}`,
           };
           reopenMcpServers['orcha'] = {
             type: 'http',
-            url: `http://localhost:${orchaPort}/mcp/orcha`,
+            url: `${orchaHost}/mcp/orcha`,
           };
           settings['mcpServers'] = reopenMcpServers;
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
