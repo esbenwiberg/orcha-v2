@@ -581,14 +581,14 @@ export class TaskProcessor {
     }
     // Inject built-in MCP servers — use the pre-generated sessionId so the
     // validate endpoint can look up the session in the DB.
-    const orchaPort = process.env['PORT'] ?? '3000';
+    const orchaHost = resolveOrchaHost();
     mcpServers['validate'] = {
       type: 'http',
-      url: `http://localhost:${orchaPort}/mcp/validate/${sessionId}`,
+      url: `${orchaHost}/mcp/validate/${sessionId}`,
     };
     mcpServers['orcha'] = {
       type: 'http',
-      url: `http://localhost:${orchaPort}/mcp/orcha`,
+      url: `${orchaHost}/mcp/orcha`,
     };
     settings['mcpServers'] = mcpServers;
     writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
