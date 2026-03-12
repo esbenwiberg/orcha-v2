@@ -43,7 +43,7 @@ Docker CLI natively supports `DOCKER_HOST`. All existing `execFile('docker', [..
 
 ## Implementation Phases
 
-### Phase 1: Environment Detection Refactor (`docker-env.ts`)
+### Phase 1: Environment Detection Refactor (`docker-env.ts`) ✅
 
 Split `isInsideDocker()` into granular functions:
 
@@ -52,7 +52,7 @@ Split `isInsideDocker()` into granular functions:
 - `canJoinDockerNetwork()` — local Docker AND we have our own container ID (NOT remote)
 - `getDockerVmIp()` — parse IP from `DOCKER_HOST` or fall back to `DOCKER_VM_IP` env var
 
-### Phase 2: Docker Runner Changes (`docker-runner.ts`)
+### Phase 2: Docker Runner Changes (`docker-runner.ts`) ✅
 
 In `dockerUp()`, replace `isInsideDocker()` with `canJoinDockerNetwork()` for the network-attach logic. Add a new path:
 
@@ -64,7 +64,7 @@ else                      → localhost + published port (local dev)
 
 All `execFile('docker', ...)` calls already inherit `process.env`, so `DOCKER_HOST` flows through automatically. No changes needed for `dockerDown`, `listOrchaProjects`, or `killOrchaProject`.
 
-### Phase 3: URL Fix (`validation-manager.ts`)
+### Phase 3: URL Fix (`validation-manager.ts`) ✅
 
 When remote Docker is active, `env.url` should use the VM IP instead of `localhost`.
 
@@ -74,13 +74,25 @@ When remote Docker is active, `env.url` should use the VM IP instead of `localho
 - Set `DOCKER_TLS_VERIFY=1` and `DOCKER_CERT_PATH=/data/docker-tls` on ACA
 - Generate server+client certs during VM setup
 
-### Phase 5: Infrastructure
+### Phase 4: TLS Certs ✅
 
-- `infra/modules/docker-vm.bicep` — B1s Ubuntu VM, Docker CE, TLS, NSG (port 2376 from ACA subnet only)
-- `infra/cloud-init-docker.yml` — cloud-init to install Docker + configure TLS
-- `scripts/setup-docker-vm.sh` — one-time provisioning + cert retrieval
+Handled by `scripts/deploy-docker-vm.sh`:
+- Generates CA + server cert + client cert (10 year validity) using openssl
+- Uploads server certs to VM, configures dockerd for mutual TLS on :2376
+- Uploads client certs (ca.pem, cert.pem, key.pem) to Azure File Share at `/data/docker-tls/`
+- Sets `DOCKER_TLS_VERIFY=1` and `DOCKER_CERT_PATH=/data/docker-tls` on ACA
 
-### Phase 6: Compose Guard (`compose-guard.ts`)
+### Phase 5: Infrastructure ✅
+
+Implemented as a standalone addon (not in main.bicep) because ACA has no VNet — adding one would force recreation of the Container Apps Environment.
+
+- `infra/modules/docker-vm.bicep` — B1s Ubuntu VM, VNet, NSG (ports 22 + 2376 + 30000-39999), public IP
+- `infra/cloud-init-docker.yml` — cloud-init to install Docker CE + pre-pull common images
+- `scripts/deploy-docker-vm.sh` — one-click provisioning: Bicep deploy → cloud-init wait → TLS cert generation → VM config → Azure File Share upload → ACA env vars
+
+**Why public IP instead of private networking**: ACA uses Microsoft-managed networking with no VNet. VNet-integrating an existing Container Apps Environment requires recreation. Mutual TLS provides the security boundary. NSG restricts port access. Private networking can be added when the ACA environment is next recreated.
+
+### Phase 6: Compose Guard (`compose-guard.ts`) ✅
 
 Warn (not block) about bind mount volumes when remote Docker is active — `./src:/app/src` style mounts won't work because the files aren't on the VM. Only `build:` directives work (context sent over the wire).
 

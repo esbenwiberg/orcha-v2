@@ -25,6 +25,8 @@ bash scripts/logs.sh --follow      # stream live (ctrl-C to stop)
 bash scripts/crash-logs.sh           # console logs from Log Analytics (last 24h)
 bash scripts/crash-logs.sh --system  # system events: OOM, restarts, kills
 bash scripts/crash-logs.sh --hours 72 --take 100  # wider window, more entries
+bash scripts/deploy-docker-vm.sh                  # provision remote Docker VM for validation (addon, ~5 min)
+bash scripts/deploy-docker-vm.sh --vm-size Standard_B2s  # larger VM for concurrent stacks
 ```
 
 ## Project Structure
