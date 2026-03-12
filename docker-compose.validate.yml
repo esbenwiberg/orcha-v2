@@ -1,5 +1,8 @@
 # Self-validation compose — spun up by the MCP validate tool.
 # Fully isolated: no auth, ephemeral data, no prod env vars.
+#
+# When Orcha runs inside Docker, it joins this project's network directly —
+# no host port publishing needed. For local dev, PORT is published to the host.
 # The validate tool sets $PORT dynamically via the environment.
 
 services:
@@ -8,6 +11,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runtime
+    # Only publish ports for local dev (outside Docker).
+    # When Orcha is containerized it talks via the shared bridge network.
     ports:
       - "${PORT:-3001}:3000"
     environment:

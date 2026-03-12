@@ -16,7 +16,7 @@ describe('BrowserManager', () => {
       path: string | undefined,
       port: number,
     ) => {
-      return (bm as any)._resolveUrl(url, path, port);
+      return (bm as any)._resolveUrl(url, path, `http://localhost:${port}`);
     };
 
     it('should resolve path to localhost URL', () => {
