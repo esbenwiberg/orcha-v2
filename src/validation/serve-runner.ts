@@ -1,4 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { sanitizeEnvForValidation } from './env-allowlist.js';
 
 export interface ServeProcess {
   process: ChildProcess;
@@ -18,17 +20,23 @@ export function spawnServe(
   port: number,
   env?: Record<string, string>,
 ): ServeProcess {
+  const output: string[] = [];
+
+  if (existsSync('/var/run/docker.sock')) {
+    output.push(
+      '[warn] docker.sock is accessible — serve mode runs unsandboxed. ' +
+      'Consider using docker mode for better isolation.',
+    );
+  }
+
   const child = spawn('sh', ['-c', command], {
     cwd,
-    env: {
-      ...process.env,
+    env: sanitizeEnvForValidation({
       ...env,
       PORT: String(port),
-    },
+    }),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-
-  const output: string[] = [];
 
   const pushLine = (line: string) => {
     output.push(line);

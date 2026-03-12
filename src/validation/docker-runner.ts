@@ -2,6 +2,7 @@ import { execFile, type ChildProcess, spawn } from 'node:child_process';
 import { join, isAbsolute } from 'node:path';
 import { getOwnContainerId, isInsideDocker, networkConnect, networkDisconnect } from './docker-env.js';
 import { enforceComposeGuard } from './compose-guard.js';
+import { sanitizeEnvForDocker } from './env-allowlist.js';
 
 const MAX_OUTPUT_LINES = 500;
 
@@ -43,13 +44,12 @@ export async function dockerUp(
   const output: string[] = [];
   const containerized = isInsideDocker();
 
-  const composeEnv = {
-    ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined)),
+  const composeEnv = sanitizeEnvForDocker({
     PORT: String(port),
     // Tell compose not to publish ports when Orcha is containerized —
     // we'll talk directly on the bridge network.
     ...(containerized ? { ORCHA_NO_HOST_PORT: '1' } : {}),
-  } as Record<string, string>;
+  });
 
   await execFilePromise('docker', [
     'compose',
@@ -93,7 +93,7 @@ export async function dockerUp(
     'compose', '-p', projectName, '-f', composePath, 'logs', '-f', '--no-color',
   ], {
     cwd,
-    env: process.env as Record<string, string>,
+    env: sanitizeEnvForDocker(),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -201,7 +201,7 @@ function execFilePromise(
   return new Promise((resolve, reject) => {
     execFile(cmd, args, {
       cwd: opts?.cwd,
-      env: opts?.env ?? (process.env as Record<string, string>),
+      env: opts?.env ?? sanitizeEnvForDocker(),
       timeout: 120_000,
     }, (err, stdout, stderr) => {
       if (err) {

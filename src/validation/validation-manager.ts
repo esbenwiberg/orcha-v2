@@ -7,6 +7,7 @@ import { dockerUp, dockerDown, listOrchaProjects, killOrchaProject } from './doc
 import { execFile } from 'node:child_process';
 import { BrowserManager } from './browser-manager.js';
 import type { BrowseResult, ExtractResult, ConsoleEntry } from './browser-manager.js';
+import { sanitizeEnvForValidation } from './env-allowlist.js';
 
 export type ValidationStatus = 'building' | 'starting' | 'healthy' | 'failed' | 'stopped';
 
@@ -310,7 +311,7 @@ export class ValidationManager {
     return new Promise((resolve, reject) => {
       execFile('sh', ['-c', command], {
         cwd,
-        env: { ...process.env, ...extraEnv, PORT: String(port) },
+        env: sanitizeEnvForValidation({ ...extraEnv, PORT: String(port) }),
         timeout: 120_000,
       }, (err, stdout, stderr) => {
         if (stdout) {
