@@ -11,7 +11,14 @@ export type TaskSseEvent = {
   status?: string;
 };
 
-export type SseEvent = SessionSseEvent | TaskSseEvent;
+export type MessageSseEvent = {
+  type: 'message-received' | 'channel-update';
+  sessionId: string;
+  channelId?: string;
+  messageId?: string;
+};
+
+export type SseEvent = SessionSseEvent | TaskSseEvent | MessageSseEvent;
 
 class EventBus {
   private subscribers = new Set<(event: SseEvent) => void>();
