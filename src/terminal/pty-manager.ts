@@ -148,9 +148,20 @@ export class PtyManager {
       console.log(`[pty] credential check sessionId=${opts.sessionId} HOME=${homeDir} credsExist=${credsExist}`);
     }
 
-    // Build final env: merge process.env with session overrides, then delete any
-    // explicitly removed keys (e.g. ANTHROPIC_API_KEY for max/pro OAuth sessions).
-    const mergedEnv: Record<string, string> = { ...process.env as Record<string, string>, ...sessionEnv };
+    // Default env vars to cap child-process memory usage (e.g. dotnet build,
+    // npm install). Lowest priority — process.env and session overrides win.
+    const memoryDefaults: Record<string, string> = {
+      // Cap .NET GC heap to 512 MB — prevents dotnet build from eating the container
+      DOTNET_GCHeapHardLimit: '0x20000000',
+      // Kill persistent MSBuild/Roslyn compiler servers that linger between builds
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1',
+      // Disable .NET diagnostic pipes (reduces background memory + /tmp churn)
+      DOTNET_EnableDiagnostics: '0',
+    };
+
+    // Build final env: memory defaults < process.env < session overrides, then
+    // delete any explicitly removed keys (e.g. ANTHROPIC_API_KEY for max/pro OAuth sessions).
+    const mergedEnv: Record<string, string> = { ...memoryDefaults, ...process.env as Record<string, string>, ...sessionEnv };
     for (const key of opts.deleteEnv ?? []) {
       delete mergedEnv[key];
     }
