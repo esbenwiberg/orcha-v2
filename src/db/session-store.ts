@@ -303,6 +303,9 @@ export class SessionStore {
       this.#db.prepare('UPDATE tasks SET session_id = NULL WHERE session_id = ?').run(id);
       this.#db.prepare('DELETE FROM session_credentials WHERE session_id = ?').run(id);
       this.#db.prepare('DELETE FROM status_events WHERE session_id = ?').run(id);
+      // Clean up inter-session messages and channel membership
+      this.#db.prepare('DELETE FROM session_messages WHERE from_session = ? OR to_session = ?').run(id, id);
+      this.#db.prepare('DELETE FROM channel_members WHERE session_id = ?').run(id);
       this.#db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
     })();
   }

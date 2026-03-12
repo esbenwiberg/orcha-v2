@@ -416,6 +416,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             type: 'http',
             url: `${orchaHost}/mcp/orcha`,
           };
+          mcpServers['messages'] = {
+            type: 'http',
+            url: `${orchaHost}/mcp/messages/${sessionId}`,
+          };
           settings['mcpServers'] = mcpServers;
 
           // Deny web tools when web access is disabled
@@ -1009,6 +1013,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           reopenMcpServers['orcha'] = {
             type: 'http',
             url: `${orchaHost}/mcp/orcha`,
+          };
+          reopenMcpServers['messages'] = {
+            type: 'http',
+            url: `${orchaHost}/mcp/messages/${id}`,
           };
           settings['mcpServers'] = reopenMcpServers;
           writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');

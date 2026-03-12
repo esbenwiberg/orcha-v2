@@ -38,6 +38,9 @@ import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
 import { createOrchaMcpRouter } from '../mcp/orcha-mcp.js';
+import { createMessageMcpRouter } from '../mcp/message-mcp.js';
+import { NudgeService } from '../terminal/pty-nudge.js';
+import { SessionStore } from '../db/session-store.js';
 import { ValidationManager } from '../validation/validation-manager.js';
 import { createValidateProxy } from './routes/validate-proxy.js';
 import { loadDeployConfig, Deployer } from '../deploy/index.js';
@@ -85,6 +88,10 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
     app.use(createValidateMcpRouter(deps.db, deps.validationManager));
   }
   app.use(createOrchaMcpRouter(deps.db));
+
+  // Inter-session messaging MCP — per-session endpoint at /mcp/messages/:sessionId
+  const nudgeService = new NudgeService(deps.sessionEngine, new SessionStore(deps.db));
+  app.use(createMessageMcpRouter(deps.db, nudgeService));
 
   // Parse JSON request bodies — skip /validate/ proxy routes so the raw body
   // is forwarded intact to the proxied app.

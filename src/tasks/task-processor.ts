@@ -590,6 +590,10 @@ export class TaskProcessor {
       type: 'http',
       url: `${orchaHost}/mcp/orcha`,
     };
+    mcpServers['messages'] = {
+      type: 'http',
+      url: `${orchaHost}/mcp/messages/${sessionId}`,
+    };
     settings['mcpServers'] = mcpServers;
     writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(settings), 'utf8');
 
