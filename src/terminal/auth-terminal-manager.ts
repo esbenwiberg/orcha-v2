@@ -9,10 +9,22 @@ import { Readable } from 'node:stream';
 import { OutputBuffer } from './output-buffer.js';
 
 // Strip ANSI escape sequences from a string so URL extraction works on raw PTY output.
-function stripAnsi(s: string): string {
+export function stripAnsi(s: string): string {
   // eslint-disable-next-line no-control-regex
   return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
 }
+
+// Auth URL patterns — only match URLs that look like actual login/OAuth prompts,
+// not random URLs that Claude Code might print during normal operation.
+const AUTH_URL_PATTERNS = [
+  /console\.anthropic\.com/i,
+  /login\.microsoftonline\.com/i,
+  /microsoft\.com\/devicelogin/i,
+  /device(?:login|auth)/i,
+  /\/oauth2?\//i,
+  /\/authorize[?/]/i,
+  /\/login[?/]/i,
+];
 
 export function extractAuthUrl(snapshot: Buffer): string | undefined {
   const text = stripAnsi(snapshot.toString('utf8'));
@@ -43,8 +55,9 @@ export function extractAuthUrl(snapshot: Buffer): string | undefined {
     // Trim any trailing punctuation that might have been captured.
     url = url.replace(/[.,;:)"']+$/, '');
 
-    // Require a minimum meaningful URL length (filters noise).
-    if (url.length > 40) return url;
+    // Require a minimum meaningful URL length (filters noise) AND
+    // the URL must look like an actual auth/login URL, not a random link.
+    if (url.length > 40 && AUTH_URL_PATTERNS.some((p) => p.test(url))) return url;
   }
 
   return undefined;

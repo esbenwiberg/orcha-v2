@@ -18,7 +18,7 @@ import { loadSkills } from './skills.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { McpServerStore } from '../../db/mcp-server-store.js';
-import { extractAuthUrl } from '../../terminal/auth-terminal-manager.js';
+import { extractAuthUrl, stripAnsi } from '../../terminal/auth-terminal-manager.js';
 import { executeGit } from '../utils/git-utils.js';
 import type { Session } from '@orcha/domain';
 import { formatRelativeTime, formatExpiresIn } from '../views/helpers.js';
@@ -1382,13 +1382,14 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // Tier 2: Check terminal output for login URL
       const snapshot = active.outputBuffer.snapshot();
       const authUrl = extractAuthUrl(snapshot);
+      // Strip ANSI escape codes so welcome-text regex works on PTY output.
+      const text = stripAnsi(snapshot.toString('utf8'));
+      const claudeStarted = /Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/i.test(text);
 
       if (authUrl) {
-        const text = snapshot.toString('utf8');
-
         // If Claude Code already started (refresh token worked), the URL
         // is stale — auth succeeded without user interaction.
-        if (/Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/i.test(text)) {
+        if (claudeStarted) {
           const html = eta.render('partials/session-auth-banner', { authenticated: true });
           res.status(286).send(html);
           return;
@@ -1408,10 +1409,9 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       // No URL found yet — check if we can stop polling early
-      const text = snapshot.toString('utf8');
 
       // If Claude Code already started (prompt visible), auth is fine — stop polling
-      if (/Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/i.test(text)) {
+      if (claudeStarted) {
         res.status(286).send('');
         return;
       }
