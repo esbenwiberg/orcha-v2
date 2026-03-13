@@ -159,7 +159,7 @@ function buildMcpServer(
       compose_file: z.string().optional().describe('Docker compose file path for docker mode'),
       timeout: z.number().optional().describe('Auto-stop timeout in seconds (default 300)'),
       ready_delay: z.number().optional().describe('Seconds to wait after health check passes before marking as healthy. Gives bundlers (esbuild/Vite) time to warm their cache before Playwright navigates. Default 0.'),
-      env: z.record(z.string()).optional().describe('Extra environment variables to inject into build and start commands (e.g. {"PATH": "/custom/sdk/bin:/usr/bin", "NODE_ENV": "development"})'),
+      env: z.record(z.string(), z.string()).optional().describe('Extra environment variables to inject into build and start commands (e.g. {"PATH": "/custom/sdk/bin:/usr/bin", "NODE_ENV": "development"})'),
     },
     async (args) => {
       try {
