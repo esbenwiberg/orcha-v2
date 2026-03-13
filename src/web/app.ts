@@ -82,11 +82,12 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
     cache: process.env['NODE_ENV'] === 'production',
   });
 
-  // MCP OAuth discovery — return 404 so Claude Code knows our MCP servers
-  // don't use MCP-level OAuth.  Without this, the OIDC guard below would 302
-  // these to /auth/login, and the client would think OAuth is required.
+  // Return 404 for all /.well-known/ discovery requests. Our app doesn't serve
+  // any .well-known content (OIDC discovery lives on the identity provider's
+  // domain). Without this, the OIDC guard below would 302 these to /auth/login
+  // and MCP clients would interpret the redirect as "auth required".
   app.use((req, res, next) => {
-    if (req.method === 'GET' && req.path.startsWith('/.well-known/oauth-')) {
+    if (req.method === 'GET' && req.path.startsWith('/.well-known/')) {
       res.status(404).end();
       return;
     }
