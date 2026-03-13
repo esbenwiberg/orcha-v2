@@ -149,7 +149,11 @@ function buildMcpServer(
   // --- validate_start ---
   mcp.tool(
     'validate_start',
-    'Start a validation environment for this session. Builds (optional), spawns the app, and polls health.',
+    'Start a validation environment to test your app live. This is always the first step — call this before any other validate tool. ' +
+    'It builds (optional), starts the app process, and polls a health endpoint until ready. ' +
+    'Returns a preview URL the human user can also open in their browser. ' +
+    'Most parameters have defaults configured on the repo/preset — only override what you need. ' +
+    'Typical workflow: validate_start → validate_browse → validate_screenshot/validate_extract → validate_stop.',
     {
       mode: z.enum(['serve', 'docker']).optional().describe('Validation mode: "serve" (run a process) or "docker" (docker compose)'),
       build: z.string().optional().describe('Build command to run before starting (e.g. "npm run build")'),
@@ -229,7 +233,9 @@ function buildMcpServer(
   // --- validate_stop ---
   mcp.tool(
     'validate_stop',
-    'Stop the running validation environment for this session.',
+    'Stop the running validation environment and free its port. ' +
+    'Call this when you\'re done validating, or before restarting with different config. ' +
+    'The environment also auto-stops after the configured timeout (default 300s).',
     async () => {
       try {
         const result = await validationManager.stop(sessionId);
@@ -248,7 +254,9 @@ function buildMcpServer(
   // --- validate_status ---
   mcp.tool(
     'validate_status',
-    'Get the current status of the validation environment.',
+    'Check whether the validation environment is running, healthy, or errored. ' +
+    'Returns the current status, port, and preview URL. Use this to verify readiness before browsing, ' +
+    'or to diagnose why validate_browse is failing.',
     async () => {
       const result = validationManager.status(sessionId);
       if (!result) {
@@ -265,7 +273,9 @@ function buildMcpServer(
   // --- validate_logs ---
   mcp.tool(
     'validate_logs',
-    'Get recent output logs from the validation environment.',
+    'Get recent server-side stdout/stderr output from the app process. ' +
+    'Use this to check for startup errors, crash traces, or backend issues. ' +
+    'For browser-side console logs (console.log, errors, warnings), use validate_console instead.',
     {
       lines: z.number().optional().describe('Number of lines to return (default 50)'),
     },
@@ -280,7 +290,10 @@ function buildMcpServer(
   // --- validate_browse ---
   mcp.tool(
     'validate_browse',
-    'Navigate to a page in the validation app and return a screenshot, page title, and any console errors. Use this to visually inspect the running app.',
+    'Navigate to a page and take a screenshot. This is the primary tool for visually inspecting the running app. ' +
+    'Returns a screenshot image, the page title, the final URL, and any console errors. ' +
+    'Call this before using validate_screenshot, validate_extract, or validate_console — those tools operate on the page loaded by the most recent validate_browse call. ' +
+    'Requires validate_start to have been called first.',
     {
       path: z.string().optional().describe('Path to navigate to, e.g. "/dashboard". Defaults to "/"'),
       url: z.string().optional().describe('Full URL to navigate to. Must be on localhost:{validationPort}. Overrides path.'),
@@ -322,7 +335,11 @@ function buildMcpServer(
   // --- validate_screenshot ---
   mcp.tool(
     'validate_screenshot',
-    'Take a screenshot of the current page or a specific element. Requires a prior validate_browse call.',
+    'Take another screenshot of the current page without navigating. ' +
+    'Use this to capture the full scrollable page (full_page=true) or a specific element by CSS selector — ' +
+    'things validate_browse doesn\'t do by default. ' +
+    'If you just need a standard viewport screenshot, validate_browse already returns one. ' +
+    'Requires a prior validate_browse call to have loaded a page.',
     {
       full_page: z.boolean().optional().describe('Capture the full scrollable page (default: viewport only)'),
       selector: z.string().optional().describe('CSS selector of a specific element to screenshot'),
@@ -355,7 +372,10 @@ function buildMcpServer(
   // --- validate_extract ---
   mcp.tool(
     'validate_extract',
-    'Extract text, HTML, or an attribute from elements matching a CSS selector on the current page. Requires a prior validate_browse call.',
+    'Extract structured data from the current page using CSS selectors. ' +
+    'Returns the text content of each matching element by default, or a specific HTML attribute (href, src, data-*, etc.) if specified. ' +
+    'Use this when you need to assert on page content programmatically rather than visually. ' +
+    'Requires a prior validate_browse call to have loaded a page.',
     {
       selector: z.string().describe('CSS selector to match elements'),
       attribute: z.string().optional().describe('HTML attribute to extract from each element (e.g. "href", "src")'),
@@ -390,10 +410,11 @@ function buildMcpServer(
   // --- validate_handoff ---
   mcp.tool(
     'validate_handoff',
-    'Hand the browser to the human user for interactive tasks (login, MFA, etc.). ' +
-    'Navigates to the given URL and blocks until the user clicks Done or a wait_for selector appears. ' +
-    'After handoff the browser session persists — use validate_browse/validate_screenshot on the authenticated page. ' +
-    'Requires a prior validate_start call.',
+    'Hand the browser to the human user for tasks you can\'t do yourself — login, MFA, OAuth flows, CAPTCHAs, etc. ' +
+    'Opens the given URL in a browser visible to the user through the Orcha UI, then blocks until they click Done ' +
+    'or a wait_for CSS selector appears. The browser session persists after handoff, so you can continue using ' +
+    'validate_browse and validate_screenshot on the now-authenticated page. ' +
+    'Returns a screenshot of the final state. Requires validate_start to have been called first.',
     {
       url: z.string().describe('URL to navigate to before handing off (e.g. a Dataverse login page)'),
       message: z.string().optional().describe('Message shown to the user in the Orcha UI (e.g. "Please log in to Dataverse")'),
@@ -465,7 +486,9 @@ function buildMcpServer(
   // --- validate_console ---
   mcp.tool(
     'validate_console',
-    'Return buffered browser console logs from the validation app. Requires a prior validate_browse call.',
+    'Get browser-side console logs (console.log, console.error, warnings, exceptions) captured since the last validate_browse navigation. ' +
+    'Use this to debug client-side JavaScript issues. For server-side stdout/stderr, use validate_logs instead. ' +
+    'Requires a prior validate_browse call to have loaded a page.',
     {
       limit: z.number().optional().describe('Max number of entries to return (default: all, max 200)'),
     },

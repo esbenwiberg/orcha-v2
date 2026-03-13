@@ -128,9 +128,11 @@ function buildMcpServer(
   // --- create_task ---
   mcp.tool(
     'create_task',
-    `Log an issue or task for later. Use this when you encounter a bug, tech debt, or improvement ` +
-    `that is NOT part of your current work. Keep it focused — only real issues, not minor observations. ` +
-    `The task lands in Orcha's backlog as a draft for triage.`,
+    `Log an issue you discovered while working on something else. Use this for bugs, tech debt, or improvements ` +
+    `that are outside the scope of your current task — do NOT use it for work you're actively doing. ` +
+    `Be specific: include what you observed, why it matters, and reproduction steps if applicable. ` +
+    `The task lands in Orcha's kanban board as a draft for triage. ` +
+    `Call list_tasks first to check for duplicates before creating.`,
     {
       title: z.string().max(200).describe('Short, descriptive title for the issue (e.g. "Login form crashes on empty email")'),
       description: z.string().describe('What you observed, why it matters, and any reproduction steps or context. Be specific.'),
@@ -241,7 +243,9 @@ function buildMcpServer(
   // --- list_tasks ---
   mcp.tool(
     'list_tasks',
-    'List existing tasks in the backlog. Use this to check for duplicates before creating a new task.',
+    'List tasks from the Orcha kanban board. Use this to check for duplicates before calling create_task, ' +
+    'or to see what work is queued/in-progress for a repo. ' +
+    'Filter by repo_name and/or status. Returns up to 20 tasks by default, most recent first.',
     {
       repo_name: z.string().optional().describe('Filter by repo name'),
       status: z.enum(['draft', 'investigating', 'rejected', 'enriching', 'queued', 'executing', 'done', 'failed', 'cancelled']).optional().describe('Filter by status'),
