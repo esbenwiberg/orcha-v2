@@ -102,6 +102,7 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
         repoName: string;
         branch: string;
         capturedAt: string;
+        capturedAtMs: number;
         messageCount: number;
         sizeFormatted: string;
         sizeBytes: number;
@@ -114,6 +115,10 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
       for (const [sessionId, disk] of diskInfo) {
         const session = sessionMap.get(sessionId);
         const meta = disk.meta;
+        const capturedAtMs = session?.historyCapturedAt
+          ? new Date(session.historyCapturedAt).getTime()
+          : (meta?.capturedAt ? new Date(meta.capturedAt).getTime() : 0);
+
         items.push({
           sessionId,
           displayId: session?.displayId ?? null,
@@ -124,6 +129,7 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
           capturedAt: session?.historyCapturedAt
             ? formatRelativeTime(session.historyCapturedAt)
             : (meta?.capturedAt ? formatRelativeTime(new Date(meta.capturedAt)) : 'on disk'),
+          capturedAtMs,
           messageCount: session?.historyMessageCount ?? meta?.messageCount ?? 0,
           sizeFormatted: formatBytes(disk.sizeBytes),
           sizeBytes: disk.sizeBytes,
@@ -131,8 +137,12 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
         });
       }
 
-      // Sort by most recent first (sessions with higher displayId are newer)
-      items.sort((a, b) => (b.displayId ?? 0) - (a.displayId ?? 0));
+      // Sort by most recent first — use capture timestamp, fall back to displayId
+      items.sort((a, b) => {
+        const timeDiff = b.capturedAtMs - a.capturedAtMs;
+        if (timeDiff !== 0) return timeDiff;
+        return (b.displayId ?? 0) - (a.displayId ?? 0);
+      });
 
       const totalBytes = items.reduce((sum, i) => sum + i.sizeBytes, 0);
 
