@@ -117,6 +117,12 @@
       hx-target="body"
       hx-swap="beforeend"
     >Docs</button>
+    <a
+      class="action-sheet-btn action-sheet-btn--docs"
+      href="/validate/<%= it.session.id %>/"
+      target="_blank"
+      rel="noopener"
+    >Preview</a>
     <% if (it.session.status === 'running' || it.session.status === 'pending') { %>
     <button
       class="action-sheet-btn action-sheet-btn--warn"
