@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Eta } from 'eta';
 import type Database from 'better-sqlite3';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
+import type { SessionValidateConfig } from '../../domain/types.js';
 
 /** Whitelist of allowed DB keys → filenames written into ~/.claude/ */
 const ALLOWED_FILES: Record<string, string> = {
@@ -26,6 +27,42 @@ export function buildSessionClaudeMd(store: GlobalSettingsStore): string {
   if (!soulMd) return claudeMd;
   if (!claudeMd) return `# Soul\n\n${soulMd}`;
   return `${claudeMd}\n\n# Soul\n\n${soulMd}`;
+}
+
+/**
+ * Build a CLAUDE.md section describing the snapshotted validate config for this session.
+ * Returns empty string if no validate config is present.
+ */
+export function buildValidateConfigSection(vc: SessionValidateConfig | undefined): string {
+  if (!vc) return '';
+
+  const lines: string[] = [];
+  if (vc.validateMode) lines.push(`- **Mode**: ${vc.validateMode}`);
+  if (vc.validateBuild) lines.push(`- **Build command**: \`${vc.validateBuild}\``);
+  if (vc.validateStart) lines.push(`- **Start command**: \`${vc.validateStart}\``);
+  if (vc.validateHealth) lines.push(`- **Health path**: \`${vc.validateHealth}\``);
+  if (vc.validateHealthPort) lines.push(`- **Health port**: ${vc.validateHealthPort}`);
+  if (vc.validateComposeFile) lines.push(`- **Compose file**: \`${vc.validateComposeFile}\``);
+  if (vc.validateTimeout) lines.push(`- **Timeout**: ${vc.validateTimeout}s`);
+  if (vc.validateReadyDelay) lines.push(`- **Ready delay**: ${vc.validateReadyDelay}s`);
+  if (vc.validateEnv && Object.keys(vc.validateEnv).length > 0) {
+    lines.push(`- **Env vars**: ${Object.entries(vc.validateEnv).map(([k, v]) => `\`${k}=${v}\``).join(', ')}`);
+  }
+
+  if (lines.length === 0) return '';
+
+  return [
+    '',
+    '# Validation',
+    '',
+    'This repo has pre-configured validation defaults. When using `validate_start`, these are applied automatically -- you only need to override what is different.',
+    'The app MUST bind to the port in `$PORT` (assigned automatically). Do NOT hardcode port numbers.',
+    '',
+    ...lines,
+    '',
+    'In most cases, call `validate_start` with no arguments and it will just work.',
+    '',
+  ].join('\n');
 }
 
 export function createClaudeFilesRouter(eta: Eta, db: Database.Database): Router {

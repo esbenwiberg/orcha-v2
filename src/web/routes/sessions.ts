@@ -13,7 +13,7 @@ import { TaskStore } from '../../db/task-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
 import { readSettingsFromDb } from './claude-settings-db.js';
-import { buildSessionClaudeMd } from './claude-files.js';
+import { buildSessionClaudeMd, buildValidateConfigSection } from './claude-files.js';
 import { loadSkills } from './skills.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
@@ -488,6 +488,24 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
               '',
             ].join('\n');
             mergedClaudeMd = mergedClaudeMd ? `${mergedClaudeMd}\n${prInstructions}` : prInstructions;
+          }
+
+          // Append validation config section so the agent knows the repo's defaults
+          if (repo.validateMode) {
+            const vcSection = buildValidateConfigSection({
+              ...(repo.validateMode !== null ? { validateMode: repo.validateMode } : {}),
+              ...(repo.validateBuild !== null ? { validateBuild: repo.validateBuild } : {}),
+              ...(repo.validateStart !== null ? { validateStart: repo.validateStart } : {}),
+              ...(repo.validateHealth !== null ? { validateHealth: repo.validateHealth } : {}),
+              ...(repo.validateHealthPort !== null ? { validateHealthPort: repo.validateHealthPort } : {}),
+              ...(repo.validateComposeFile !== null ? { validateComposeFile: repo.validateComposeFile } : {}),
+              validateTimeout: repo.validateTimeout,
+              ...(repo.validateReadyDelay !== null ? { validateReadyDelay: repo.validateReadyDelay } : {}),
+              ...(Object.keys(repo.validateEnv).length > 0 ? { validateEnv: repo.validateEnv } : {}),
+            });
+            if (vcSection) {
+              mergedClaudeMd = mergedClaudeMd ? `${mergedClaudeMd}\n${vcSection}` : vcSection;
+            }
           }
 
           if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
