@@ -409,7 +409,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
           // Inject built-in MCP servers (type 'http' = StreamableHTTP)
           const orchaHost = resolveOrchaHost();
-          mcpServers['validator'] = {
+          mcpServers['validate'] = {
             type: 'http',
             url: `${orchaHost}/mcp/validate/${sessionId}`,
           };

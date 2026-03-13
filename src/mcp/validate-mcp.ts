@@ -230,6 +230,7 @@ function buildMcpServer(
   mcp.tool(
     'validate_stop',
     'Stop the running validation environment for this session.',
+    {},
     async () => {
       try {
         const result = await validationManager.stop(sessionId);
@@ -249,6 +250,7 @@ function buildMcpServer(
   mcp.tool(
     'validate_status',
     'Get the current status of the validation environment.',
+    {},
     async () => {
       const result = validationManager.status(sessionId);
       if (!result) {
