@@ -527,11 +527,13 @@ export class WorktreeManager {
   private fetchCache = new Map<string, number>();
   private static readonly FETCH_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
-  async fetchBareRepo(barePath: string): Promise<void> {
+  async fetchBareRepo(barePath: string, opts?: { skipCache?: boolean }): Promise<void> {
     const now = Date.now();
-    const lastFetch = this.fetchCache.get(barePath);
-    if (lastFetch && now - lastFetch < WorktreeManager.FETCH_CACHE_TTL_MS) {
-      return;
+    if (!opts?.skipCache) {
+      const lastFetch = this.fetchCache.get(barePath);
+      if (lastFetch && now - lastFetch < WorktreeManager.FETCH_CACHE_TTL_MS) {
+        return;
+      }
     }
 
     // Bare clones don't set a fetch refspec by default, so pass one explicitly

@@ -572,7 +572,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // Fetch latest refs from the bare repo before creating the worktree
       if (repo.barePath !== null) {
         try {
-          await deps.worktreeManager.fetchBareRepo(repo.barePath);
+          await deps.worktreeManager.fetchBareRepo(repo.barePath, { skipCache: true });
         } catch (err) {
           console.warn(`[sessions] fetchBareRepo failed for ${repoId}:`, err);
         }

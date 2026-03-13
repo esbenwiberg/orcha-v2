@@ -367,6 +367,13 @@ export class TaskProcessor {
     console.log('[task-processor] TASK-%d creating worktree (branch=%s repo=%s)',
       task.displayId, branch, repo.barePath);
 
+    // Fetch latest refs so the worktree branches from current origin/main
+    try {
+      await this.#worktreeManager.fetchBareRepo(repo.barePath, { skipCache: true });
+    } catch (err) {
+      console.warn('[task-processor] TASK-%d fetchBareRepo failed:', task.displayId, err);
+    }
+
     try {
       let worktree: WorktreeInfo;
       try {
