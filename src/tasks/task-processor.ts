@@ -582,7 +582,7 @@ export class TaskProcessor {
     // Inject built-in MCP servers — use the pre-generated sessionId so the
     // validate endpoint can look up the session in the DB.
     const orchaHost = resolveOrchaHost();
-    mcpServers['validate'] = {
+    mcpServers['validator'] = {
       type: 'http',
       url: `${orchaHost}/mcp/validate/${sessionId}`,
     };
