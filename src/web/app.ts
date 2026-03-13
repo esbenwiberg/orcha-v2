@@ -82,12 +82,17 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
     cache: process.env['NODE_ENV'] === 'production',
   });
 
-  // Return 404 for all /.well-known/ discovery requests. Our app doesn't serve
-  // any .well-known content (OIDC discovery lives on the identity provider's
-  // domain). Without this, the OIDC guard below would 302 these to /auth/login
-  // and MCP clients would interpret the redirect as "auth required".
+  // Return 404 for auth-discovery requests so MCP clients don't interpret OIDC
+  // redirects as "MCP server requires OAuth". Covers both root-level discovery
+  // (/.well-known/oauth-*) and discovery relative to MCP endpoints
+  // (/mcp/validate/:id/.well-known/openid-configuration).
+  // Also blocks POST /register (OAuth dynamic client registration).
   app.use((req, res, next) => {
-    if (req.method === 'GET' && req.path.startsWith('/.well-known/')) {
+    if (req.path.includes('/.well-known/')) {
+      res.status(404).end();
+      return;
+    }
+    if (req.method === 'POST' && req.path === '/register') {
       res.status(404).end();
       return;
     }
