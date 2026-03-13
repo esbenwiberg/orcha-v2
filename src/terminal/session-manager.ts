@@ -355,7 +355,12 @@ export class SessionManager {
     // Capture Claude conversation history (best-effort)
     if (session?.homeDir && session.dbSessionId && this._dataDir) {
       try {
-        const result = captureSessionHistory(session.dbSessionId, session.homeDir, this._dataDir);
+        const repoRoot = session.repoRoot ?? session.worktree.path;
+        const repoName = repoRoot.split('/').pop() ?? 'unknown';
+        const result = captureSessionHistory(
+          session.dbSessionId, session.homeDir, this._dataDir,
+          { repoName, branch: session.worktree.branch },
+        );
         if (result) {
           this._sessionStore.updateHistory(session.dbSessionId, result);
           console.log(`[session] captured history sessionId=${sessionId} messages=${result.messageCount}`);

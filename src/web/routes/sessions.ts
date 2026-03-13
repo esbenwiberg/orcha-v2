@@ -1190,7 +1190,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           try {
             const { captureSessionHistory } = await import('../../history/capture.js');
             const { getStoragePaths } = await import('../../storage/paths.js');
-            captureSessionHistory(id, homeDir, getStoragePaths().dataDir);
+            const repo = repoStore.getRepoByBarePath(existing.config.repoRoot);
+            const repoName = repo?.displayName ?? existing.config.repoRoot.split('/').pop() ?? 'unknown';
+            captureSessionHistory(id, homeDir, getStoragePaths().dataDir, {
+              repoName,
+              branch: existing.worktree.branch,
+            });
           } catch { /* best-effort */ }
         }
       }
