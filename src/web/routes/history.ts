@@ -7,7 +7,7 @@ import { SessionStore } from '../../db/session-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
 import { getStoragePaths } from '../../storage/paths.js';
-import { captureSessionHistory } from '../../history/capture.js';
+import { captureSessionHistory, type HistoryMeta } from '../../history/capture.js';
 import { prepareAdminWorkspace } from '../../history/admin-workspace.js';
 import { formatRelativeTime } from '../views/helpers.js';
 
@@ -19,9 +19,9 @@ function formatBytes(bytes: number): string {
 }
 
 /** Scan session-history dir on disk to find sessions that have captured history. */
-function getHistoryOnDisk(dataDir: string): Map<string, { sizeBytes: number; fileCount: number }> {
+function getHistoryOnDisk(dataDir: string): Map<string, { sizeBytes: number; fileCount: number; meta?: HistoryMeta }> {
   const baseDir = join(dataDir, 'session-history');
-  const result = new Map<string, { sizeBytes: number; fileCount: number }>();
+  const result = new Map<string, { sizeBytes: number; fileCount: number; meta?: HistoryMeta }>();
   if (!existsSync(baseDir)) return result;
 
   for (const sessionId of readdirSync(baseDir)) {
@@ -58,7 +58,14 @@ function getHistoryOnDisk(dataDir: string): Map<string, { sizeBytes: number; fil
     } catch { /* skip */ }
 
     if (fileCount > 0) {
-      result.set(sessionId, { sizeBytes, fileCount });
+      let meta: HistoryMeta | undefined;
+      try {
+        const metaPath = join(sessionDir, 'meta.json');
+        if (existsSync(metaPath)) {
+          meta = JSON.parse(readFileSync(metaPath, 'utf8')) as HistoryMeta;
+        }
+      } catch { /* ignore corrupt meta */ }
+      result.set(sessionId, { sizeBytes, fileCount, ...(meta !== undefined ? { meta } : {}) });
     }
   }
 
@@ -106,13 +113,18 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
       // Start with on-disk entries (authoritative)
       for (const [sessionId, disk] of diskInfo) {
         const session = sessionMap.get(sessionId);
+        const meta = disk.meta;
         items.push({
           sessionId,
           displayId: session?.displayId ?? null,
-          repoName: session ? (repoNameMap.get(session.config.repoRoot) ?? session.config.repoRoot.split('/').pop() ?? 'unknown') : 'unknown',
-          branch: session?.worktree.branch ?? 'unknown',
-          capturedAt: session?.historyCapturedAt ? formatRelativeTime(session.historyCapturedAt) : 'on disk',
-          messageCount: session?.historyMessageCount ?? 0,
+          repoName: session
+            ? (repoNameMap.get(session.config.repoRoot) ?? session.config.repoRoot.split('/').pop() ?? 'unknown')
+            : (meta?.repoName ?? 'unknown'),
+          branch: session?.worktree.branch ?? meta?.branch ?? 'unknown',
+          capturedAt: session?.historyCapturedAt
+            ? formatRelativeTime(session.historyCapturedAt)
+            : (meta?.capturedAt ? formatRelativeTime(new Date(meta.capturedAt)) : 'on disk'),
+          messageCount: session?.historyMessageCount ?? meta?.messageCount ?? 0,
           sizeFormatted: formatBytes(disk.sizeBytes),
           sizeBytes: disk.sizeBytes,
           status: session?.status ?? 'deleted',
@@ -319,7 +331,13 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      const result = captureSessionHistory(sessionId, homeDir, dataDir);
+      // Resolve repo display name for durable metadata
+      const repo = repoStore.listRepos().find((r) => r.barePath === session.config.repoRoot);
+      const repoName = repo?.displayName ?? session.config.repoRoot.split('/').pop() ?? 'unknown';
+      const result = captureSessionHistory(sessionId, homeDir, dataDir, {
+        repoName,
+        branch: session.worktree.branch,
+      });
       if (result) {
         store.updateHistory(sessionId, result);
         res.setHeader('HX-Trigger', 'refresh-history');

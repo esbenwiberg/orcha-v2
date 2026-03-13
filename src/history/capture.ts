@@ -7,6 +7,15 @@ export interface CaptureResult {
   messageCount: number;
 }
 
+/** Optional metadata persisted alongside history files so data survives session deletion. */
+export interface HistoryMeta {
+  repoName: string;
+  branch: string;
+  messageCount: number;
+  sizeBytes: number;
+  capturedAt: string;
+}
+
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB per file cap
 
 /**
@@ -19,6 +28,7 @@ export function captureSessionHistory(
   sessionId: string,
   homeDir: string,
   dataDir: string,
+  meta?: { repoName: string; branch: string },
 ): CaptureResult | null {
   const projectsDir = join(homeDir, '.claude', 'projects');
   if (!existsSync(projectsDir)) return null;
@@ -85,8 +95,24 @@ export function captureSessionHistory(
 
   if (totalBytes === 0) return null;
 
+  const capturedAt = new Date().toISOString();
+
+  // Persist metadata so history survives session deletion from the DB
+  if (meta) {
+    try {
+      const metaJson: HistoryMeta = {
+        repoName: meta.repoName,
+        branch: meta.branch,
+        messageCount: totalLines,
+        sizeBytes: totalBytes,
+        capturedAt,
+      };
+      writeFileSync(join(destDir, 'meta.json'), JSON.stringify(metaJson));
+    } catch { /* best-effort */ }
+  }
+
   return {
-    capturedAt: new Date().toISOString(),
+    capturedAt,
     sizeBytes: totalBytes,
     messageCount: totalLines,
   };

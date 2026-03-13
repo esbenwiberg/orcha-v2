@@ -280,10 +280,14 @@ export class TaskProcessor {
       // Capture Claude conversation history (best-effort)
       if (homeDir && session.dbSessionId) {
         try {
+          const repo = this.#repoStore.getRepo(task.repoId);
+          const repoName = repo?.displayName ?? task.repoId;
+          const branch = task.branch || session.worktree.branch;
           const historyResult = captureSessionHistory(
             session.dbSessionId,
             homeDir,
             getStoragePaths().dataDir,
+            { repoName, branch },
           );
           if (historyResult) {
             new SessionStore(this.#db).updateHistory(session.dbSessionId, historyResult);
