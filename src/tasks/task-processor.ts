@@ -14,7 +14,7 @@ import { buildModelEnv, ENV_DELETE } from '../model-config/env-builder.js';
 import { CredentialStore } from '../db/credential-store.js';
 import { credentialManager } from '../credentials/credential-manager.js';
 import { readSettingsFromDb } from '../web/routes/claude-settings-db.js';
-import { buildSessionClaudeMd } from '../web/routes/claude-files.js';
+import { buildSessionClaudeMd, buildValidateConfigSection } from '../web/routes/claude-files.js';
 import { loadSkills } from '../web/routes/skills.js';
 import { getStoragePaths } from '../storage/paths.js';
 import type { SessionManager } from '../terminal/session-manager.js';
@@ -619,8 +619,24 @@ export class TaskProcessor {
     }
     writeFileSync(join(claudeDir, '.config.json'), JSON.stringify(claudeConfig), 'utf8');
 
-    // 6. Write CLAUDE.md (merged with soul.md)
-    const mergedClaudeMd = buildSessionClaudeMd(this.#globalSettingsStore);
+    // 6. Write CLAUDE.md (merged with soul.md + validate config)
+    let mergedClaudeMd = buildSessionClaudeMd(this.#globalSettingsStore);
+    if (repo?.validateMode) {
+      const vcSection = buildValidateConfigSection({
+        ...(repo.validateMode !== null ? { validateMode: repo.validateMode } : {}),
+        ...(repo.validateBuild !== null ? { validateBuild: repo.validateBuild } : {}),
+        ...(repo.validateStart !== null ? { validateStart: repo.validateStart } : {}),
+        ...(repo.validateHealth !== null ? { validateHealth: repo.validateHealth } : {}),
+        ...(repo.validateHealthPort !== null ? { validateHealthPort: repo.validateHealthPort } : {}),
+        ...(repo.validateComposeFile !== null ? { validateComposeFile: repo.validateComposeFile } : {}),
+        validateTimeout: repo.validateTimeout,
+        ...(repo.validateReadyDelay !== null ? { validateReadyDelay: repo.validateReadyDelay } : {}),
+        ...(Object.keys(repo.validateEnv).length > 0 ? { validateEnv: repo.validateEnv } : {}),
+      });
+      if (vcSection) {
+        mergedClaudeMd = mergedClaudeMd ? `${mergedClaudeMd}\n${vcSection}` : vcSection;
+      }
+    }
     if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
 
     // 7. Write skills

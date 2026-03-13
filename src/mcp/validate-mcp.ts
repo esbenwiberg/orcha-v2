@@ -136,6 +136,30 @@ export function createValidateMcpRouter(
   return router;
 }
 
+/** Build a human-readable summary of the snapshotted validate config for tool descriptions. */
+function describeValidateDefaults(sessionId: string, sessionStore: SessionStore): string {
+  const dbSession = sessionStore.getSession(sessionId);
+  const vc = dbSession?.config.validateConfig;
+  if (!vc) return '';
+
+  const lines: string[] = [];
+  if (vc.validateMode) lines.push(`mode: ${vc.validateMode}`);
+  if (vc.validateBuild) lines.push(`build: ${vc.validateBuild}`);
+  if (vc.validateStart) lines.push(`start: ${vc.validateStart}`);
+  if (vc.validateHealth) lines.push(`health: ${vc.validateHealth}`);
+  if (vc.validateHealthPort) lines.push(`health_port: ${vc.validateHealthPort}`);
+  if (vc.validateComposeFile) lines.push(`compose_file: ${vc.validateComposeFile}`);
+  if (vc.validateTimeout) lines.push(`timeout: ${vc.validateTimeout}s`);
+  if (vc.validateReadyDelay) lines.push(`ready_delay: ${vc.validateReadyDelay}s`);
+  if (vc.validateEnv && Object.keys(vc.validateEnv).length > 0) {
+    lines.push(`env: ${JSON.stringify(vc.validateEnv)}`);
+  }
+
+  if (lines.length === 0) return '';
+  return '\n\nPre-configured defaults for this repo (applied automatically — only override if you need different values):\n' +
+    lines.map((l) => `  ${l}`).join('\n');
+}
+
 function buildMcpServer(
   sessionId: string,
   validationManager: ValidationManager,
@@ -146,14 +170,21 @@ function buildMcpServer(
     { capabilities: { tools: {} } },
   );
 
+  // Build a dynamic description that includes the repo's snapshotted validate defaults.
+  // This lets the agent see exactly what's pre-configured without trial-and-error.
+  const configSuffix = describeValidateDefaults(sessionId, sessionStore);
+
   // --- validate_start ---
   mcp.tool(
     'validate_start',
     'Start a validation environment to test your app live. This is always the first step — call this before any other validate tool. ' +
     'It builds (optional), starts the app process, and polls a health endpoint until ready. ' +
+    'The app MUST bind to the port in $PORT (assigned automatically) — do NOT hardcode a port number. ' +
     'Returns a preview URL the human user can also open in their browser. ' +
-    'Most parameters have defaults configured on the repo/preset — only override what you need. ' +
-    'Typical workflow: validate_start → validate_browse → validate_screenshot/validate_extract → validate_stop.',
+    'All parameters have defaults pre-configured on the repo — only override what you need. ' +
+    'In most cases you can call validate_start with NO arguments and it will just work. ' +
+    'Typical workflow: validate_start → validate_browse → validate_screenshot/validate_extract → validate_stop.' +
+    configSuffix,
     {
       mode: z.enum(['serve', 'docker']).optional().describe('Validation mode: "serve" (run a process) or "docker" (docker compose)'),
       build: z.string().optional().describe('Build command to run before starting (e.g. "npm run build")'),
