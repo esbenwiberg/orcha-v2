@@ -82,6 +82,14 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
     cache: process.env['NODE_ENV'] === 'production',
   });
 
+  // MCP OAuth discovery — return 404 so Claude Code knows our MCP servers
+  // don't use MCP-level OAuth.  Without this, the OIDC guard below would 302
+  // these to /auth/login, and the client would think OAuth is required.
+  app.get('/.well-known/oauth-authorization-server/*', (_req, res) => res.status(404).end());
+  app.get('/.well-known/oauth-authorization-server', (_req, res) => res.status(404).end());
+  app.get('/.well-known/oauth-protected-resource/*', (_req, res) => res.status(404).end());
+  app.get('/.well-known/oauth-protected-resource', (_req, res) => res.status(404).end());
+
   // MCP endpoints — mounted BEFORE body parsers because the MCP SDK's
   // StreamableHTTPServerTransport reads the raw request stream. express.json()
   // would consume the stream first, causing the transport to see an empty body.
