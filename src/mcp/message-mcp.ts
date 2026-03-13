@@ -171,8 +171,10 @@ function buildMcpServer(
   // --- send_message ---
   mcp.tool(
     'send_message',
-    'Send a direct message to another session. Fire-and-forget — no reply expected. ' +
-    'Use this to share context, findings, or code snippets with another session.',
+    'Send a one-way direct message to another agent session. Fire-and-forget — no reply mechanism. ' +
+    'Use this for simple notifications: sharing a finding, passing a code snippet, or flagging something another session should know. ' +
+    'For back-and-forth discussion, use create_channel instead — channels support structured replies with exchange limits. ' +
+    'The target session gets a PTY nudge by default so the agent notices the message.',
     {
       target_session: z.string().describe(
         'Display ID (e.g. "42") or UUID of the target session.',
@@ -223,8 +225,10 @@ function buildMcpServer(
   // --- read_messages ---
   mcp.tool(
     'read_messages',
-    'Read pending messages. Without channel_id, reads unread direct messages. ' +
-    'With channel_id, reads channel messages since your last read.',
+    'Read incoming messages. Call this when you receive a PTY nudge notification about new messages. ' +
+    'Without channel_id: returns unread direct messages sent to you. ' +
+    'With channel_id: returns all messages in that channel. ' +
+    'Messages are marked as read after retrieval.',
     {
       channel_id: z.string().optional().describe('Channel ID to read from. Omit for direct messages.'),
     },
@@ -288,7 +292,11 @@ function buildMcpServer(
   // --- create_channel ---
   mcp.tool(
     'create_channel',
-    'Create a collaboration channel with a scoped topic. Returns a join secret to share with the other session.',
+    'Create a collaboration channel for structured back-and-forth with another agent session. ' +
+    'Use channels (not send_message) when you need a conversation — e.g. coordinating changes, asking questions that need answers, or working through a problem together. ' +
+    'Channels have a topic, exchange limit (default 20), and both members describe their role so each side has context. ' +
+    'Returns a join_secret — share it with the other session via send_message or use invite_session to auto-invite. ' +
+    'Workflow: create_channel → (other session joins) → reply back and forth → close_channel.',
     {
       topic: z.string().max(200).describe('What this channel is about.'),
       my_role: z.string().max(500).describe('Describe who you are and what you know, so the other session has context.'),
@@ -350,7 +358,9 @@ function buildMcpServer(
   // --- join_channel ---
   mcp.tool(
     'join_channel',
-    'Join an existing collaboration channel using the secret provided by the channel creator.',
+    'Join a collaboration channel you\'ve been invited to. You\'ll have received the channel_id and join_secret ' +
+    'in a direct message (check read_messages). Provide my_role to introduce yourself — the channel creator ' +
+    'and any other members will see it. After joining, use reply to send messages and read_messages(channel_id) to read them.',
     {
       channel_id: z.string().describe('Channel ID to join.'),
       join_secret: z.string().describe('The join secret shared by the channel creator.'),
@@ -403,7 +413,9 @@ function buildMcpServer(
   // --- reply ---
   mcp.tool(
     'reply',
-    'Send a reply in a collaboration channel. Respects the channel\'s exchange limit and cooldown.',
+    'Send a message in a collaboration channel. Both members use this to go back and forth. ' +
+    'Each reply counts toward the channel\'s exchange limit — check the remaining count in the response. ' +
+    'When the limit is reached, no more replies are allowed and you should close_channel with a summary.',
     {
       channel_id: z.string().describe('Channel ID to reply in.'),
       body: z.string().max(10000).describe('Your reply (max 10KB).'),
@@ -462,7 +474,9 @@ function buildMcpServer(
   // --- close_channel ---
   mcp.tool(
     'close_channel',
-    'Close a collaboration channel. Either member can close it.',
+    'Close a collaboration channel when the discussion is done or no longer needed. ' +
+    'Either member can close it. Include a summary of what was resolved — it helps both sides and shows up in the channel history. ' +
+    'Channels also close automatically when the exchange limit is reached.',
     {
       channel_id: z.string().describe('Channel ID to close.'),
       summary: z.string().optional().describe('Optional summary of what was discussed/resolved.'),
