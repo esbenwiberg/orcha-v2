@@ -96,6 +96,47 @@ function connectionRewriteScript(sessionId: string): string {
     'window.EventSource.OPEN=E.OPEN;',
     'window.EventSource.CLOSED=E.CLOSED}',
 
+    // --- fetch() wrapper ---
+    // Rewrites absolute paths (e.g. "/api/foo") and local full URLs so HTMX
+    // requests, client-side fetch calls, etc. route through the proxy prefix.
+    'var F=window.fetch;',
+    'window.fetch=function(u,opts){',
+    'if(typeof u==="string"){u=rw(u,true)}',
+    'else if(u instanceof Request&&!u.url.includes(p)){',
+    'u=new Request(rw(u.url,true),u)}',
+    'return F.call(this,u,opts)};',
+
+    // --- XMLHttpRequest.open wrapper ---
+    // Covers HTMX (uses XHR by default) and any other XHR-based code.
+    'var XO=XMLHttpRequest.prototype.open;',
+    'XMLHttpRequest.prototype.open=function(m,u){',
+    'if(typeof u==="string"){u=rw(u,true)}',
+    'var a=[m,u].concat(Array.prototype.slice.call(arguments,2));',
+    'return XO.apply(this,a)};',
+
+    // --- Click interception for <a> navigation ---
+    // Rewrites href on anchor clicks so regular link navigation stays within
+    // the proxy prefix. Only intercepts local absolute paths.
+    'document.addEventListener("click",function(e){',
+    'var t=e.target;',
+    'while(t&&t.tagName!=="A")t=t.parentElement;',
+    'if(!t)return;',
+    'var h=t.getAttribute("href");',
+    'if(h&&h.startsWith("/")&&!h.startsWith(p)){',
+    't.setAttribute("href",p+h)}',
+    '},true);',
+
+    // --- History API wrappers ---
+    // Rewrite pushState/replaceState URLs so the address bar stays prefixed
+    // and back/forward navigation works correctly.
+    'var PS=history.pushState,RS=history.replaceState;',
+    'history.pushState=function(s,t,u){',
+    'if(typeof u==="string")u=rw(u,true);',
+    'return PS.call(this,s,t,u)};',
+    'history.replaceState=function(s,t,u){',
+    'if(typeof u==="string")u=rw(u,true);',
+    'return RS.call(this,s,t,u)};',
+
     '})()</script>',
   ].join('');
 }
