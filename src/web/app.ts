@@ -89,25 +89,12 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
   // Also blocks POST /register (OAuth dynamic client registration).
   app.use((req, res, next) => {
     if (req.path.includes('/.well-known/')) {
-      console.log(`[auth-discovery] blocked ${req.method} ${req.path} → 404`);
       res.status(404).end();
       return;
     }
     if (req.method === 'POST' && req.path === '/register') {
-      console.log(`[auth-discovery] blocked POST /register → 404`);
       res.status(404).end();
       return;
-    }
-    next();
-  });
-
-  // Log all MCP requests (MCP routers run before the main request logger)
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/mcp/')) {
-      const start = Date.now();
-      res.on('finish', () => {
-        console.log(`[mcp-http] ${req.method} ${req.path} ${res.statusCode} ${Date.now() - start}ms`);
-      });
     }
     next();
   });
