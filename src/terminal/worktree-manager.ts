@@ -64,6 +64,32 @@ function ensureFileModeDisabled(bareRepoPath: string): void {
 }
 
 /**
+ * Ensures a bare repo has the standard fetch refspec for origin.
+ * `git clone --bare` omits `remote.origin.fetch`, so worktrees inherit no
+ * refspec. Without it, `git fetch origin main` writes to FETCH_HEAD only —
+ * `origin/main` (and all other remote tracking refs) never update.
+ */
+function ensureFetchRefspec(bareRepoPath: string): void {
+  const configPath = path.join(bareRepoPath, 'config');
+  if (!fs.existsSync(configPath)) return;
+  let config = fs.readFileSync(configPath, 'utf8');
+  const refspec = '+refs/heads/*:refs/remotes/origin/*';
+  // Already present — nothing to do
+  if (config.includes(refspec)) return;
+  if (/\[remote "origin"\]/i.test(config)) {
+    // [remote "origin"] section exists but no fetch — add the refspec
+    config = config.replace(
+      /(\[remote "origin"\])/i,
+      `$1\n\tfetch = ${refspec}`,
+    );
+  } else {
+    // No [remote "origin"] section — append one (unlikely for a clone, but safe)
+    config += `\n[remote "origin"]\n\tfetch = ${refspec}\n`;
+  }
+  fs.writeFileSync(configPath, config, 'utf8');
+}
+
+/**
  * Ensures a bare repo's config has push.autoSetupRemote = true.
  * This lets `git push` in worktrees auto-create the upstream tracking branch,
  * avoiding the "no upstream branch" error on first push of a new branch.
@@ -622,6 +648,7 @@ export class WorktreeManager {
       // Patch existing repos that were cloned before these config fixes
       ensureFileModeDisabled(bareRepoPath);
       ensureAutoSetupRemote(bareRepoPath);
+      ensureFetchRefspec(bareRepoPath);
       return bareRepoPath;
     }
 
@@ -659,6 +686,7 @@ export class WorktreeManager {
       // Files where chmod would fail).
       ensureFileModeDisabled(stagingPath);
       ensureAutoSetupRemote(stagingPath);
+      ensureFetchRefspec(stagingPath);
 
       // fs.promises.cp calls chmod internally which fails on Azure File Share.
       // Use a plain read/write recursive copy instead.
