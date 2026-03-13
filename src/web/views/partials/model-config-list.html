@@ -36,6 +36,13 @@
               >Edit</button>
               <% if (c.provider === 'max' && c.hasCredentials) { %>
               <span class="badge badge-success badge-sm">Authenticated</span>
+              <button
+                class="btn btn-ghost btn-xs"
+                hx-post="/api/model-configs/<%= c.id %>/auth/start"
+                hx-target="#form-panel-slot"
+                hx-swap="innerHTML"
+                onclick="document.getElementById('form-panel').classList.add('is-open')"
+              >Re-authenticate</button>
               <% } else if (c.provider === 'max') { %>
               <button
                 class="btn btn-ghost btn-xs"

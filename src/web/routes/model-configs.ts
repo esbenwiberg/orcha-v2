@@ -313,6 +313,7 @@ export function createModelConfigsRouter(eta: Eta, deps: AppDeps): Router {
           '<p class="text-xs text-muted mt-2">Credentials saved. You can close this panel.</p>' +
           '</div>';
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.setHeader('HX-Trigger-After-Swap', 'refresh-model-list');
         res.status(200).send(html);
         return;
       }
