@@ -5,6 +5,7 @@ import { SessionStore } from '../db/session-store.js';
 import { CredentialStore } from '../db/credential-store.js';
 import { credentialManager } from '../credentials/credential-manager.js';
 import type { ValidationManager } from '../validation/validation-manager.js';
+import { eventBus } from '../web/services/event-bus.js';
 
 export interface CleanupResult {
   scannedAt: Date;
@@ -71,6 +72,7 @@ export class CleanupService extends EventEmitter {
         // PTY died without cleanup — mark as failed
         try {
           this._sessionStore.updateStatus(session.id, 'failed');
+          eventBus.publish({ type: 'status', sessionId: session.id, status: 'failed' });
           result.staleSessionsMarked.push(session.id);
         } catch (err) {
           result.errors.push({

@@ -15,6 +15,7 @@ import type { SessionValidateConfig } from '@orcha/domain';
 import { captureSessionHistory } from '../history/capture.js';
 import type { StatusMonitor } from './status-monitor.js';
 import type { ValidationManager } from '../validation/validation-manager.js';
+import { eventBus } from '../web/services/event-bus.js';
 
 export interface CreateSessionOptions {
   sessionId?: string;
@@ -259,6 +260,7 @@ export class SessionManager {
       // Transition to starting → running
       this._sessionStore.updateStatus(dbSessionId, 'starting');
       this._sessionStore.updateStatus(dbSessionId, 'running');
+      eventBus.publish({ type: 'status', sessionId: dbSessionId, status: 'running' });
     } catch (err) {
       console.error('[session-manager] DB write failed for session', sessionId, err);
       // Session is still active in memory; DB persistence failed
@@ -308,12 +310,14 @@ export class SessionManager {
 
     if (session?.dbSessionId !== undefined) {
       const dbId = session.dbSessionId;
+      const exitStatus = exitCode === 0 ? 'completed' : 'failed';
       try {
-        this._sessionStore.updateStatus(dbId, exitCode === 0 ? 'completed' : 'failed');
+        this._sessionStore.updateStatus(dbId, exitStatus);
         this._sessionStore.updateSession(dbId, { exitCode });
       } catch {
         // Best-effort: session may not exist in DB or transition may be invalid
       }
+      eventBus.publish({ type: 'status', sessionId: dbId, status: exitStatus });
 
       // Auto-revoke credentials tied to this session (best-effort)
       if (this._credentialStore) {
@@ -488,6 +492,7 @@ export class SessionManager {
       this._sessionStore.resetForReopen(dbSessionId);
       this._sessionStore.updateStatus(dbSessionId, 'starting');
       this._sessionStore.updateStatus(dbSessionId, 'running');
+      eventBus.publish({ type: 'status', sessionId: dbSessionId, status: 'running' });
     } catch (err) {
       console.error('[session-manager] DB status transition failed for reopen', dbSessionId, err);
     }
@@ -606,6 +611,7 @@ export class SessionManager {
       dbSessionId = dbSession.id;
       this._sessionStore.updateStatus(dbSessionId, 'starting');
       this._sessionStore.updateStatus(dbSessionId, 'running');
+      eventBus.publish({ type: 'status', sessionId: dbSessionId, status: 'running' });
     } catch (err) {
       console.error('[session-manager] DB write failed for admin session', sessionId, err);
     }
