@@ -28,4 +28,11 @@ else
   echo "[entrypoint] claude-code update failed, using cached version"
 fi
 
+echo "[entrypoint] updating vercel cli..."
+if gosu orcha npm install -g vercel 2>&1; then
+  echo "[entrypoint] vercel updated to $(gosu orcha vercel --version 2>/dev/null || echo 'unknown')"
+else
+  echo "[entrypoint] vercel update failed, using cached version"
+fi
+
 exec gosu orcha node dist/web/start-server.js 2>&1
