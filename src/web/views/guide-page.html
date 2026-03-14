@@ -285,6 +285,7 @@
         <tr><td><code>validate_screenshot</code></td><td>Capture the current page or a specific CSS selector</td></tr>
         <tr><td><code>validate_extract</code></td><td>Extract text, HTML, or attributes from elements matching a CSS selector</td></tr>
         <tr><td><code>validate_console</code></td><td>Return buffered browser console logs</td></tr>
+        <tr><td><code>validate_handoff</code></td><td>Pause and hand browser control to the user for login/MFA, then resume with authenticated state</td></tr>
       </tbody>
     </table>
     <h3>Live preview</h3>
@@ -296,8 +297,80 @@
       <li>Validation overrides on the preset</li>
       <li>Parameters passed directly to <code>validate_start</code></li>
     </ol>
+    <h3>Browser handoff</h3>
+    <p>Some apps require human interaction to authenticate — login forms, MFA, CAPTCHAs. The <code>validate_handoff</code> tool lets the agent pause and hand browser control to you.</p>
+    <ol>
+      <li>Agent calls <code>validate_handoff(url, message)</code></li>
+      <li>Orcha shows a notification in the UI with the agent's message (e.g. "Please log in to Dataverse")</li>
+      <li>You interact with the browser in the Orcha-hosted window</li>
+      <li>Click <strong>Done</strong> (or a <code>wait_for</code> CSS selector auto-triggers completion)</li>
+      <li>The agent resumes with the authenticated browser state — cookies, tokens, and DOM persist</li>
+    </ol>
+    <p>Optional parameters: <code>proxy</code> (HTTP proxy URL), <code>wait_for</code> (CSS selector for auto-completion), <code>timeout</code> (default 5 minutes).</p>
+    <h3>Remote Docker VM</h3>
+    <p>When running on hosts without Docker (e.g. Azure Container Apps), validation can target a remote Docker VM. Set <code>DOCKER_HOST=ssh://orcha@&lt;vm-ip&gt;</code> and Orcha routes <code>docker compose</code> commands over SSH. Provision a VM with <code>bash scripts/deploy-docker-vm.sh</code>.</p>
     <h3>Teardown guarantees</h3>
     <p>Validation environments are cleaned up via four layers: agent explicit stop, session exit handler, periodic cleanup sweep, and configurable timeout (default 5 minutes).</p>
+  </div>
+</div>
+
+<div class="page-section mb-4">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Inter-Session Messaging</h2>
+      <p class="page-section__subtitle">Sessions can talk to each other</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Sessions can communicate asynchronously using MCP messaging tools. This enables coordination between agents working on related tasks — one session can ask another for context, share findings, or request help.</p>
+    <h3>Direct messages</h3>
+    <p>Fire-and-forget messages from one session to another. The recipient sees a PTY notification and can read messages with <code>read_messages</code>. Address sessions by display ID (e.g. "42") or UUID.</p>
+    <h3>Collaboration channels</h3>
+    <p>For structured back-and-forth conversations:</p>
+    <ol>
+      <li>Session A creates a channel with <code>create_channel(topic, max_exchanges)</code></li>
+      <li>Session A invites Session B (auto-sends a direct message with join credentials)</li>
+      <li>Session B reads the invite and joins with <code>join_channel()</code></li>
+      <li>Both sessions exchange messages via <code>reply()</code> — each reply counts toward the exchange limit</li>
+      <li>Either member closes with <code>close_channel(summary)</code></li>
+    </ol>
+    <p>Channels auto-close when the exchange limit is reached or after 1 hour. Summaries persist for later reference.</p>
+    <h3>MCP tools</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Tool</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>send_message</code></td><td>Send a one-way message to another session</td></tr>
+        <tr><td><code>read_messages</code></td><td>Read unread direct messages or channel messages</td></tr>
+        <tr><td><code>create_channel</code></td><td>Start a collaboration channel with a topic and exchange limit</td></tr>
+        <tr><td><code>join_channel</code></td><td>Join an existing channel with the join secret</td></tr>
+        <tr><td><code>reply</code></td><td>Send a message in a channel</td></tr>
+        <tr><td><code>close_channel</code></td><td>Close a channel with a summary</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="page-section mb-4">
+  <div class="page-section__header">
+    <div>
+      <h2 class="page-section__title">Session History</h2>
+      <p class="page-section__subtitle">Transcript capture and analysis</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p>Orcha automatically captures Claude Code conversation transcripts (JSONL format) when sessions end. These are stored persistently and survive session deletion.</p>
+    <h3>What gets captured</h3>
+    <ul>
+      <li>Full JSONL conversation transcripts (human, assistant, and system messages)</li>
+      <li>Per-turn cost and duration metadata</li>
+      <li>Session metadata: repo, branch, message count, capture time</li>
+    </ul>
+    <h3>Browsing history</h3>
+    <p>The <strong>History</strong> page lists all captured sessions sorted by most recent. Click a session to see individual JSONL files with message previews, or download the combined transcript for external analysis.</p>
+    <h3>Admin analysis sessions</h3>
+    <p>Select one or more history entries and click <strong>Analyze</strong> to spin up a read-only analysis session. The session gets symlinks to the selected history directories and a CLAUDE.md guide explaining the JSONL schema. You can pick a model config for the analysis session — useful for running cost analysis, identifying patterns, or auditing agent behavior across sessions.</p>
   </div>
 </div>
 
