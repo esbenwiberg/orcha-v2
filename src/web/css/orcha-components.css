@@ -241,6 +241,7 @@
   .form-panel {
     @apply fixed right-0 top-0 flex flex-col;
     height: 100vh;
+    height: 100dvh;
     width: 100%;
     max-width: 420px;
     overflow-y: auto;
@@ -250,6 +251,7 @@
     transition: transform 0.2s ease;
     z-index: 100;
     padding: 1.5rem;
+    padding-bottom: max(env(safe-area-inset-bottom), 1.5rem);
     gap: 1rem;
   }
 
@@ -626,7 +628,9 @@
     z-index: 1000;
     border-radius: 0;
     height: 100vh !important;
+    height: 100dvh !important;
     min-height: 100vh;
+    min-height: 100dvh;
   }
 
   body.has-fullscreen-terminal {
