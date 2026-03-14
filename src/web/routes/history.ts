@@ -1,14 +1,16 @@
 import { Router } from 'express';
-import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { SessionStore } from '../../db/session-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
+import { ModelConfigStore } from '../../db/model-config-store.js';
 import { getStoragePaths } from '../../storage/paths.js';
 import { captureSessionHistory, type HistoryMeta } from '../../history/capture.js';
 import { prepareAdminWorkspace } from '../../history/admin-workspace.js';
+import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { formatRelativeTime } from '../views/helpers.js';
 
 function formatBytes(bytes: number): string {
@@ -77,6 +79,7 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
   const store = new SessionStore(deps.db);
   const repoStore = new RepoStore(deps.db);
   const globalSettings = new GlobalSettingsStore(deps.db);
+  const modelConfigStore = new ModelConfigStore(deps.db);
 
   // GET /api/history/list — render history list partial
   router.get('/history/list', (_req, res, next) => {
@@ -136,10 +139,13 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
 
       const totalBytes = items.reduce((sum, i) => sum + i.sizeBytes, 0);
 
+      const modelConfigs = modelConfigStore.listConfigs();
+
       const html = eta.render('partials/history-list', {
         items,
         totalFormatted: formatBytes(totalBytes),
         count: items.length,
+        modelConfigs,
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -355,6 +361,7 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
     try {
       const { dataDir } = getStoragePaths();
       const selectedIds = req.body['sessionIds'] as string[] | undefined;
+      const modelConfigId = (typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : '').trim();
 
       const { workspaceDir, homeDir } = prepareAdminWorkspace(
         dataDir,
@@ -362,10 +369,44 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
         selectedIds?.length ? selectedIds : undefined,
       );
 
-      const session = await deps.sessionEngine.createAdminSession({
+      // Build model config env vars and credentials if selected
+      let modelEnv: Record<string, string> | undefined;
+      let modelDeleteEnv: string[] | undefined;
+      let modelProvider: string | undefined;
+      if (modelConfigId) {
+        const modelConfig = modelConfigStore.getConfig(modelConfigId);
+        if (modelConfig) {
+          modelProvider = modelConfig.provider;
+          const envMap = buildModelEnv(modelConfig);
+          const setEnv: Record<string, string> = {};
+          const delEnv: string[] = [];
+          for (const [key, value] of Object.entries(envMap)) {
+            if (value === ENV_DELETE) {
+              delEnv.push(key);
+            } else {
+              setEnv[key] = value;
+            }
+          }
+          if (Object.keys(setEnv).length > 0) modelEnv = setEnv;
+          if (delEnv.length > 0) modelDeleteEnv = delEnv;
+
+          // Inject stored credentials (e.g. Max/Pro OAuth tokens)
+          if (modelConfig.credentialsJson) {
+            const claudeDir = join(homeDir, '.claude');
+            mkdirSync(claudeDir, { recursive: true });
+            writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
+          }
+        }
+      }
+
+      await deps.sessionEngine.createAdminSession({
         workspaceDir,
         homeDir,
         prompt: 'You have access to Claude Code session history files in the ./history/ directory. Browse the available data and wait for instructions on what to analyze.',
+        ...(modelEnv !== undefined ? { env: modelEnv } : {}),
+        ...(modelDeleteEnv !== undefined ? { deleteEnv: modelDeleteEnv } : {}),
+        ...(modelConfigId ? { modelConfigId } : {}),
+        ...(modelProvider !== undefined ? { modelProvider } : {}),
       });
 
       // Redirect to the sessions page where the admin session card will appear

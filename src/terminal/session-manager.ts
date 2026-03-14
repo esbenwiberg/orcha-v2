@@ -536,11 +536,16 @@ export class SessionManager {
     homeDir: string;
     prompt?: string;
     args?: string[];
+    env?: Record<string, string>;
+    deleteEnv?: string[];
+    modelConfigId?: string;
+    modelProvider?: string;
   }): Promise<ActiveSession> {
     const sessionId = randomUUID();
 
     const env: Record<string, string> = {
       HOME: opts.homeDir,
+      ...opts.env,
     };
 
     const spawnArgs = opts.args ?? ['--dangerously-skip-permissions'];
@@ -558,6 +563,7 @@ export class SessionManager {
         env,
         size: { cols: 220, rows: 50 },
         sandbox: false,
+        ...(opts.deleteEnv !== undefined ? { deleteEnv: opts.deleteEnv } : {}),
       });
     } catch (err) {
       throw new SessionError(
@@ -585,6 +591,8 @@ export class SessionManager {
           prompt: opts.prompt ?? '',
           env,
           maxRuntimeSeconds: 0,
+          ...(opts.modelConfigId !== undefined ? { modelConfigId: opts.modelConfigId } : {}),
+          ...(opts.modelProvider !== undefined ? { modelProvider: opts.modelProvider } : {}),
         },
         {
           worktreePath: opts.workspaceDir,
@@ -616,6 +624,8 @@ export class SessionManager {
       outputBuffer,
       createdAt: new Date(),
       homeDir: opts.homeDir,
+      ...(opts.modelConfigId !== undefined ? { modelConfigId: opts.modelConfigId } : {}),
+      ...(opts.modelProvider !== undefined ? { modelProvider: opts.modelProvider } : {}),
     };
 
     this._active.set(sessionId, activeSession);
