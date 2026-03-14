@@ -174,6 +174,12 @@
 
     <h3>Why MCP for session extensions?</h3>
     <p>Instead of adding custom logic inside the sandbox, Orcha uses the Model Context Protocol to expose tools back to the agent. The validation MCP server lets Claude build, start, screenshot, and browse the app under development — all through a standard protocol that Claude Code already understands. Custom MCP servers can be registered globally and injected per-session or per-preset.</p>
+
+    <h3>Why inter-session messaging?</h3>
+    <p>When multiple agents work on related tasks, they sometimes need context from each other — "what approach did you take for the auth refactor?" or "I need the schema changes you made." Messaging via MCP tools lets sessions coordinate without human relay, using structured channels with exchange limits to prevent runaway conversations.</p>
+
+    <h3>Why session history?</h3>
+    <p>JSONL transcripts are the raw audit trail of what every agent did. Capturing them persistently lets you analyze costs, review decisions, spot patterns, and debug failures — even after sessions are cleaned up. The admin analysis session turns this into actionable insight by letting Claude itself analyze the transcripts.</p>
   </div>
 </div>
 
@@ -204,7 +210,8 @@
         <tr><td><code>src/diagnostics/</code></td><td>Startup diagnostics and health checks</td></tr>
         <tr><td><code>src/sandbox/</code></td><td>Landlock filesystem isolation</td></tr>
         <tr><td><code>src/validation/</code></td><td>Validation engine — port allocator, config resolver, serve/docker runners, Playwright browser manager</td></tr>
-        <tr><td><code>src/mcp/</code></td><td>Streamable HTTP MCP server exposing validation and browser tools to sessions</td></tr>
+        <tr><td><code>src/history/</code></td><td>JSONL transcript capture, persistent storage, and admin analysis workspace</td></tr>
+        <tr><td><code>src/mcp/</code></td><td>Streamable HTTP MCP servers: validation + browser tools, inter-session messaging</td></tr>
         <tr><td><code>src/deploy/</code></td><td>Self-deploy via ACR Tasks and Azure REST APIs</td></tr>
         <tr><td><code>src/storage/</code></td><td>Storage paths and Azure File Share compatibility layer</td></tr>
         <tr><td><code>src/devguard/</code></td><td>Standalone CLI for credential management and secret redaction</td></tr>

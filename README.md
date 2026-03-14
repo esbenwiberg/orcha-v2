@@ -21,8 +21,12 @@
 - **Presets** — save repo + credential + model combos for one-click session launch
 - **Live terminals** — PTY-backed terminal sessions streamed to the browser via xterm.js
 - **Preview proxy** — access agent-started dev servers (e.g. Storybook) through the dashboard with `/validate/` URL proxying
+- **Browser handoff** — agents can pause and hand browser control to the user for login, MFA, or CAPTCHA flows, then resume with the authenticated state
+- **Inter-session messaging** — sessions communicate via MCP tools: direct messages, collaboration channels with exchange limits, and auto-invites
+- **Session history** — automatic JSONL transcript capture with browsing UI, cost analysis, and admin analysis sessions
 - **SDK management** — install and manage SDKs (Azure CLI, GitHub CLI, .NET, Power Platform CLI) available to agent sessions
 - **Multiple model providers** — configure API key, Max/Pro (OAuth), or Azure Foundry per session
+- **Remote Docker VM** — run validation containers on a remote Docker VM when the host lacks docker.sock (e.g. Azure Container Apps)
 - **Landlock sandboxing** — optional filesystem sandboxing via Linux Landlock LSM
 - **Authentication** — none, token-based, or OIDC (e.g. Entra ID) authentication modes
 - **SSE events** — real-time UI updates via server-sent events
@@ -98,6 +102,7 @@ The container includes Claude Code, GitHub CLI, Azure CLI, Playwright, and the L
 | `ORCHA_DB_DIR` | same as `ORCHA_DATA_DIR` | SQLite DB directory (use `/tmp` on Azure Files) |
 | `ORCHA_HOST` | _(auto)_ | External host URL override for preview URLs and task links |
 | `SANDBOX_MODE` | `none` | `none` or `landlock` |
+| `DOCKER_HOST` | _(local)_ | Remote Docker socket URL (e.g. `ssh://orcha@<vm-ip>`) for validation containers |
 | `NODE_ENV` | `production` | |
 
 ### Authentication
@@ -184,6 +189,16 @@ src/
     sandbox-config.ts         # reads SANDBOX_MODE env var
   model-config/
     env-builder.ts            # per-session model/provider env vars
+  history/
+    capture.ts                # JSONL transcript capture on session exit
+    admin-workspace.ts        # read-only analysis sessions over history
+  mcp/
+    validate-mcp.ts           # validation + browser + handoff MCP tools
+    message-mcp.ts            # inter-session messaging MCP tools
+  validation/
+    serve-runner.ts           # serve-mode validation runner
+    docker-runner.ts          # docker-compose validation runner
+    remote-docker.ts          # remote Docker VM support
   devguard/
     cli.ts                    # standalone CLI wizard
     redact-hook.ts            # PostToolUse hook for secret redaction
