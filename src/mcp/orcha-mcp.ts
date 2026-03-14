@@ -6,6 +6,7 @@ import type Database from 'better-sqlite3';
 import { TaskStore } from '../db/task-store.js';
 import { RepoStore } from '../db/repo-store.js';
 import { SessionStore } from '../db/session-store.js';
+import { TASK_TRANSITIONS } from '../domain/task-types.js';
 
 /**
  * Create an Express router that serves the Orcha MCP over Streamable HTTP.
@@ -297,6 +298,112 @@ function buildMcpServer(
       } catch (err) {
         return {
           content: [{ type: 'text' as const, text: `Failed to list tasks: ${String(err)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- get_task ---
+  mcp.tool(
+    'get_task',
+    'Get full details of a task by its display ID (the #N number shown in list_tasks). ' +
+    'Returns the title, description, status, branch, PR URL, and other metadata.',
+    {
+      task_id: z.number().describe('The task display ID (e.g. 9 for TASK-9)'),
+    },
+    async (args) => {
+      try {
+        const task = taskStore.getTaskByDisplayId(args.task_id);
+        if (!task) {
+          return {
+            content: [{ type: 'text' as const, text: `Task #${args.task_id} not found.` }],
+            isError: true,
+          };
+        }
+
+        const repos = repoStore.listRepos();
+        const repoName = repos.find((r) => r.id === task.repoId)?.displayName ?? task.repoId;
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              id: task.displayId,
+              title: task.title,
+              description: task.description,
+              status: task.status,
+              repo: repoName,
+              ...(task.enrichedDescription ? { enrichedDescription: task.enrichedDescription } : {}),
+              ...(task.branch ? { branch: task.branch } : {}),
+              ...(task.prUrl ? { prUrl: task.prUrl } : {}),
+              ...(task.previewUrl ? { previewUrl: task.previewUrl } : {}),
+              ...(task.errorMessage ? { errorMessage: task.errorMessage } : {}),
+              ...(task.investigationRating ? { investigationRating: task.investigationRating } : {}),
+              createdAt: task.createdAt.toISOString(),
+              updatedAt: task.updatedAt.toISOString(),
+              ...(task.completedAt ? { completedAt: task.completedAt.toISOString() } : {}),
+            }, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: 'text' as const, text: `Failed to get task: ${String(err)}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // --- complete_task ---
+  mcp.tool(
+    'complete_task',
+    'Mark a task as done. Transitions the task to "done" status. ' +
+    'Only works if the task is in a state that allows transitioning to done (e.g. executing, failed).',
+    {
+      task_id: z.number().describe('The task display ID (e.g. 9 for TASK-9)'),
+      note: z.string().optional().describe('Optional note explaining what was done or why it is complete.'),
+    },
+    async (args) => {
+      try {
+        const task = taskStore.getTaskByDisplayId(args.task_id);
+        if (!task) {
+          return {
+            content: [{ type: 'text' as const, text: `Task #${args.task_id} not found.` }],
+            isError: true,
+          };
+        }
+
+        const allowed = TASK_TRANSITIONS[task.status];
+        if (!allowed.includes('done')) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: `Cannot mark task #${args.task_id} as done — current status is "${task.status}". ` +
+                `Valid transitions from "${task.status}": ${allowed.join(', ')}`,
+            }],
+            isError: true,
+          };
+        }
+
+        taskStore.transition(task.id, 'done', args.note);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              completed: true,
+              taskId: task.displayId,
+              title: task.title,
+              previousStatus: task.status,
+              status: 'done',
+              message: `Task #${task.displayId} marked as done.`,
+            }),
+          }],
+        };
+      } catch (err) {
+        return {
+          content: [{ type: 'text' as const, text: `Failed to complete task: ${String(err)}` }],
           isError: true,
         };
       }
