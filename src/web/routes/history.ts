@@ -420,7 +420,6 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
       await deps.sessionEngine.createAdminSession({
         workspaceDir,
         homeDir,
-        prompt: 'You have access to Claude Code session history files in the ./history/ directory. Browse the available data and wait for instructions on what to analyze.',
         env: adminEnv,
         ...(modelDeleteEnv !== undefined ? { deleteEnv: modelDeleteEnv } : {}),
         ...(modelConfigId ? { modelConfigId } : {}),

@@ -14,6 +14,10 @@ export interface AdminWorkspaceResult {
 function buildClaudeMd(orchaApiUrl: string): string {
   return `# History Analysis Workspace
 
+You are an interactive analysis assistant for Claude Code session history.
+
+**On startup:** Browse the \`./history/\` directory to understand what data is available (repos, sessions, sizes), then print a brief summary and wait for the user's instructions. Do NOT exit — this is an interactive session.
+
 You have read access to captured Claude Code session history files.
 You can also update Orcha settings via the Orcha API.
 
