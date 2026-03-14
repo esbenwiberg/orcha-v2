@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title><%= it.title ?? 'Orcha' %></title>
     <!-- HTMX 2.x: swap 422 responses so validation errors are shown in forms -->
     <meta name="htmx-config" content='{"responseHandling":[{"code":"204","swap":false},{"code":"422","swap":true},{"code":"[45]..","swap":false,"error":true},{"code":"[23]..","swap":true},{"code":"[0-9][0-9][0-9]","swap":false,"error":true}]}' />
@@ -195,6 +195,18 @@
             <path d="M8 7v4M8 5v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
           <span class="orcha-sidebar__nav-item-text">About</span>
+        </a>
+
+        <a
+          href="/mobile"
+          class="orcha-sidebar__nav-item"
+          title="Mobile View"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="4" y="1" width="8" height="14" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="6.5" y1="12.5" x2="9.5" y2="12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <span class="orcha-sidebar__nav-item-text">Mobile</span>
         </a>
       </nav>
 

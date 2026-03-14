@@ -722,8 +722,9 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         : undefined;
 
       // Redirect to the appropriate page — /mobile if submitted from mobile, / otherwise.
+      const fromField = typeof req.body['_from'] === 'string' ? req.body['_from'] : '';
       const referer = req.get('referer') ?? '';
-      const isMobile = referer.includes('/mobile');
+      const isMobile = fromField === 'mobile' || referer.includes('/mobile');
       res.setHeader('HX-Redirect', isMobile ? '/mobile' : '/');
       res.status(201).send('');
     } catch (err) {
@@ -1102,7 +1103,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
 
       eventBus.publish({ sessionId: activeSession.sessionId, type: 'status', status: 'running' });
 
-      res.setHeader('HX-Redirect', '/');
+      const referer = req.get('referer') ?? '';
+      res.setHeader('HX-Redirect', referer.includes('/mobile') ? '/mobile' : '/');
       res.status(200).send('');
     } catch (err) {
       next(err);

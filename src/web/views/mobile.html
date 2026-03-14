@@ -193,6 +193,20 @@
       document.body.addEventListener('close-panel', function () {
         document.getElementById('form-panel').classList.remove('is-open');
       });
+      // Inject a hidden _from=mobile field into any form loaded into the form panel,
+      // so the server knows to redirect back to /mobile after session creation.
+      new MutationObserver(function () {
+        var slot = document.getElementById('form-panel-slot');
+        if (!slot) return;
+        slot.querySelectorAll('form').forEach(function (form) {
+          if (form.querySelector('input[name="_from"]')) return;
+          var input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = '_from';
+          input.value = 'mobile';
+          form.appendChild(input);
+        });
+      }).observe(document.getElementById('form-panel-slot'), { childList: true, subtree: true });
     </script>
   </body>
 </html>
