@@ -183,6 +183,7 @@
     grid-area: main;
     @apply overflow-y-auto;
     padding: 24px;
+    padding-bottom: max(env(safe-area-inset-bottom), 24px);
     background-color: var(--color-bg);
   }
 
