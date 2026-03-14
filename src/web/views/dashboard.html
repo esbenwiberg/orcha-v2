@@ -28,5 +28,23 @@
   if (grid) {
     new MutationObserver(window.__syncGridCount).observe(grid, { childList: true });
   }
+
+  // After grid loads, scroll to the focused session (from ?focus=sessionId)
+  var params = new URLSearchParams(window.location.search);
+  var focusId = params.get('focus');
+  if (focusId && grid) {
+    grid.addEventListener('htmx:afterSwap', function onSwap() {
+      grid.removeEventListener('htmx:afterSwap', onSwap);
+      var card = document.getElementById('session-' + focusId);
+      if (!card) return;
+      // Brief delay to let rendering settle
+      setTimeout(function() {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.classList.add('session-card--focus');
+        // Clean up the query param without reload
+        history.replaceState(null, '', window.location.pathname);
+      }, 150);
+    });
+  }
 })();
 </script>

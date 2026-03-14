@@ -207,6 +207,24 @@
           form.appendChild(input);
         });
       }).observe(document.getElementById('form-panel-slot'), { childList: true, subtree: true });
+
+      // Auto-connect to focused session after creation redirect (?focus=sessionId)
+      (function() {
+        var params = new URLSearchParams(window.location.search);
+        var focusId = params.get('focus');
+        if (!focusId) return;
+        var content = document.getElementById('mobile-content-layer');
+        if (!content) return;
+        content.addEventListener('htmx:afterSwap', function onSwap() {
+          content.removeEventListener('htmx:afterSwap', onSwap);
+          var item = document.getElementById('mobile-session-' + focusId);
+          if (!item) return;
+          // Auto-click the session to connect its terminal
+          var btn = item.querySelector('.session-select-btn');
+          if (btn) btn.click();
+          history.replaceState(null, '', window.location.pathname);
+        });
+      })();
     </script>
   </body>
 </html>

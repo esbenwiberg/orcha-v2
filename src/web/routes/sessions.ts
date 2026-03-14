@@ -722,10 +722,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         : undefined;
 
       // Redirect to the appropriate page — /mobile if submitted from mobile, / otherwise.
+      // Include ?focus=sessionId so the dashboard can scroll to & highlight the new card.
       const fromField = typeof req.body['_from'] === 'string' ? req.body['_from'] : '';
       const referer = req.get('referer') ?? '';
       const isMobile = fromField === 'mobile' || referer.includes('/mobile');
-      res.setHeader('HX-Redirect', isMobile ? '/mobile' : '/');
+      const focusParam = `?focus=${encodeURIComponent(activeSession.sessionId)}`;
+      res.setHeader('HX-Redirect', isMobile ? `/mobile${focusParam}` : `/${focusParam}`);
       res.status(201).send('');
     } catch (err) {
       next(err);
@@ -1104,7 +1106,8 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       eventBus.publish({ sessionId: activeSession.sessionId, type: 'status', status: 'running' });
 
       const referer = req.get('referer') ?? '';
-      res.setHeader('HX-Redirect', referer.includes('/mobile') ? '/mobile' : '/');
+      const focusParam = `?focus=${encodeURIComponent(activeSession.sessionId)}`;
+      res.setHeader('HX-Redirect', referer.includes('/mobile') ? `/mobile${focusParam}` : `/${focusParam}`);
       res.status(200).send('');
     } catch (err) {
       next(err);
