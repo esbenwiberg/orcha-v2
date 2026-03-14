@@ -1,6 +1,7 @@
+<!-- Overview cards — instant load -->
 <div
-  id="system-stats"
-  hx-get="/api/system/stats"
+  id="system-overview"
+  hx-get="/api/system/overview"
   hx-trigger="load"
   hx-swap="outerHTML"
 >
@@ -8,5 +9,50 @@
     <div class="stat-card skeleton h-20"></div>
     <div class="stat-card skeleton h-20"></div>
     <div class="stat-card skeleton h-20"></div>
+    <div class="stat-card skeleton h-20"></div>
+    <div class="stat-card skeleton h-20"></div>
+    <div class="stat-card skeleton h-20"></div>
+  </div>
+</div>
+
+<!-- System resources — instant load -->
+<div
+  id="system-resources"
+  class="mt-6"
+  hx-get="/api/system/resources"
+  hx-trigger="load"
+  hx-swap="outerHTML"
+>
+  <div class="page-section">
+    <div class="page-section__header">
+      <div><h2 class="page-section__title">System Resources</h2></div>
+    </div>
+    <div class="resource-gauges">
+      <div class="resource-gauge skeleton h-32"></div>
+      <div class="resource-gauge skeleton h-32"></div>
+      <div class="resource-gauge skeleton h-32"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Disk usage + cleanup + deploy — lazy load (slow) -->
+<div
+  id="system-disk"
+  class="mt-6"
+  hx-get="/api/system/disk"
+  hx-trigger="load"
+  hx-swap="outerHTML"
+>
+  <div class="page-section">
+    <div class="page-section__header">
+      <div><h2 class="page-section__title">Disk Usage</h2></div>
+    </div>
+    <div class="disk-items">
+      <div class="disk-item skeleton h-12"></div>
+      <div class="disk-item skeleton h-12"></div>
+      <div class="disk-item skeleton h-12"></div>
+      <div class="disk-item skeleton h-12"></div>
+      <div class="disk-item skeleton h-12"></div>
+    </div>
   </div>
 </div>

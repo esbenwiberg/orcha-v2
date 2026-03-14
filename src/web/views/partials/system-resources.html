@@ -1,0 +1,69 @@
+<div id="system-resources" class="mt-6">
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">System Resources</h2>
+        <p class="page-section__subtitle"><%= it.cpu.cores %> cores &middot; <%= it.cpu.model %></p>
+      </div>
+      <button
+        class="btn btn-ghost btn-sm"
+        hx-get="/api/system/resources"
+        hx-target="#system-resources"
+        hx-swap="outerHTML"
+      >Refresh</button>
+    </div>
+
+    <div class="resource-gauges">
+      <!-- CPU -->
+      <div class="resource-gauge-card">
+        <div class="resource-gauge-ring" style="--gauge-percent: <%= it.cpu.percent %>; --gauge-color: <%= it.cpu.percent > 80 ? 'var(--color-red)' : it.cpu.percent > 50 ? 'var(--color-yellow)' : 'var(--color-accent)' %>">
+          <svg viewBox="0 0 120 120" class="resource-gauge-svg">
+            <circle cx="60" cy="60" r="52" class="resource-gauge-track" />
+            <circle cx="60" cy="60" r="52" class="resource-gauge-fill"
+              stroke-dasharray="<%= (it.cpu.percent / 100 * 326.7).toFixed(1) %> 326.7" />
+          </svg>
+          <div class="resource-gauge-label">
+            <span class="resource-gauge-percent"><%= it.cpu.percent %>%</span>
+            <span class="resource-gauge-name">CPU</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- System Memory -->
+      <div class="resource-gauge-card">
+        <div class="resource-gauge-ring" style="--gauge-percent: <%= it.memory.percent %>; --gauge-color: <%= it.memory.percent > 85 ? 'var(--color-red)' : it.memory.percent > 60 ? 'var(--color-yellow)' : 'var(--color-accent)' %>">
+          <svg viewBox="0 0 120 120" class="resource-gauge-svg">
+            <circle cx="60" cy="60" r="52" class="resource-gauge-track" />
+            <circle cx="60" cy="60" r="52" class="resource-gauge-fill"
+              stroke-dasharray="<%= (it.memory.percent / 100 * 326.7).toFixed(1) %> 326.7" />
+          </svg>
+          <div class="resource-gauge-label">
+            <span class="resource-gauge-percent"><%= it.memory.percent %>%</span>
+            <span class="resource-gauge-name">Memory</span>
+          </div>
+        </div>
+        <div class="resource-gauge-detail">
+          <span><%= it.memory.used %> / <%= it.memory.total %></span>
+        </div>
+      </div>
+
+      <!-- Process Memory -->
+      <div class="resource-gauge-card">
+        <div class="resource-gauge-ring" style="--gauge-percent: <%= it.process.percent %>; --gauge-color: var(--color-accent)">
+          <svg viewBox="0 0 120 120" class="resource-gauge-svg">
+            <circle cx="60" cy="60" r="52" class="resource-gauge-track" />
+            <circle cx="60" cy="60" r="52" class="resource-gauge-fill"
+              stroke-dasharray="<%= (it.process.percent / 100 * 326.7).toFixed(1) %> 326.7" />
+          </svg>
+          <div class="resource-gauge-label">
+            <span class="resource-gauge-percent"><%= it.process.percent %>%</span>
+            <span class="resource-gauge-name">Process</span>
+          </div>
+        </div>
+        <div class="resource-gauge-detail">
+          <span>RSS <%= it.process.rss %> &middot; Heap <%= it.process.heapUsed %></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,86 @@
+<div id="system-disk" class="mt-6">
+  <!-- Filesystem capacity -->
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">Storage</h2>
+        <p class="page-section__subtitle"><%= it.dataDir %></p>
+      </div>
+      <button
+        class="btn btn-ghost btn-sm"
+        hx-get="/api/system/disk"
+        hx-target="#system-disk"
+        hx-swap="outerHTML"
+      >Refresh</button>
+    </div>
+
+    <!-- Filesystem overview bar -->
+    <div class="filesystem-overview">
+      <div class="filesystem-bar">
+        <div class="filesystem-bar__fill <%= it.filesystem.usedPercent > 90 ? 'filesystem-bar__fill--danger' : it.filesystem.usedPercent > 75 ? 'filesystem-bar__fill--warning' : '' %>"
+          style="width:<%= it.filesystem.usedPercent %>%"></div>
+      </div>
+      <div class="filesystem-stats">
+        <span><%= it.filesystem.usedFormatted %> used</span>
+        <span class="text-muted">&middot;</span>
+        <span><%= it.filesystem.availFormatted %> free</span>
+        <span class="text-muted">&middot;</span>
+        <span><%= it.filesystem.totalFormatted %> total</span>
+        <span class="filesystem-percent <%= it.filesystem.usedPercent > 90 ? 'text-red-500' : it.filesystem.usedPercent > 75 ? 'text-yellow-500' : 'text-green-500' %>"><%= it.filesystem.usedPercent %>%</span>
+      </div>
+    </div>
+
+    <!-- Orcha data breakdown -->
+    <div class="mt-5">
+      <div class="disk-section-header">
+        <span class="disk-section-label">Orcha data</span>
+        <span class="disk-section-total"><%= it.orchaTotal.formatted %></span>
+      </div>
+      <div class="disk-items">
+        <% for (const item of it.items) { %>
+          <% const pct = it.orchaTotal.bytes > 0 ? Math.round((item.bytes / it.orchaTotal.bytes) * 100) : 0; %>
+          <div class="disk-item">
+            <div class="disk-item__header">
+              <span class="disk-item__label"><%= item.label %></span>
+              <span class="disk-item__size"><%= item.formatted %><span class="disk-item__pct"><%= pct %>%</span></span>
+            </div>
+            <div class="disk-bar">
+              <div class="disk-bar__fill" style="width:<%= pct %>%"></div>
+            </div>
+            <div class="text-xs text-muted mt-1"><%= item.path %></div>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cleanup actions -->
+  <div class="page-section mt-6">
+    <div class="page-section__header">
+      <div>
+        <h2 class="page-section__title">Disk Cleanup</h2>
+        <p class="page-section__subtitle">Free up space used by old logs and unused worktrees</p>
+      </div>
+    </div>
+    <div class="flex gap-3 flex-wrap">
+      <button
+        class="btn btn-ghost"
+        hx-post="/api/system/clean/logs"
+        hx-target="#system-disk"
+        hx-swap="outerHTML"
+        hx-confirm="Delete log files older than 7 days?"
+      >Clean old logs</button>
+      <button
+        class="btn btn-ghost"
+        hx-post="/api/system/clean/worktrees"
+        hx-target="#system-disk"
+        hx-swap="outerHTML"
+        hx-confirm="Remove worktrees for stopped/completed sessions?"
+      >Clean worktrees</button>
+    </div>
+  </div>
+
+  <% if (it.deploy && it.deploy.configured) { %>
+  <%~ include('partials/deploy-section', it.deploy) %>
+  <% } %>
+</div>

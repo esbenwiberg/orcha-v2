@@ -1,0 +1,35 @@
+<div id="system-overview">
+  <div class="stat-cards">
+    <div class="stat-card">
+      <div class="stat-card-label">Uptime</div>
+      <div class="stat-card-value"><%= it.uptime %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Database</div>
+      <div class="stat-card-value <%= it.dbStatus === 'ok' ? 'text-green-500' : 'text-red-500' %>">
+        <%= it.dbStatus %>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Node</div>
+      <div class="stat-card-value"><%= it.nodeVersion %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Active sessions</div>
+      <div class="stat-card-value"><%= it.sessions.active %><span class="stat-card-sub"> / <%= it.sessions.total %></span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Completed</div>
+      <div class="stat-card-value text-green-500"><%= it.sessions.completed %></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card-label">Failed</div>
+      <div class="stat-card-value <%= it.sessions.failed > 0 ? 'text-red-500' : 'text-muted' %>"><%= it.sessions.failed %></div>
+    </div>
+  </div>
+
+  <div class="system-env-strip mt-4">
+    <span class="env-tag">ENV: <%= it.environment %></span>
+    <span class="env-tag">Sandbox: <%= it.sandboxMode %></span>
+  </div>
+</div>
