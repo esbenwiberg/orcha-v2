@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, statSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -10,9 +11,11 @@ export interface AdminWorkspaceResult {
   homeDir: string;
 }
 
-const CLAUDE_MD_CONTENT = `# History Analysis Workspace
+function buildClaudeMd(orchaApiUrl: string): string {
+  return `# History Analysis Workspace
 
 You have read access to captured Claude Code session history files.
+You can also update Orcha settings via the Orcha API.
 
 ## Data Layout
 
@@ -44,13 +47,65 @@ The \`message.content\` field may contain:
 - **Model usage**: Check \`message.model\` across sessions
 - **Code changes**: Look at Edit/Write tool calls to see what files were modified
 
+## Orcha API
+
+Base URL: \`${orchaApiUrl}\`
+
+Use \`curl\` to interact with the Orcha API. All mutation endpoints accept form-encoded bodies unless noted.
+
+### Claude Permissions (settings.json rules)
+- \`GET  /api/claude-permissions\` — view current allow/deny rules (returns HTML, parse or just inspect)
+- \`POST /api/claude-permissions/allow\` — add allow rule. Body: \`rule=<pattern>\`
+- \`DELETE /api/claude-permissions/allow/<url-encoded-rule>\` — remove allow rule
+- \`POST /api/claude-permissions/deny\` — add deny rule. Body: \`rule=<pattern>\`
+- \`DELETE /api/claude-permissions/deny/<url-encoded-rule>\` — remove deny rule
+
+### Presets
+- \`GET  /api/presets\` — list presets
+- \`POST /api/presets\` — create preset. Fields: name, repoId, credentialProfileId, modelConfigId
+- \`PUT  /api/presets/:id\` — update preset
+- \`DELETE /api/presets/:id\` — delete preset
+
+### Repositories
+- \`GET  /api/repos\` — list repos
+- \`POST /api/repos\` — add repo. Fields: url
+- \`PUT  /api/repos/:id\` — update repo settings
+- \`DELETE /api/repos/:id\` — delete repo
+
+### Model Configs
+- \`GET  /api/model-configs\` — list model configurations
+- \`POST /api/model-configs\` — create config. Fields: name, provider, apiKey, baseUrl, modelId
+- \`PUT  /api/model-configs/:id\` — update config
+- \`DELETE /api/model-configs/:id\` — delete config
+
+### Skills
+- \`GET  /api/skills\` — list skills
+- \`POST /api/skills\` — create/update skill. Fields: name, content
+- \`DELETE /api/skills/:name\` — delete skill
+
+### MCP Servers
+- \`GET  /api/mcp-servers\` — list MCP servers
+- \`POST /api/mcp-servers\` — add server. Fields: name, type (url|sse|http|stdio), url, command, args
+- \`DELETE /api/mcp-servers/:id\` — remove server
+
+### Task Settings
+- \`POST /api/task-settings/max-concurrent\` — set max concurrent tasks. Fields: maxConcurrent (1-10)
+
+### System
+- \`POST /api/system/clean/logs\` — delete logs older than 7 days
+- \`POST /api/system/clean/worktrees\` — remove worktrees for stopped sessions
+
+**Note:** Most mutation endpoints return empty 200 on success. Errors return 422 with HTML.
+
 ## Tips
 
 - Use \`cat\` / \`jq\` to inspect individual JSONL files
 - Use \`wc -l\` to count messages per file
 - Use \`grep\` to search across all history files
 - Write scripts in /tmp if you need to process data programmatically
+- Use \`curl -s ${orchaApiUrl}/api/...\` to read or update Orcha settings based on your findings
 `;
+}
 
 /**
  * Prepare an admin workspace with symlinks to captured history directories.
@@ -59,6 +114,7 @@ The \`message.content\` field may contain:
 export function prepareAdminWorkspace(
   dataDir: string,
   globalSettingsStore: GlobalSettingsStore,
+  orchaHost: string,
   selectedSessionIds?: string[],
 ): AdminWorkspaceResult {
   const id = randomUUID().slice(0, 12);
@@ -66,6 +122,9 @@ export function prepareAdminWorkspace(
   const adminHomeDir = `/tmp/orcha-admin-home-${id}`;
 
   mkdirSync(workspaceDir, { recursive: true });
+
+  // Claude Code requires a git repo — init a bare one so it doesn't hang
+  execSync('git init', { cwd: workspaceDir, stdio: 'ignore' });
 
   // Link history directories into workspace/history/
   const historyBaseDir = join(dataDir, 'session-history');
@@ -87,8 +146,8 @@ export function prepareAdminWorkspace(
     }
   }
 
-  // Write CLAUDE.md into the workspace
-  writeFileSync(join(workspaceDir, 'CLAUDE.md'), CLAUDE_MD_CONTENT, 'utf8');
+  // Write CLAUDE.md into the workspace (includes Orcha API reference)
+  writeFileSync(join(workspaceDir, 'CLAUDE.md'), buildClaudeMd(orchaHost), 'utf8');
 
   // Set up admin HOME with Claude config
   const claudeDir = join(adminHomeDir, '.claude');
