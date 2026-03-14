@@ -265,12 +265,101 @@
     opacity: 0.7;
   }
 
+  /* When the loading animation is active, don't dim the form */
+  .form-panel form.htmx-request:has(.session-form__loading[style*="flex"]) {
+    opacity: 1;
+  }
+
   .form-panel form.htmx-request button[type="submit"] {
     cursor: not-allowed;
   }
 
   .form-panel form.htmx-request button[type="submit"]::after {
     content: ' …';
+  }
+
+  /* ─── Session creation loading animation ──────────────────────────── */
+  .session-form__loading {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    padding: 3rem 1rem;
+    min-height: 400px;
+  }
+
+  .session-loading__logo {
+    animation: session-logo-pulse 2s ease-in-out infinite;
+  }
+
+  .session-loading__logo svg {
+    filter: drop-shadow(0 0 12px rgba(37, 99, 235, 0.4));
+    border-radius: 10px;
+  }
+
+  .session-loading__title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text);
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  .session-loading__steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 260px;
+  }
+
+  .session-loading__step {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    font-size: 12px;
+    color: var(--color-text-muted);
+    opacity: 0;
+    transform: translateY(6px);
+    animation: session-step-in 0.4s ease forwards;
+  }
+
+  .session-loading__check {
+    flex-shrink: 0;
+    opacity: 0;
+    color: var(--color-accent);
+  }
+
+  .session-loading__step.is-done .session-loading__check {
+    opacity: 1;
+  }
+
+  .session-loading__step.is-active span {
+    color: var(--color-text);
+  }
+
+  .session-loading__step.is-active::after {
+    content: '';
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--color-accent);
+    margin-left: 2px;
+    animation: session-dot-blink 1s ease-in-out infinite;
+  }
+
+  @keyframes session-logo-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.06); opacity: 0.85; }
+  }
+
+  @keyframes session-step-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes session-dot-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
   }
 
   .form-panel__header {

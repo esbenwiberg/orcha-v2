@@ -2,239 +2,297 @@
   hx-post="/api/sessions"
   hx-target="#form-panel-slot"
   hx-swap="innerHTML"
-  hx-on::after-request="if(event.detail.successful){ document.getElementById('form-panel').classList.remove('is-open'); }"
+  hx-on::before-request="this.querySelector('.session-form__fields').style.display='none'; this.querySelector('.session-form__loading').style.display='flex'; if(window.__sessionLoadingStart) window.__sessionLoadingStart();"
+  hx-on::after-request="if(!event.detail.successful){ this.querySelector('.session-form__fields').style.display=''; this.querySelector('.session-form__loading').style.display='none'; if(window.__sessionLoadingStop) window.__sessionLoadingStop(); } else { document.getElementById('form-panel').classList.remove('is-open'); }"
   class="flex flex-col gap-5"
 >
-  <div class="flex flex-col gap-0.5">
-    <h2 class="text-[15px] font-bold text-slate-50 m-0 tracking-tight">New Session</h2>
-    <p class="text-xs text-slate-500 m-0">Configure and launch a new agent session.</p>
+  <!-- Loading animation (hidden by default) -->
+  <div class="session-form__loading" style="display:none">
+    <div class="session-loading__logo">
+      <svg width="48" height="48" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+        <rect width="22" height="22" rx="5" fill="var(--color-accent)"/>
+        <path d="M5 8l3 3-3 3M11 15h6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <p class="session-loading__title">Spinning up session</p>
+    <div class="session-loading__steps">
+      <div class="session-loading__step" style="animation-delay: 0s">
+        <svg class="session-loading__check" width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 7l2 2 3.5-3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Validating configuration</span>
+      </div>
+      <div class="session-loading__step" style="animation-delay: 0.6s">
+        <svg class="session-loading__check" width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 7l2 2 3.5-3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Provisioning credentials</span>
+      </div>
+      <div class="session-loading__step" style="animation-delay: 1.4s">
+        <svg class="session-loading__check" width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 7l2 2 3.5-3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Creating worktree</span>
+      </div>
+      <div class="session-loading__step" style="animation-delay: 2.4s">
+        <svg class="session-loading__check" width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 7l2 2 3.5-3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Configuring environment</span>
+      </div>
+      <div class="session-loading__step" style="animation-delay: 3.6s">
+        <svg class="session-loading__check" width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 7l2 2 3.5-3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Launching agent</span>
+      </div>
+    </div>
+    <script>
+      (function() {
+        var timers = [];
+        window.__sessionLoadingStart = function() {
+          var steps = document.querySelectorAll('.session-loading__step');
+          // Reset state
+          steps.forEach(function(s) { s.classList.remove('is-active', 'is-done'); });
+          // Timings: appear → active → done, cascading
+          var activeTimes = [400, 1200, 2100, 3100, 4300];
+          var doneTimes   = [900, 1800, 2800, 3800];
+          activeTimes.forEach(function(t, i) {
+            timers.push(setTimeout(function() { steps[i].classList.add('is-active'); }, t));
+          });
+          doneTimes.forEach(function(t, i) {
+            timers.push(setTimeout(function() {
+              steps[i].classList.remove('is-active');
+              steps[i].classList.add('is-done');
+            }, t));
+          });
+        };
+        window.__sessionLoadingStop = function() {
+          timers.forEach(clearTimeout);
+          timers = [];
+          var steps = document.querySelectorAll('.session-loading__step');
+          steps.forEach(function(s) { s.classList.remove('is-active', 'is-done'); });
+        };
+      })();
+    </script>
   </div>
 
-  <div class="form-group">
-    <label class="form-label" for="ns-pr-url">
-      PR URL
-      <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional — auto-fills repo &amp; branch)</span>
-    </label>
-    <input
-      class="form-input"
-      id="ns-pr-url"
-      type="url"
-      name="prUrl"
-      placeholder="https://github.com/owner/repo/pull/123"
-      autocomplete="off"
-      value="<%= it.prUrl ?? '' %>"
-      oninput="(function(v){
-        var hide = v.trim().length > 0;
-        document.getElementById('ns-source-branch-group').style.display = hide ? 'none' : '';
-        document.getElementById('ns-branch-group').style.display = hide ? 'none' : '';
-        document.getElementById('ns-branch').required = !hide;
-      })(this.value)"
-    />
-  </div>
+  <!-- Form fields (visible by default) -->
+  <div class="session-form__fields flex flex-col gap-5">
+    <div class="flex flex-col gap-0.5">
+      <h2 class="text-[15px] font-bold text-slate-50 m-0 tracking-tight">New Session</h2>
+      <p class="text-xs text-slate-500 m-0">Configure and launch a new agent session.</p>
+    </div>
 
-  <div class="form-group">
-    <label class="form-label" for="ns-repo">Repository</label>
-    <select class="form-select"
-      id="ns-repo"
-      name="repoId"
-      required
-      hx-get=""
-      hx-trigger="change"
-      hx-target="#ns-source-branch"
-      hx-swap="innerHTML"
-      hx-indicator="#ns-source-branch-loading"
-      onchange="this.setAttribute('hx-get', this.value ? '/api/repos/' + this.value + '/branches' : ''); if(!this.value){ document.getElementById('ns-source-branch').innerHTML='<option value=\x22\x22>Select a repo first</option>'; } htmx.process(this);"
-    >
-      <option value="">Select a repository…</option>
-      <% if (it.repos) { for (const r of it.repos) { %>
-        <option
-          value="<%= r.id %>"
-          <%= r.id === (it.repoId ?? '') ? 'selected' : '' %>
-          <%= r.status !== 'ready' ? 'disabled' : '' %>
-        ><%= r.displayName %><%= r.status !== 'ready' ? ' (' + r.status + ')' : '' %></option>
-      <% } } %>
-    </select>
-  </div>
+    <div class="form-group">
+      <label class="form-label" for="ns-pr-url">
+        PR URL
+        <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional — auto-fills repo &amp; branch)</span>
+      </label>
+      <input
+        class="form-input"
+        id="ns-pr-url"
+        type="url"
+        name="prUrl"
+        placeholder="https://github.com/owner/repo/pull/123"
+        autocomplete="off"
+        value="<%= it.prUrl ?? '' %>"
+        oninput="(function(v){
+          var hide = v.trim().length > 0;
+          document.getElementById('ns-source-branch-group').style.display = hide ? 'none' : '';
+          document.getElementById('ns-branch-group').style.display = hide ? 'none' : '';
+          document.getElementById('ns-branch').required = !hide;
+        })(this.value)"
+      />
+    </div>
 
-  <div class="form-group" id="ns-source-branch-group" style="<%= (it.prUrl ?? '').trim().length > 0 ? 'display:none' : '' %>">
-    <label class="form-label" for="ns-source-branch">
-      Source Branch
-      <span id="ns-source-branch-loading" class="htmx-indicator ml-1 italic normal-case tracking-normal text-slate-500">(loading…)</span>
-    </label>
-    <select class="form-select" id="ns-source-branch" name="sourceBranch"
-      <% if (it.repoId && !(it.branches && it.branches.length > 0) && !(it.sourceBranch && !it.sourceBranch.startsWith('origin/'))) { %>
-        hx-get="/api/repos/<%= it.repoId %>/branches"
-        hx-trigger="focus once"
+    <div class="form-group">
+      <label class="form-label" for="ns-repo">Repository</label>
+      <select class="form-select"
+        id="ns-repo"
+        name="repoId"
+        required
+        hx-get=""
+        hx-trigger="change"
+        hx-target="#ns-source-branch"
         hx-swap="innerHTML"
         hx-indicator="#ns-source-branch-loading"
-      <% } %>
-    >
-      <% if (it.branches && it.branches.length > 0) { %>
-        <% for (const b of it.branches) { %>
-          <option value="origin/<%= b.name %>" <%= b.name === (it.defaultBranch ?? '') || ('origin/' + b.name) === (it.sourceBranch ?? '') ? 'selected' : '' %>><%= b.name %><%= b.isDefault ? ' (default)' : '' %></option>
-        <% } %>
-      <% } else if (it.sourceBranch && !it.sourceBranch.startsWith('origin/')) { %>
-        <option value="<%= it.sourceBranch %>" selected>Fork point: <%= it.sourceBranch.slice(0, 12) %>…</option>
-      <% } else if (it.repoId) { %>
-        <option value="origin/main" selected>main (default)</option>
-      <% } else { %>
-        <option value="">Select a repo first</option>
-      <% } %>
-    </select>
-  </div>
-
-  <div class="form-group" id="ns-branch-group" style="<%= (it.prUrl ?? '').trim().length > 0 ? 'display:none' : '' %>">
-    <label class="form-label" for="ns-branch">Branch Name</label>
-    <input
-      class="form-input"
-      id="ns-branch"
-      type="text"
-      name="branch"
-      <%= (it.prUrl ?? '').trim().length > 0 ? '' : 'required' %>
-      placeholder="feature/my-branch"
-      autocomplete="off"
-      value="<%= it.branch ?? '' %>"
-    />
-  </div>
-
-  <div class="form-group">
-    <label class="form-label" for="ns-cred-profile">
-      Credential Profile
-      <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional)</span>
-    </label>
-    <select class="form-select" id="ns-cred-profile" name="credentialProfileId">
-      <option value="">None — use ambient credentials</option>
-      <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
-        <option value="<%= p.id %>" <%= p.id === (it.credentialProfileId ?? '') ? 'selected' : '' %>><%= p.name %> (<%= p.durationHours %>h)</option>
-      <% } } %>
-    </select>
-  </div>
-
-  <div class="form-group">
-    <label class="form-label" for="ns-model-config">
-      Model Config
-      <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional)</span>
-    </label>
-    <select class="form-select" id="ns-model-config" name="modelConfigId">
-      <option value="">None — use ambient config</option>
-      <% if (it.modelConfigs) { for (const mc of it.modelConfigs) { %>
-        <option value="<%= mc.id %>" <%= mc.id === (it.modelConfigId ?? '') ? 'selected' : '' %>><%= mc.name %> (<%= mc.provider === 'max' ? 'MAX/PRO' : mc.provider %>)</option>
-      <% } } %>
-    </select>
-  </div>
-
-  <% if (it.mcpServers && it.mcpServers.length > 0) { %>
-  <div class="form-group">
-    <label class="form-label">MCP Servers</label>
-    <div class="flex flex-col gap-1.5 mt-1">
-      <% const selectedIds = it.mcpServerIds ?? []; %>
-      <% for (const srv of it.mcpServers) { %>
-        <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
-          <input
-            type="checkbox"
-            name="mcpServerIds"
-            value="<%= srv.id %>"
-            <%= selectedIds.includes(srv.id) ? 'checked' : '' %>
-            class="form-checkbox"
-          />
-          <span><%= srv.name %></span>
-          <span class="badge badge-info badge-sm"><%= srv.type %></span>
-        </label>
-      <% } %>
+        onchange="this.setAttribute('hx-get', this.value ? '/api/repos/' + this.value + '/branches' : ''); if(!this.value){ document.getElementById('ns-source-branch').innerHTML='<option value=\x22\x22>Select a repo first</option>'; } htmx.process(this);"
+      >
+        <option value="">Select a repository…</option>
+        <% if (it.repos) { for (const r of it.repos) { %>
+          <option
+            value="<%= r.id %>"
+            <%= r.id === (it.repoId ?? '') ? 'selected' : '' %>
+            <%= r.status !== 'ready' ? 'disabled' : '' %>
+          ><%= r.displayName %><%= r.status !== 'ready' ? ' (' + r.status + ')' : '' %></option>
+        <% } } %>
+      </select>
     </div>
-  </div>
-  <% } %>
 
-  <label class="flex items-center gap-2.5 cursor-pointer select-none">
-    <input type="checkbox" name="sandbox" value="1" id="ns-sandbox" class="sr-only"
-      <%= (it.sandbox === false) ? '' : 'checked' %>
-    />
-    <button type="button" role="switch"
-      class="toggle<%= (it.sandbox === false) ? '' : ' active' %>"
-      aria-checked="<%= (it.sandbox === false) ? 'false' : 'true' %>"
-      onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
-    ><span class="toggle-knob"></span></button>
-    <span class="text-xs text-slate-300">
-      Isolate filesystem
-      <span class="text-slate-500 ml-0.5">(filesystem isolation)</span>
-    </span>
-  </label>
+    <div class="form-group" id="ns-source-branch-group" style="<%= (it.prUrl ?? '').trim().length > 0 ? 'display:none' : '' %>">
+      <label class="form-label" for="ns-source-branch">
+        Source Branch
+        <span id="ns-source-branch-loading" class="htmx-indicator ml-1 italic normal-case tracking-normal text-slate-500">(loading…)</span>
+      </label>
+      <select class="form-select" id="ns-source-branch" name="sourceBranch"
+        <% if (it.repoId && !(it.branches && it.branches.length > 0) && !(it.sourceBranch && !it.sourceBranch.startsWith('origin/'))) { %>
+          hx-get="/api/repos/<%= it.repoId %>/branches"
+          hx-trigger="focus once"
+          hx-swap="innerHTML"
+          hx-indicator="#ns-source-branch-loading"
+        <% } %>
+      >
+        <% if (it.branches && it.branches.length > 0) { %>
+          <% for (const b of it.branches) { %>
+            <option value="origin/<%= b.name %>" <%= b.name === (it.defaultBranch ?? '') || ('origin/' + b.name) === (it.sourceBranch ?? '') ? 'selected' : '' %>><%= b.name %><%= b.isDefault ? ' (default)' : '' %></option>
+          <% } %>
+        <% } else if (it.sourceBranch && !it.sourceBranch.startsWith('origin/')) { %>
+          <option value="<%= it.sourceBranch %>" selected>Fork point: <%= it.sourceBranch.slice(0, 12) %>…</option>
+        <% } else if (it.repoId) { %>
+          <option value="origin/main" selected>main (default)</option>
+        <% } else { %>
+          <option value="">Select a repo first</option>
+        <% } %>
+      </select>
+    </div>
 
-  <label class="flex items-center gap-2.5 cursor-pointer select-none">
-    <input type="checkbox" name="webAccess" value="1" id="ns-web-access" class="sr-only"
-      <%= (it.webAccess === false) ? '' : 'checked' %>
-    />
-    <button type="button" role="switch"
-      class="toggle<%= (it.webAccess === false) ? '' : ' active' %>"
-      aria-checked="<%= (it.webAccess === false) ? 'false' : 'true' %>"
-      onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
-    ><span class="toggle-knob"></span></button>
-    <span class="text-xs text-slate-300">
-      Web access
-      <span class="text-slate-500 ml-0.5">(WebFetch + WebSearch)</span>
-    </span>
-  </label>
+    <div class="form-group" id="ns-branch-group" style="<%= (it.prUrl ?? '').trim().length > 0 ? 'display:none' : '' %>">
+      <label class="form-label" for="ns-branch">Branch Name</label>
+      <input
+        class="form-input"
+        id="ns-branch"
+        type="text"
+        name="branch"
+        <%= (it.prUrl ?? '').trim().length > 0 ? '' : 'required' %>
+        placeholder="feature/my-branch"
+        autocomplete="off"
+        value="<%= it.branch ?? '' %>"
+      />
+    </div>
 
-  <label class="flex items-center gap-2.5 cursor-pointer select-none">
-    <input type="checkbox" name="privateFeeds" value="1" id="ns-private-feeds" class="sr-only"
-      <%= it.privateFeeds ? 'checked' : '' %>
-    />
-    <button type="button" role="switch"
-      class="toggle<%= it.privateFeeds ? ' active' : '' %>"
-      aria-checked="<%= it.privateFeeds ? 'true' : 'false' %>"
-      onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
-    ><span class="toggle-knob"></span></button>
-    <span class="text-xs text-slate-300">
-      Private feeds
-      <span class="text-slate-500 ml-0.5">(Azure Artifacts .npmrc + NuGet)</span>
-    </span>
-  </label>
+    <div class="form-group">
+      <label class="form-label" for="ns-cred-profile">
+        Credential Profile
+        <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional)</span>
+      </label>
+      <select class="form-select" id="ns-cred-profile" name="credentialProfileId">
+        <option value="">None — use ambient credentials</option>
+        <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
+          <option value="<%= p.id %>" <%= p.id === (it.credentialProfileId ?? '') ? 'selected' : '' %>><%= p.name %> (<%= p.durationHours %>h)</option>
+        <% } } %>
+      </select>
+    </div>
 
-  <label class="flex items-center gap-2.5 cursor-pointer select-none">
-    <input type="checkbox" name="skipPermissions" value="1" id="ns-skip-permissions" class="sr-only"
-      <%= it.skipPermissions ? 'checked' : '' %>
-    />
-    <button type="button" role="switch"
-      class="toggle<%= it.skipPermissions ? ' active' : '' %>"
-      aria-checked="<%= it.skipPermissions ? 'true' : 'false' %>"
-      onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
-    ><span class="toggle-knob"></span></button>
-    <span class="text-xs text-slate-300">
-      Skip permissions
-      <span class="text-slate-500 ml-0.5">(--dangerously-skip-permissions)</span>
-    </span>
-  </label>
+    <div class="form-group">
+      <label class="form-label" for="ns-model-config">
+        Model Config
+        <span class="ml-1 italic normal-case tracking-normal text-slate-500">(optional)</span>
+      </label>
+      <select class="form-select" id="ns-model-config" name="modelConfigId">
+        <option value="">None — use ambient config</option>
+        <% if (it.modelConfigs) { for (const mc of it.modelConfigs) { %>
+          <option value="<%= mc.id %>" <%= mc.id === (it.modelConfigId ?? '') ? 'selected' : '' %>><%= mc.name %> (<%= mc.provider === 'max' ? 'MAX/PRO' : mc.provider %>)</option>
+        <% } } %>
+      </select>
+    </div>
 
-  <% if (it.repoId) { %>
-  <script>
-    (function() {
-      var repoSelect = document.getElementById('ns-repo');
-      if (!repoSelect || !repoSelect.value) return;
-      // Ensure hx-get is set for subsequent repo changes
-      repoSelect.setAttribute('hx-get', '/api/repos/' + repoSelect.value + '/branches');
-      htmx.process(repoSelect);
-    })();
-  </script>
-  <% } %>
+    <% if (it.mcpServers && it.mcpServers.length > 0) { %>
+    <div class="form-group">
+      <label class="form-label">MCP Servers</label>
+      <div class="flex flex-col gap-1.5 mt-1">
+        <% const selectedIds = it.mcpServerIds ?? []; %>
+        <% for (const srv of it.mcpServers) { %>
+          <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+            <input
+              type="checkbox"
+              name="mcpServerIds"
+              value="<%= srv.id %>"
+              <%= selectedIds.includes(srv.id) ? 'checked' : '' %>
+              class="form-checkbox"
+            />
+            <span><%= srv.name %></span>
+            <span class="badge badge-info badge-sm"><%= srv.type %></span>
+          </label>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
 
-  <div class="flex gap-2 pt-1 border-t border-slate-700/50 mt-auto">
-    <button type="submit" class="btn btn-primary flex-1" aria-busy="false"
-      hx-on::before-request="this.setAttribute('aria-busy','true'); this.disabled=true;"
-      hx-on::after-request="this.setAttribute('aria-busy','false'); this.disabled=false;"
-    >
-      <svg class="btn-icon-default" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-        <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <svg class="btn-icon-loading hidden animate-spin" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-        <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5" stroke-dasharray="20" stroke-dashoffset="5" stroke-linecap="round"/>
-      </svg>
-      <span class="btn-label-default">Create Session</span>
-      <span class="btn-label-loading hidden">Creating…</span>
-    </button>
-    <button
-      type="button"
-      class="btn btn-ghost"
-      onclick="document.getElementById('form-panel').classList.remove('is-open')"
-    >Cancel</button>
+    <label class="flex items-center gap-2.5 cursor-pointer select-none">
+      <input type="checkbox" name="sandbox" value="1" id="ns-sandbox" class="sr-only"
+        <%= (it.sandbox === false) ? '' : 'checked' %>
+      />
+      <button type="button" role="switch"
+        class="toggle<%= (it.sandbox === false) ? '' : ' active' %>"
+        aria-checked="<%= (it.sandbox === false) ? 'false' : 'true' %>"
+        onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+      ><span class="toggle-knob"></span></button>
+      <span class="text-xs text-slate-300">
+        Isolate filesystem
+        <span class="text-slate-500 ml-0.5">(filesystem isolation)</span>
+      </span>
+    </label>
+
+    <label class="flex items-center gap-2.5 cursor-pointer select-none">
+      <input type="checkbox" name="webAccess" value="1" id="ns-web-access" class="sr-only"
+        <%= (it.webAccess === false) ? '' : 'checked' %>
+      />
+      <button type="button" role="switch"
+        class="toggle<%= (it.webAccess === false) ? '' : ' active' %>"
+        aria-checked="<%= (it.webAccess === false) ? 'false' : 'true' %>"
+        onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+      ><span class="toggle-knob"></span></button>
+      <span class="text-xs text-slate-300">
+        Web access
+        <span class="text-slate-500 ml-0.5">(WebFetch + WebSearch)</span>
+      </span>
+    </label>
+
+    <label class="flex items-center gap-2.5 cursor-pointer select-none">
+      <input type="checkbox" name="privateFeeds" value="1" id="ns-private-feeds" class="sr-only"
+        <%= it.privateFeeds ? 'checked' : '' %>
+      />
+      <button type="button" role="switch"
+        class="toggle<%= it.privateFeeds ? ' active' : '' %>"
+        aria-checked="<%= it.privateFeeds ? 'true' : 'false' %>"
+        onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+      ><span class="toggle-knob"></span></button>
+      <span class="text-xs text-slate-300">
+        Private feeds
+        <span class="text-slate-500 ml-0.5">(Azure Artifacts .npmrc + NuGet)</span>
+      </span>
+    </label>
+
+    <label class="flex items-center gap-2.5 cursor-pointer select-none">
+      <input type="checkbox" name="skipPermissions" value="1" id="ns-skip-permissions" class="sr-only"
+        <%= it.skipPermissions ? 'checked' : '' %>
+      />
+      <button type="button" role="switch"
+        class="toggle<%= it.skipPermissions ? ' active' : '' %>"
+        aria-checked="<%= it.skipPermissions ? 'true' : 'false' %>"
+        onclick="var cb=this.parentElement.querySelector('input');cb.checked=!cb.checked;this.classList.toggle('active',cb.checked);this.setAttribute('aria-checked',cb.checked);"
+      ><span class="toggle-knob"></span></button>
+      <span class="text-xs text-slate-300">
+        Skip permissions
+        <span class="text-slate-500 ml-0.5">(--dangerously-skip-permissions)</span>
+      </span>
+    </label>
+
+    <% if (it.repoId) { %>
+    <script>
+      (function() {
+        var repoSelect = document.getElementById('ns-repo');
+        if (!repoSelect || !repoSelect.value) return;
+        // Ensure hx-get is set for subsequent repo changes
+        repoSelect.setAttribute('hx-get', '/api/repos/' + repoSelect.value + '/branches');
+        htmx.process(repoSelect);
+      })();
+    </script>
+    <% } %>
+
+    <div class="flex gap-2 pt-1 border-t border-slate-700/50 mt-auto">
+      <button type="submit" class="btn btn-primary flex-1" aria-busy="false">
+        <svg class="btn-icon-default" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="btn-label-default">Create Session</span>
+      </button>
+      <button
+        type="button"
+        class="btn btn-ghost"
+        onclick="document.getElementById('form-panel').classList.remove('is-open')"
+      >Cancel</button>
+    </div>
   </div>
 </form>
