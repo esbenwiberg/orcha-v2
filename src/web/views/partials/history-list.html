@@ -10,8 +10,15 @@
       hx-target="#history-clean-result"
       hx-swap="innerHTML"
       hx-confirm="Delete history older than 30 days?">Clean old</button>
+    <select id="history-model-config" name="modelConfigId" class="form-select form-select-sm" style="width: auto; min-width: 140px;">
+      <option value="">No model config</option>
+      <% if (it.modelConfigs) { for (const mc of it.modelConfigs) { %>
+        <option value="<%= mc.id %>"><%= mc.name %> (<%= mc.provider === 'max' ? 'MAX/PRO' : mc.provider %>)</option>
+      <% } } %>
+    </select>
     <button class="btn btn-primary btn-sm"
       hx-post="/api/history/admin-session"
+      hx-include="#history-model-config"
       hx-swap="none">Analyze with Claude</button>
   </div>
 </div>
