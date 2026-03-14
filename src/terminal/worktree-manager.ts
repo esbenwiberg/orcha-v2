@@ -317,12 +317,15 @@ export class WorktreeManager {
     // In a bare repo, HEAD points to the commit at clone time and is never
     // updated by fetchBareRepo (which only writes refs/remotes/origin/*).
     // If no explicit startPoint is given, resolve the default branch and use
-    // the remote-tracking ref so the worktree gets the latest fetched commit.
+    // the fully-qualified remote-tracking ref so the worktree gets the latest
+    // fetched commit. Using the full ref path avoids ambiguity — the shorthand
+    // `origin/main` can resolve to refs/heads/origin/main in bare repos,
+    // which may be stale.
     let resolvedStartPoint = startPoint;
     if (resolvedStartPoint === undefined && repoRootOverride !== undefined) {
       const defaultBranch = await this.getDefaultBranch(repoRootOverride);
       if (defaultBranch) {
-        resolvedStartPoint = `origin/${defaultBranch}`;
+        resolvedStartPoint = `refs/remotes/origin/${defaultBranch}`;
       }
     }
 
@@ -558,6 +561,52 @@ export class WorktreeManager {
         fs.rmSync(stagingPath, { recursive: true, force: true });
       }
     }
+    // Belt-and-suspenders: explicitly fetch the default branch with a targeted
+    // refspec. In bare repos on Azure File Share the wildcard refspec above
+    // sometimes fails to update refs/remotes/origin/main (writes FETCH_HEAD
+    // only). The explicit `branch:refs/remotes/origin/branch` form is the only
+    // one that reliably updates the tracking ref in all environments.
+    try {
+      const defaultBranch = await this.getDefaultBranch(barePath);
+      if (defaultBranch) {
+        const targetedFetchArgs = [
+          'fetch', 'origin',
+          `+refs/heads/${defaultBranch}:refs/remotes/origin/${defaultBranch}`,
+        ];
+        try {
+          await this.execGit(targetedFetchArgs, barePath);
+        } catch (directErr) {
+          const errMsg = String(directErr);
+          if (errMsg.includes('EPERM') || errMsg.includes('chmod')) {
+            // Azure File Share fallback: fetch in /tmp staging dir and copy ref back
+            const refStagingPath = path.join(os.tmpdir(), `orcha-ref-fetch-${Date.now()}`);
+            try {
+              copyDirContents(barePath, refStagingPath);
+              await this.execGit(targetedFetchArgs, refStagingPath);
+              // Copy only the updated ref back (not the entire repo)
+              const refFile = path.join('refs', 'remotes', 'origin', defaultBranch);
+              const srcRef = path.join(refStagingPath, refFile);
+              const destRef = path.join(barePath, refFile);
+              if (fs.existsSync(srcRef)) {
+                fs.mkdirSync(path.dirname(destRef), { recursive: true });
+                fs.writeFileSync(destRef, fs.readFileSync(srcRef));
+              }
+              // Also copy packed-refs if it was updated
+              const srcPacked = path.join(refStagingPath, 'packed-refs');
+              if (fs.existsSync(srcPacked)) {
+                fs.writeFileSync(path.join(barePath, 'packed-refs'), fs.readFileSync(srcPacked));
+              }
+            } finally {
+              fs.rmSync(refStagingPath, { recursive: true, force: true });
+            }
+          }
+          // Non-EPERM errors: swallow — the wildcard fetch above is the primary mechanism
+        }
+      }
+    } catch {
+      // Best-effort: don't fail the overall fetch for this
+    }
+
     // Fast-forward the default branch's local ref (e.g. refs/heads/main) to
     // match origin. Without this, worktrees see a stale `main` from clone-time
     // when running `git diff main...HEAD` — making it look like 150+ commits
