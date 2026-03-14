@@ -66,8 +66,8 @@ export class CleanupService extends EventEmitter {
     const runningSessions = allDbSessions.filter((s) => s.status === 'running');
 
     for (const session of runningSessions) {
-      // The session manager keyed by instanceId (the sessionId used when creating the session)
-      const liveSession = this._sessionManager.getSession(session.instanceId);
+      // Check if the session has a live PTY in the session manager
+      const liveSession = this._sessionManager.getSessionByDbId(session.id);
       if (liveSession === undefined) {
         // PTY died without cleanup — mark as failed
         try {
