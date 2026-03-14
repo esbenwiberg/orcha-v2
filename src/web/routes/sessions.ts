@@ -1100,8 +1100,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       }
 
       const activeSession = await deps.sessionEngine.reopenSession(id);
-
-      eventBus.publish({ sessionId: activeSession.sessionId, type: 'status', status: 'running' });
+      // Status event ('running') is published by session-manager internally
 
       const referer = req.get('referer') ?? '';
       res.setHeader('HX-Redirect', referer.includes('/mobile') ? '/mobile' : '/');
