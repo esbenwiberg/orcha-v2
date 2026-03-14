@@ -10,6 +10,7 @@ import { ModelConfigStore } from '../../db/model-config-store.js';
 import { getStoragePaths } from '../../storage/paths.js';
 import { captureSessionHistory, type HistoryMeta } from '../../history/capture.js';
 import { prepareAdminWorkspace } from '../../history/admin-workspace.js';
+import { resolveOrchaHost } from '../../host-url.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { formatRelativeTime } from '../views/helpers.js';
 
@@ -373,9 +374,11 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
       const selectedIds = req.body['sessionIds'] as string[] | undefined;
       const modelConfigId = (typeof req.body['modelConfigId'] === 'string' ? req.body['modelConfigId'] : '').trim();
 
+      const orchaHost = resolveOrchaHost();
       const { workspaceDir, homeDir } = prepareAdminWorkspace(
         dataDir,
         globalSettings,
+        orchaHost,
         selectedIds?.length ? selectedIds : undefined,
       );
 
@@ -409,11 +412,16 @@ export function createHistoryRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
+      const adminEnv: Record<string, string> = {
+        ORCHA_API_URL: orchaHost,
+        ...modelEnv,
+      };
+
       await deps.sessionEngine.createAdminSession({
         workspaceDir,
         homeDir,
         prompt: 'You have access to Claude Code session history files in the ./history/ directory. Browse the available data and wait for instructions on what to analyze.',
-        ...(modelEnv !== undefined ? { env: modelEnv } : {}),
+        env: adminEnv,
         ...(modelDeleteEnv !== undefined ? { deleteEnv: modelDeleteEnv } : {}),
         ...(modelConfigId ? { modelConfigId } : {}),
         ...(modelProvider !== undefined ? { modelProvider } : {}),
