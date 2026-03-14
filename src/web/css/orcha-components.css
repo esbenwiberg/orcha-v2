@@ -1395,9 +1395,173 @@
     font-family: var(--font-mono);
   }
 
+  .stat-card-sub {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--color-text-muted);
+  }
+
+  /* ===================================================================
+     Environment strip (system health page)
+     =================================================================== */
+
+  .system-env-strip {
+    @apply flex gap-2 flex-wrap;
+  }
+
+  .env-tag {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--color-text-muted);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    letter-spacing: 0.02em;
+  }
+
+  /* ===================================================================
+     Resource gauges (system health page)
+     =================================================================== */
+
+  .resource-gauges {
+    @apply grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .resource-gauge-card {
+    @apply flex flex-col items-center;
+    padding: 1rem;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+  }
+
+  .resource-gauge-ring {
+    position: relative;
+    width: 110px;
+    height: 110px;
+  }
+
+  .resource-gauge-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .resource-gauge-track {
+    fill: none;
+    stroke: var(--color-border);
+    stroke-width: 8;
+  }
+
+  .resource-gauge-fill {
+    fill: none;
+    stroke: var(--gauge-color, var(--color-accent));
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.6s ease;
+  }
+
+  .resource-gauge-label {
+    position: absolute;
+    inset: 0;
+    @apply flex flex-col items-center justify-center;
+  }
+
+  .resource-gauge-percent {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--color-text-primary);
+    line-height: 1;
+  }
+
+  .resource-gauge-name {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+  }
+
+  .resource-gauge-detail {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+    margin-top: 0.5rem;
+    text-align: center;
+  }
+
+  /* ===================================================================
+     Filesystem overview bar (system health page)
+     =================================================================== */
+
+  .filesystem-overview {
+    margin-bottom: 0.5rem;
+  }
+
+  .filesystem-bar {
+    height: 10px;
+    background: var(--color-border);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .filesystem-bar__fill {
+    height: 100%;
+    background: var(--color-accent);
+    border-radius: 5px;
+    transition: width 0.4s ease;
+  }
+
+  .filesystem-bar__fill--warning {
+    background: var(--color-yellow, #eab308);
+  }
+
+  .filesystem-bar__fill--danger {
+    background: var(--color-red, #ef4444);
+  }
+
+  .filesystem-stats {
+    @apply flex items-center gap-2 flex-wrap;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+    margin-top: 0.5rem;
+  }
+
+  .filesystem-percent {
+    font-weight: 700;
+    margin-left: auto;
+  }
+
   /* ===================================================================
      Disk usage bars (system health page)
      =================================================================== */
+
+  .disk-section-header {
+    @apply flex items-center justify-between;
+    margin-bottom: 0.75rem;
+  }
+
+  .disk-section-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+  }
+
+  .disk-section-total {
+    font-size: 13px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
 
   .disk-items {
     @apply flex flex-col;
@@ -1419,6 +1583,13 @@
     font-size: 13px;
     font-family: var(--font-mono);
     color: var(--color-text-muted);
+  }
+
+  .disk-item__pct {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    margin-left: 0.5rem;
+    opacity: 0.7;
   }
 
   .disk-bar {
