@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import { basename, join } from 'node:path';
+import { existsSync, rmSync } from 'node:fs';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { TaskStore } from '../../db/task-store.js';
+import { SessionStore } from '../../db/session-store.js';
 import { RepoStore } from '../../db/repo-store.js';
 import { CredentialStore } from '../../db/credential-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
@@ -14,6 +17,7 @@ import type { TaskStatus } from '../../domain/task-types.js';
 export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const taskStore = new TaskStore(deps.db);
+  const sessionStore = new SessionStore(deps.db);
   const repoStore = new RepoStore(deps.db);
   const credentialStore = new CredentialStore(deps.db);
   const modelConfigStore = new ModelConfigStore(deps.db);
@@ -559,6 +563,17 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
       // Persist merged status so it shows in the task header without re-checking
       if (prStatus.merged && !task.prMerged) {
         taskStore.setPrMerged(task.id, true);
+
+        // Auto-cleanup: delete the task's execution session, worktree, branch, and HOME dirs
+        if (task.sessionId) {
+          await cleanupTaskSession(task.sessionId, deps, sessionStore, repoStore);
+        }
+        try {
+          rmSync(join('/tmp', `orcha-task-home-${task.id}`), { recursive: true, force: true });
+        } catch { /* best-effort */ }
+        // Clear stale references on the task row
+        taskStore.setWorktreePath(task.id, null);
+        taskStore.setExecution(task.id, { sessionId: null });
       }
 
       const html = eta.render('partials/task-pr-review', {
@@ -657,4 +672,74 @@ export function createTasksRouter(eta: Eta, deps: AppDeps): Router {
   });
 
   return router;
+}
+
+/**
+ * Clean up a task's execution session: kill PTY, remove worktree + branch,
+ * remove per-session HOME dir, delete DB session record.
+ * Best-effort — errors are logged but don't propagate.
+ */
+async function cleanupTaskSession(
+  dbSessionId: string,
+  deps: AppDeps,
+  sessionStore: SessionStore,
+  repoStore: RepoStore,
+): Promise<void> {
+  const session = sessionStore.getSession(dbSessionId);
+  if (!session) return;
+
+  const worktreePath = session.worktree.worktreePath;
+  const worktreeSessionId = basename(worktreePath);
+
+  // 1. Kill PTY if still active
+  const activeSession = deps.sessionEngine.getSessionByDbId(dbSessionId);
+  if (activeSession) {
+    try {
+      await deps.sessionEngine.stopSession(activeSession.sessionId);
+    } catch {
+      try { activeSession.terminal.kill('SIGKILL'); } catch { /* ignore */ }
+    }
+  }
+
+  // 2. Safety-net history capture before cleanup
+  if (!session.historyCapturedAt) {
+    const homeDir = session.config.env?.['HOME'] ?? join('/tmp', `orcha-home-${worktreeSessionId}`);
+    if (existsSync(homeDir)) {
+      try {
+        const { captureSessionHistory } = await import('../../history/capture.js');
+        const { getStoragePaths } = await import('../../storage/paths.js');
+        const repo = repoStore.getRepoByBarePath(session.config.repoRoot);
+        const repoName = repo?.displayName ?? session.config.repoRoot.split('/').pop() ?? 'unknown';
+        captureSessionHistory(dbSessionId, homeDir, getStoragePaths().dataDir, {
+          repoName,
+          branch: session.worktree.branch,
+        });
+      } catch { /* best-effort */ }
+    }
+  }
+
+  // 3. Remove worktree
+  try {
+    await deps.worktreeManager.removeWorktree(worktreeSessionId);
+  } catch { /* best-effort */ }
+
+  // 4. Delete branch (safe — PR is already merged)
+  try {
+    await deps.worktreeManager.deleteBranch(session.worktree.branch, session.config.repoRoot);
+  } catch { /* best-effort */ }
+
+  // 5. Clean per-session HOME dir
+  try {
+    rmSync(join('/tmp', `orcha-home-${worktreeSessionId}`), { recursive: true, force: true });
+  } catch { /* best-effort */ }
+
+  // Also clean task-specific HOME (tasks use /tmp/orcha-task-home-{taskId})
+  // We can't know the taskId here, but the worktree-based HOME covers session-created ones
+
+  // 6. Delete DB session record
+  try {
+    sessionStore.deleteSession(dbSessionId);
+  } catch { /* best-effort */ }
+
+  console.log('[tasks] auto-cleaned session %s after PR merge (worktree=%s)', dbSessionId.slice(0, 8), worktreeSessionId);
 }

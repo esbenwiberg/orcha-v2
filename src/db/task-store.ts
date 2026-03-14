@@ -289,14 +289,14 @@ export class TaskStore {
 
   setExecution(
     id: string,
-    data: { sessionId?: string; branch?: string; prUrl?: string; previewUrl?: string },
+    data: { sessionId?: string | null; branch?: string; prUrl?: string; previewUrl?: string },
   ): void {
     const sets: string[] = ["updated_at = datetime('now')"];
     const params: unknown[] = [];
 
     if (data.sessionId !== undefined) {
       sets.push('session_id = ?');
-      params.push(data.sessionId);
+      params.push(data.sessionId ?? null);
     }
     if (data.branch !== undefined) {
       sets.push('branch = ?');
