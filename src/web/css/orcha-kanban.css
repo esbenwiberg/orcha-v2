@@ -324,6 +324,14 @@
     @apply font-mono truncate;
   }
 
+  .kanban-card__watch-link {
+    @apply font-mono text-blue-400 no-underline ml-auto shrink-0;
+    font-size: 10px;
+  }
+  .kanban-card__watch-link:hover {
+    @apply text-blue-300 underline;
+  }
+
   /* SortableJS drag states */
   .sortable-ghost {
     opacity: 0.4;

@@ -63,10 +63,8 @@
       activityState = 'queued';
     }
   } else if (it.task.status === 'executing') {
-    if (summary && summary.count > 0) {
-      activityText = 'Running\u2026 (' + summary.count + ')';
-      activityState = 'working';
-    }
+    activityText = 'Executing\u2026';
+    activityState = 'working';
   }
 %>
 <div
@@ -150,6 +148,9 @@
     >
       <% if (activityState === 'working') { %><span class="kanban-card__activity-dot"></span><% } %>
       <span class="kanban-card__activity-text"><%= activityText %></span>
+      <% if (it.task.status === 'executing' && it.activeSessionTaskIds && it.activeSessionTaskIds.has(it.task.id)) { %>
+        <a href="/#<%= it.task.sessionId %>" class="kanban-card__watch-link" onclick="event.stopPropagation()" title="Watch live terminal">watch</a>
+      <% } %>
     </div>
   <% } else { %>
     <div class="kanban-card__activity" id="kanban-activity-<%= it.task.id %>" style="display:none" data-event-count="0">
