@@ -8,26 +8,48 @@ import type { IPty } from 'node-pty';
 import { Readable } from 'node:stream';
 import { OutputBuffer } from './output-buffer.js';
 
+// Extract URLs embedded in OSC 8 hyperlink sequences (\x1b]8;;URL\x07...text...\x1b]8;;\x07)
+// before stripAnsi nukes them. Returns all URLs found in OSC 8 sequences.
+// eslint-disable-next-line no-control-regex
+const OSC8_RE = /\x1b\]8;;([^\x07]+)\x07/g;
+
 // Strip ANSI escape sequences from a string so URL extraction works on raw PTY output.
+// OSC 8 hyperlinks are replaced with their URL (not discarded) so extractAuthUrl can find them.
 export function stripAnsi(s: string): string {
   // eslint-disable-next-line no-control-regex
-  return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
+  return s.replace(/\x1b\]8;;([^\x07]*)\x07/g, ' $1 ').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '');
 }
 
 // Auth URL patterns — only match URLs that look like actual login/OAuth prompts,
 // not random URLs that Claude Code might print during normal operation.
 const AUTH_URL_PATTERNS = [
-  /console\.anthropic\.com/i,
+  /\.anthropic\.com/i,
+  /claude\.ai/i,
   /login\.microsoftonline\.com/i,
   /microsoft\.com\/devicelogin/i,
   /device(?:login|auth)/i,
   /\/oauth2?\//i,
   /\/authorize[?/]/i,
   /\/login[?/]/i,
+  /\/auth[?/]/i,
 ];
 
 export function extractAuthUrl(snapshot: Buffer): string | undefined {
-  const text = stripAnsi(snapshot.toString('utf8'));
+  const raw = snapshot.toString('utf8');
+
+  // First pass: extract URLs from OSC 8 hyperlink sequences (modern terminals).
+  // These get destroyed by stripAnsi, so check them before stripping.
+  OSC8_RE.lastIndex = 0;
+  let osc8Match: RegExpExecArray | null;
+  while ((osc8Match = OSC8_RE.exec(raw)) !== null) {
+    const url = osc8Match[1];
+    if (url && url.startsWith('https://') && url.length > 40 && AUTH_URL_PATTERNS.some((p) => p.test(url))) {
+      return url;
+    }
+  }
+
+  // Second pass: scan stripped text for plain-text URLs (non-OSC 8 output).
+  const text = stripAnsi(raw);
   // Split into lines so we can rejoin wrapped URLs.
   // When a URL is wider than the PTY, the terminal wraps it: the URL continues
   // on the next line with no leading whitespace. We detect this by checking
