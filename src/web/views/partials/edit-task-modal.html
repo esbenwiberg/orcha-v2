@@ -119,7 +119,7 @@
           <select class="form-select" id="etm-cred-profile" name="credentialProfileId">
             <option value="">None &mdash; use ambient credentials</option>
             <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
-              <option value="<%= p.id %>" <%= p.id === it.task.credentialProfileId ? 'selected' : '' %>><%= p.name %> (<%= p.durationHours %>h)</option>
+              <option value="<%= p.id %>" <%= p.id === it.task.credentialProfileId ? 'selected' : '' %>><%= p.name %><%= (p.azure || (p.devops?.scopes?.length && !p.devops?.pat)) ? ` (${p.durationHours}h)` : '' %></option>
             <% } } %>
           </select>
         </div>

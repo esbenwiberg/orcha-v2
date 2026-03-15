@@ -49,7 +49,7 @@
         <option
           value="<%= p.id %>"
           <%= p.id === (it.credentialProfileId ?? '') ? 'selected' : '' %>
-        ><%= p.name %> (<%= p.durationHours %>h)</option>
+        ><%= p.name %><%= (p.azure || (p.devops?.scopes?.length && !p.devops?.pat)) ? ` (${p.durationHours}h)` : '' %></option>
       <% } } %>
     </select>
   </div>
