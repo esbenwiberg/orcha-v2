@@ -569,10 +569,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         }
       }
 
-      // Fetch latest refs from the bare repo before creating the worktree
+      // Fetch latest refs from the bare repo before creating the worktree.
+      // Pass the user's chosen source branch so the targeted fetch covers it
+      // (the wildcard fetch is unreliable on Azure File Share / SMB).
       if (repo.barePath !== null) {
         try {
-          await deps.worktreeManager.fetchBareRepo(repo.barePath, { skipCache: true });
+          await deps.worktreeManager.fetchBareRepo(repo.barePath, { skipCache: true, ...(sourceBranch ? { targetBranch: sourceBranch } : {}) });
         } catch (err) {
           console.warn(`[sessions] fetchBareRepo failed for ${repoId}:`, err);
         }
