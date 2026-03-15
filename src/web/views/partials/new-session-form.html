@@ -169,7 +169,7 @@
       <select class="form-select" id="ns-cred-profile" name="credentialProfileId">
         <option value="">None — use ambient credentials</option>
         <% if (it.credentialProfiles) { for (const p of it.credentialProfiles) { %>
-          <option value="<%= p.id %>" <%= p.id === (it.credentialProfileId ?? '') ? 'selected' : '' %>><%= p.name %> (<%= p.durationHours %>h)</option>
+          <option value="<%= p.id %>" <%= p.id === (it.credentialProfileId ?? '') ? 'selected' : '' %>><%= p.name %><%= (p.azure || (p.devops?.scopes?.length && !p.devops?.pat)) ? ` (${p.durationHours}h)` : '' %></option>
         <% } } %>
       </select>
     </div>
