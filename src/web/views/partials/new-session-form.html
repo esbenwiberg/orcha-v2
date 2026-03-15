@@ -2,8 +2,8 @@
   hx-post="/api/sessions"
   hx-target="#form-panel-slot"
   hx-swap="innerHTML"
-  hx-on::before-request="this.querySelector('.session-form__fields').style.display='none'; this.querySelector('.session-form__loading').style.display='flex'; if(window.__sessionLoadingStart) window.__sessionLoadingStart();"
-  hx-on::after-request="if(!event.detail.successful){ this.querySelector('.session-form__fields').style.display=''; this.querySelector('.session-form__loading').style.display='none'; if(window.__sessionLoadingStop) window.__sessionLoadingStop(); } else { document.getElementById('form-panel').classList.remove('is-open'); }"
+  hx-on::before-request="if(event.detail.elt===this){ this.querySelector('.session-form__fields').style.display='none'; this.querySelector('.session-form__loading').style.display='flex'; if(window.__sessionLoadingStart) window.__sessionLoadingStart(); }"
+  hx-on::after-request="if(event.detail.elt===this){ if(!event.detail.successful){ this.querySelector('.session-form__fields').style.display=''; this.querySelector('.session-form__loading').style.display='none'; if(window.__sessionLoadingStop) window.__sessionLoadingStop(); } else { document.getElementById('form-panel').classList.remove('is-open'); } }"
   class="flex flex-col gap-5"
 >
   <!-- Loading animation (hidden by default) -->
@@ -107,7 +107,8 @@
         hx-target="#ns-source-branch"
         hx-swap="innerHTML"
         hx-indicator="#ns-source-branch-loading"
-        onchange="this.setAttribute('hx-get', this.value ? '/api/repos/' + this.value + '/branches' : ''); if(!this.value){ document.getElementById('ns-source-branch').innerHTML='<option value=\x22\x22>Select a repo first</option>'; } htmx.process(this);"
+        onchange="this.setAttribute('hx-get', this.value ? '/api/repos/' + this.value + '/branches' : ''); if(!this.value){ document.getElementById('ns-source-branch').innerHTML='<option value=\x22\x22>Select a repo first</option>'; document.getElementById('ns-source-branch').classList.remove('is-loading'); } else { document.getElementById('ns-source-branch').classList.add('is-loading'); } htmx.process(this);"
+        hx-on::after-request="document.getElementById('ns-source-branch').classList.remove('is-loading')"
       >
         <option value="">Select a repository…</option>
         <% if (it.repos) { for (const r of it.repos) { %>
@@ -131,6 +132,8 @@
           hx-trigger="focus once"
           hx-swap="innerHTML"
           hx-indicator="#ns-source-branch-loading"
+          hx-on::before-request="this.classList.add('is-loading')"
+          hx-on::after-request="this.classList.remove('is-loading')"
         <% } %>
       >
         <% if (it.branches && it.branches.length > 0) { %>

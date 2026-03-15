@@ -287,6 +287,19 @@
     content: ' …';
   }
 
+  /* ─── Dropdown loading state ────────────────────────────────────── */
+  select.form-select.is-loading {
+    pointer-events: none;
+    opacity: 0.5;
+    background-image: none;
+    animation: dropdown-pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes dropdown-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.3; }
+  }
+
   /* ─── Session creation loading animation ──────────────────────────── */
   .session-form__loading {
     flex-direction: column;
