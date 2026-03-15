@@ -553,7 +553,7 @@ export class SessionManager {
       ...opts.env,
     };
 
-    const spawnArgs = opts.args ?? ['--dangerously-skip-permissions'];
+    const spawnArgs = opts.args ?? [];
     if (opts.prompt) {
       spawnArgs.push('-p', opts.prompt);
     }
