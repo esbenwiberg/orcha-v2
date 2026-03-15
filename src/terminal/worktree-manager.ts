@@ -249,7 +249,11 @@ export class WorktreeManager {
 
     // Strip origin/ prefix if present for the local branch name
     const localBranch = remoteBranch.replace(/^origin\//, '');
-    const trackingRef = remoteBranch.startsWith('origin/') ? remoteBranch : `origin/${remoteBranch}`;
+    // Use fully-qualified ref to avoid bare repo ambiguity (origin/X can
+    // resolve to refs/heads/origin/X instead of refs/remotes/origin/X).
+    const trackingRef = remoteBranch.startsWith('origin/')
+      ? `refs/remotes/${remoteBranch}`
+      : `refs/remotes/origin/${remoteBranch}`;
 
     // If the target branch is already checked out in another worktree (stale
     // session that wasn't cleaned up), remove that worktree first.
@@ -314,15 +318,17 @@ export class WorktreeManager {
       } catch { /* best-effort */ }
     }
 
-    // In a bare repo, HEAD points to the commit at clone time and is never
-    // updated by fetchBareRepo (which only writes refs/remotes/origin/*).
-    // If no explicit startPoint is given, resolve the default branch and use
-    // the fully-qualified remote-tracking ref so the worktree gets the latest
-    // fetched commit. Using the full ref path avoids ambiguity — the shorthand
-    // `origin/main` can resolve to refs/heads/origin/main in bare repos,
-    // which may be stale.
+    // Always use fully-qualified remote-tracking refs in bare repos.
+    // The shorthand `origin/main` can resolve to refs/heads/origin/main
+    // (stale clone-time copy) instead of refs/remotes/origin/main (fetched).
+    // Previous fixes only qualified the ref when startPoint was undefined;
+    // when the user picks a source branch from the dropdown, startPoint is
+    // `origin/<branch>` and was passed through unqualified — hitting the
+    // same ambiguity bug.
     let resolvedStartPoint = startPoint;
-    if (resolvedStartPoint === undefined && repoRootOverride !== undefined) {
+    if (resolvedStartPoint !== undefined && repoRootOverride !== undefined && resolvedStartPoint.startsWith('origin/')) {
+      resolvedStartPoint = `refs/remotes/${resolvedStartPoint}`;
+    } else if (resolvedStartPoint === undefined && repoRootOverride !== undefined) {
       const defaultBranch = await this.getDefaultBranch(repoRootOverride);
       if (defaultBranch) {
         resolvedStartPoint = `refs/remotes/origin/${defaultBranch}`;
@@ -530,7 +536,7 @@ export class WorktreeManager {
   private fetchCache = new Map<string, number>();
   private static readonly FETCH_CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
-  async fetchBareRepo(barePath: string, opts?: { skipCache?: boolean }): Promise<void> {
+  async fetchBareRepo(barePath: string, opts?: { skipCache?: boolean; targetBranch?: string }): Promise<void> {
     const now = Date.now();
     if (!opts?.skipCache) {
       const lastFetch = this.fetchCache.get(barePath);
@@ -561,17 +567,27 @@ export class WorktreeManager {
         fs.rmSync(stagingPath, { recursive: true, force: true });
       }
     }
-    // Belt-and-suspenders: explicitly fetch the default branch with a targeted
-    // refspec. In bare repos on Azure File Share the wildcard refspec above
-    // sometimes fails to update refs/remotes/origin/main (writes FETCH_HEAD
+    // Belt-and-suspenders: explicitly fetch specific branches with targeted
+    // refspecs. In bare repos on Azure File Share the wildcard refspec above
+    // sometimes fails to update refs/remotes/origin/* (writes FETCH_HEAD
     // only). The explicit `branch:refs/remotes/origin/branch` form is the only
     // one that reliably updates the tracking ref in all environments.
+    // Fetch the default branch AND the caller's target branch (if different).
+    const branchesToFetch = new Set<string>();
     try {
       const defaultBranch = await this.getDefaultBranch(barePath);
-      if (defaultBranch) {
+      if (defaultBranch) branchesToFetch.add(defaultBranch);
+    } catch { /* best-effort */ }
+    if (opts?.targetBranch) {
+      // Strip origin/ prefix if present (dropdown values are "origin/main")
+      const clean = opts.targetBranch.replace(/^origin\//, '');
+      if (clean) branchesToFetch.add(clean);
+    }
+    for (const branchName of branchesToFetch) {
+      try {
         const targetedFetchArgs = [
           'fetch', 'origin',
-          `+refs/heads/${defaultBranch}:refs/remotes/origin/${defaultBranch}`,
+          `+refs/heads/${branchName}:refs/remotes/origin/${branchName}`,
         ];
         try {
           await this.execGit(targetedFetchArgs, barePath);
@@ -584,7 +600,7 @@ export class WorktreeManager {
               copyDirContents(barePath, refStagingPath);
               await this.execGit(targetedFetchArgs, refStagingPath);
               // Copy only the updated ref back (not the entire repo)
-              const refFile = path.join('refs', 'remotes', 'origin', defaultBranch);
+              const refFile = path.join('refs', 'remotes', 'origin', branchName);
               const srcRef = path.join(refStagingPath, refFile);
               const destRef = path.join(barePath, refFile);
               if (fs.existsSync(srcRef)) {
@@ -602,9 +618,9 @@ export class WorktreeManager {
           }
           // Non-EPERM errors: swallow — the wildcard fetch above is the primary mechanism
         }
+      } catch {
+        // Best-effort: don't fail the overall fetch for this
       }
-    } catch {
-      // Best-effort: don't fail the overall fetch for this
     }
 
     // Fast-forward the default branch's local ref (e.g. refs/heads/main) to
