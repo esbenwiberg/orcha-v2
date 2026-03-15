@@ -14,6 +14,9 @@
 # DB migrations run automatically on startup via runMigrations() in start-server.ts —
 # no separate migration step is needed here.
 #
+# Env vars:
+#   GITHUB_PAT  — (optional) GitHub PAT for private repos when using ACR Tasks git source
+#
 # Requires: az CLI >= 2.50, Docker >= 24 (or ACR Tasks if Docker is unavailable)
 
 set -euo pipefail
@@ -100,27 +103,73 @@ if [[ "${USE_ACR_BUILD}" == "false" ]]; then
   ok "ACR login: ${ACR_SERVER}"
 fi
 
+# ── Resolve git source URL for ACR Tasks ─────────────────────────────────────
+# ACR Tasks can clone directly from a git URL, avoiding the need to tar+upload
+# the entire local directory. This prevents OOM in memory-constrained containers.
+ACR_GIT_SOURCE=""
+if [[ "${USE_ACR_BUILD}" == "true" ]]; then
+  GIT_REMOTE=$(git -C "${REPO_ROOT}" remote get-url origin 2>/dev/null || echo "")
+  if [[ -n "${GIT_REMOTE}" ]]; then
+    # Convert SSH to HTTPS: git@github.com:org/repo.git → https://github.com/org/repo.git
+    if [[ "${GIT_REMOTE}" == git@* ]]; then
+      GIT_REMOTE=$(echo "${GIT_REMOTE}" | sed 's|git@\([^:]*\):\(.*\)|https://\1/\2|')
+    fi
+    GIT_BRANCH=$(git -C "${REPO_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+    # Embed PAT for private repos if available
+    if [[ -n "${GITHUB_PAT:-}" ]]; then
+      ACR_GIT_SOURCE=$(echo "${GIT_REMOTE}" | sed "s|https://|https://${GITHUB_PAT}@|")
+    else
+      ACR_GIT_SOURCE="${GIT_REMOTE}"
+    fi
+    ACR_GIT_SOURCE="${ACR_GIT_SOURCE}#${GIT_BRANCH}"
+    info "ACR Tasks source: git (${GIT_BRANCH})"
+  else
+    info "No git remote found — falling back to local context upload"
+  fi
+fi
+
 # ── Build and push images ─────────────────────────────────────────────────────
 echo ""
 if [[ "${USE_ACR_BUILD}" == "true" ]]; then
-  # Remote builds via ACR Tasks (no local Docker required)
-  info "Building orcha image via ACR Tasks..."
-  az acr build \
-    --registry "${ACR_NAME}" \
-    --image "orcha:${TAG}" \
-    --image "orcha:latest" \
-    --build-arg "COMMIT_SHA=${TAG}" \
-    "${REPO_ROOT}"
-  ok "orcha image built and pushed (${TAG})"
+  if [[ -n "${ACR_GIT_SOURCE}" ]]; then
+    # ACR clones from git — no local context upload (memory-safe)
+    info "Building orcha image via ACR Tasks (git source)..."
+    az acr build \
+      --registry "${ACR_NAME}" \
+      --image "orcha:${TAG}" \
+      --image "orcha:latest" \
+      --build-arg "COMMIT_SHA=${TAG}" \
+      "${ACR_GIT_SOURCE}"
+    ok "orcha image built and pushed (${TAG})"
 
-  echo ""
-  info "Building orcha-caddy image via ACR Tasks..."
-  az acr build \
-    --registry "${ACR_NAME}" \
-    --image "orcha-caddy:${TAG}" \
-    --image "orcha-caddy:latest" \
-    "${REPO_ROOT}/caddy"
-  ok "orcha-caddy image built and pushed (${TAG})"
+    echo ""
+    info "Building orcha-caddy image via ACR Tasks (git source)..."
+    az acr build \
+      --registry "${ACR_NAME}" \
+      --image "orcha-caddy:${TAG}" \
+      --image "orcha-caddy:latest" \
+      "${ACR_GIT_SOURCE}:caddy"
+    ok "orcha-caddy image built and pushed (${TAG})"
+  else
+    # Fallback: upload local context (requires enough memory to tar the repo)
+    info "Building orcha image via ACR Tasks (local context)..."
+    az acr build \
+      --registry "${ACR_NAME}" \
+      --image "orcha:${TAG}" \
+      --image "orcha:latest" \
+      --build-arg "COMMIT_SHA=${TAG}" \
+      "${REPO_ROOT}"
+    ok "orcha image built and pushed (${TAG})"
+
+    echo ""
+    info "Building orcha-caddy image via ACR Tasks (local context)..."
+    az acr build \
+      --registry "${ACR_NAME}" \
+      --image "orcha-caddy:${TAG}" \
+      --image "orcha-caddy:latest" \
+      "${REPO_ROOT}/caddy"
+    ok "orcha-caddy image built and pushed (${TAG})"
+  fi
 else
   # Local Docker build + push
   info "Building orcha image..."
