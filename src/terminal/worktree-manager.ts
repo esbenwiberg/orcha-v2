@@ -266,16 +266,29 @@ export class WorktreeManager {
       branchExists = raw.trim().length > 0;
     } catch { /* non-fatal */ }
 
+    // Resolve the tracking ref to a concrete commit hash to avoid stale-ref
+    // issues (same rationale as addWorktree — SMB caching, packed-refs, etc.).
+    let resolvedRef = trackingRef;
+    if (cwd !== undefined) {
+      try {
+        const hash = (await this.execGit(['rev-parse', '--verify', trackingRef], cwd)).trim();
+        console.log(`[worktree] checkoutWorktree resolved ${trackingRef} → ${hash}`);
+        resolvedRef = hash;
+      } catch {
+        console.warn(`[worktree] checkoutWorktree could not resolve ${trackingRef}, using ref name`);
+      }
+    }
+
     if (branchExists) {
       // Local branch exists — check it out directly
       await this.execGit(['worktree', 'add', worktreePath, localBranch], cwd);
-      // Fast-forward to latest remote
+      // Fast-forward to latest remote (use hash to avoid stale ref)
       try {
-        await this.execGit(['merge', '--ff-only', trackingRef], worktreePath);
+        await this.execGit(['merge', '--ff-only', resolvedRef], worktreePath);
       } catch { /* non-fatal — may diverge, that's OK */ }
     } else {
       // Create local branch tracking remote
-      await this.execGit(['worktree', 'add', '-b', localBranch, worktreePath, trackingRef], cwd);
+      await this.execGit(['worktree', 'add', '-b', localBranch, worktreePath, resolvedRef], cwd);
     }
 
     const commitShaRaw = await this.execGit(['rev-parse', 'HEAD'], worktreePath);
@@ -332,6 +345,38 @@ export class WorktreeManager {
       const defaultBranch = await this.getDefaultBranch(repoRootOverride);
       if (defaultBranch) {
         resolvedStartPoint = `refs/remotes/origin/${defaultBranch}`;
+      }
+    }
+
+    // CRITICAL: resolve the ref to a concrete commit hash.
+    // Passing a ref name to `git worktree add` relies on git's ref resolution
+    // in the bare repo, which can silently use stale refs (packed-refs shadowing,
+    // SMB caching, FETCH_HEAD-only writes). A commit hash is unambiguous.
+    if (resolvedStartPoint !== undefined && cwd !== undefined) {
+      try {
+        const hash = (await this.execGit(['rev-parse', '--verify', resolvedStartPoint], cwd)).trim();
+        console.log(`[worktree] resolved ${resolvedStartPoint} → ${hash}`);
+        resolvedStartPoint = hash;
+      } catch (err) {
+        console.warn(`[worktree] rev-parse failed for ${resolvedStartPoint}:`, err);
+        // Ref doesn't resolve locally — fall through to ls-remote fallback below
+        resolvedStartPoint = undefined;
+      }
+    }
+
+    // Last resort: if we still have no start point, ask the remote directly.
+    // This bypasses all local ref staleness — network hit is acceptable because
+    // the alternative is creating a session from a stale commit.
+    if (resolvedStartPoint === undefined && repoRootOverride !== undefined) {
+      try {
+        const lsOut = await this.execGit(['ls-remote', 'origin', 'HEAD'], repoRootOverride);
+        const match = lsOut.match(/^([a-f0-9]{40})/);
+        if (match) {
+          resolvedStartPoint = match[1];
+          console.log(`[worktree] fallback to ls-remote HEAD: ${resolvedStartPoint}`);
+        }
+      } catch (err) {
+        console.warn('[worktree] ls-remote fallback failed:', err);
       }
     }
 
@@ -627,6 +672,11 @@ export class WorktreeManager {
     // match origin. Without this, worktrees see a stale `main` from clone-time
     // when running `git diff main...HEAD` — making it look like 150+ commits
     // diverged when there's really just 1.
+    //
+    // Prune stale worktree entries FIRST — if a dead session's worktree had
+    // `main` checked out, git refuses to update-ref on a "checked out" branch.
+    // The catch silently swallowed this, leaving refs/heads/main at clone-time.
+    try { await this.execGit(['worktree', 'prune'], barePath); } catch { /* best-effort */ }
     try {
       const defaultBranch = await this.getDefaultBranch(barePath);
       if (defaultBranch) {
