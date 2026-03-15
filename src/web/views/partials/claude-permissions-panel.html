@@ -36,11 +36,12 @@
       hx-swap="outerHTML"
       class="perm-add-row"
     >
-      <input
-        name="rule"
-        placeholder="Bash(git *)"
+      <textarea
+        name="rules"
+        placeholder="Bash(git *)&#10;Read(~/**)&#10;One per line…"
+        rows="2"
         class="form-input text-xs flex-1 min-w-0"
-      />
+      ></textarea>
       <button class="btn btn-xs perm-add-btn perm-add-btn--allow">+ Allow</button>
     </form>
     <form
@@ -49,11 +50,12 @@
       hx-swap="outerHTML"
       class="perm-add-row"
     >
-      <input
-        name="rule"
-        placeholder="Bash(rm -rf *)"
+      <textarea
+        name="rules"
+        placeholder="Bash(rm -rf *)&#10;Bash(curl *)&#10;One per line…"
+        rows="2"
         class="form-input text-xs flex-1 min-w-0"
-      />
+      ></textarea>
       <button class="btn btn-xs perm-add-btn perm-add-btn--deny">+ Deny</button>
     </form>
   </div>

@@ -1233,7 +1233,8 @@
   .perm-chip button:hover { opacity: 1; }
 
   .perm-add-forms { @apply flex; gap: 0.75rem; }
-  .perm-add-row { @apply flex; gap: 0.5rem; flex: 1; min-width: 0; }
+  .perm-add-row { @apply flex; gap: 0.5rem; flex: 1; min-width: 0; align-items: flex-start; }
+  .perm-add-row textarea { resize: vertical; }
   .perm-add-btn { white-space: nowrap; font-weight: 500; }
   .perm-add-btn--allow {
     background: color-mix(in srgb, var(--color-success) 15%, transparent);
