@@ -4,6 +4,15 @@ import type Database from 'better-sqlite3';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
 import { readSettingsFromDb, writeSettingsToDb, enqueueWrite } from './claude-settings-db.js';
 
+/** Split a textarea value into trimmed, non-empty rules (one per line). */
+function parseRules(raw: unknown): string[] {
+  if (typeof raw !== 'string') return [];
+  return raw
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
 export function createClaudePermissionsRouter(eta: Eta, db: Database.Database): Router {
   const router = Router();
   const settingsStore = new GlobalSettingsStore(db);
@@ -22,21 +31,22 @@ export function createClaudePermissionsRouter(eta: Eta, db: Database.Database): 
     }
   });
 
-  // POST /api/claude-permissions/allow — add an allow rule
+  // POST /api/claude-permissions/allow — add allow rule(s), one per line
   router.post('/claude-permissions/allow', async (req, res, next) => {
     try {
-      const rule = (typeof req.body['rule'] === 'string' ? req.body['rule'] : '').trim();
-      if (!rule) {
-        res.status(422).send('<div class="badge badge-error">Rule is required</div>');
+      const rules = parseRules(req.body['rules']);
+      if (rules.length === 0) {
+        res.status(422).send('<div class="badge badge-error">At least one rule is required</div>');
         return;
       }
 
       await enqueueWrite(() => {
         const settings = readSettingsFromDb(settingsStore);
         const allow = settings.permissions?.allow ?? [];
-        if (!allow.includes(rule)) {
+        const newRules = rules.filter((r) => !allow.includes(r));
+        if (newRules.length > 0) {
           settings.permissions = {
-            allow: [...allow, rule],
+            allow: [...allow, ...newRules],
             deny: settings.permissions?.deny ?? [],
           };
           writeSettingsToDb(settingsStore, settings);
@@ -81,22 +91,23 @@ export function createClaudePermissionsRouter(eta: Eta, db: Database.Database): 
     }
   });
 
-  // POST /api/claude-permissions/deny — add a deny rule
+  // POST /api/claude-permissions/deny — add deny rule(s), one per line
   router.post('/claude-permissions/deny', async (req, res, next) => {
     try {
-      const rule = (typeof req.body['rule'] === 'string' ? req.body['rule'] : '').trim();
-      if (!rule) {
-        res.status(422).send('<div class="badge badge-error">Rule is required</div>');
+      const rules = parseRules(req.body['rules']);
+      if (rules.length === 0) {
+        res.status(422).send('<div class="badge badge-error">At least one rule is required</div>');
         return;
       }
 
       await enqueueWrite(() => {
         const settings = readSettingsFromDb(settingsStore);
         const deny = settings.permissions?.deny ?? [];
-        if (!deny.includes(rule)) {
+        const newRules = rules.filter((r) => !deny.includes(r));
+        if (newRules.length > 0) {
           settings.permissions = {
             allow: settings.permissions?.allow ?? [],
-            deny: [...deny, rule],
+            deny: [...deny, ...newRules],
           };
           writeSettingsToDb(settingsStore, settings);
         }
