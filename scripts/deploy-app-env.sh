@@ -80,7 +80,7 @@ OLD_REVISION=$(az containerapp revision list \
   --name "${CONTAINER_APP_NAME}" \
   --resource-group "${RESOURCE_GROUP}" \
   "${SUB_FLAG[@]}" \
-  --query "[0].name" \
+  --query "sort_by(@, &properties.createdTime) | [-1].name" \
   -o tsv 2>/dev/null || echo "")
 
 # ── Update Container App (both containers) ───────────────────────────────────
@@ -113,7 +113,7 @@ while [[ ${ATTEMPTS} -lt ${MAX_ATTEMPTS} ]]; do
     --name "${CONTAINER_APP_NAME}" \
     --resource-group "${RESOURCE_GROUP}" \
     "${SUB_FLAG[@]}" \
-    --query "[0].{name:name, state:properties.provisioningState}" \
+    --query "sort_by(@, &properties.createdTime) | [-1].{name:name, state:properties.provisioningState}" \
     -o json 2>/dev/null || echo "{}")
 
   REV_NAME=$(echo "${LATEST}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('name',''))" 2>/dev/null || echo "")
