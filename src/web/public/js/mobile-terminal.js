@@ -852,7 +852,7 @@ window._openMobileHostShell = async function (sessionId) {
         <div id="mobile-keys" class="mobile-keys">
           <button class="mobile-key" data-key="esc">Esc</button>
           <button class="mobile-key" data-key="tab">Tab</button>
-          <button class="mobile-key" data-key="ctrl-c">Ctrl+C</button>
+          <button class="mobile-key" data-key="shift-tab">⇧Tab</button>
           <button class="mobile-key" data-key="ctrl-o">Ctrl+O</button>
           <button class="mobile-key" data-key="enter">Enter</button>
           <button class="mobile-key" data-key="arrow-up">&uarr;</button>
@@ -878,7 +878,7 @@ window._openMobileHostShell = async function (sessionId) {
       if (keysBar) {
         const KEY_MAP = {
           'esc': '\x1b', 'tab': '\t', 'enter': '\r',
-          'ctrl-c': '\x03', 'ctrl-o': '\x0f',
+          'shift-tab': '\x1b[Z', 'ctrl-o': '\x0f',
           'arrow-up': '\x1b[A', 'arrow-down': '\x1b[B',
         };
         let _touchHandled = false;
@@ -1188,7 +1188,7 @@ document.addEventListener('htmx:afterSwap', (event) => {
             'esc': '\x1b',
             'tab': '\t',
             'enter': '\r',
-            'ctrl-c': '\x03',
+            'shift-tab': '\x1b[Z',
             'ctrl-o': '\x0f',
             'arrow-up': '\x1b[A',
             'arrow-down': '\x1b[B',
