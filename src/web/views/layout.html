@@ -240,6 +240,16 @@
           document.querySelector('.orcha-layout').classList.add('sidebar-collapsed');
         }
       })();
+      // Fix 3: Intercept 401 from HTMX requests and redirect to login once
+      (function () {
+        var redirecting = false;
+        document.body.addEventListener('htmx:afterRequest', function (evt) {
+          if (!redirecting && evt.detail.xhr && evt.detail.xhr.status === 401) {
+            redirecting = true;
+            window.location.href = '/auth/login';
+          }
+        });
+      })();
       function toggleSidebar() {
         var collapsed = document.querySelector('.orcha-layout').classList.toggle('sidebar-collapsed');
         localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');

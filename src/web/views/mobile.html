@@ -190,6 +190,16 @@
     </div>
 
     <script>
+      // Fix 3: Intercept 401 from HTMX requests and redirect to login once
+      (function () {
+        var redirecting = false;
+        document.body.addEventListener('htmx:afterRequest', function (evt) {
+          if (!redirecting && evt.detail.xhr && evt.detail.xhr.status === 401) {
+            redirecting = true;
+            window.location.href = '/auth/login';
+          }
+        });
+      })();
       document.body.addEventListener('close-panel', function () {
         document.getElementById('form-panel').classList.remove('is-open');
       });
