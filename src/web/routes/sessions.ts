@@ -1856,6 +1856,47 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // GET /api/sessions/:id/file-download?path=<file> — download file
+  router.get('/sessions/:id/file-download', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const userPath = typeof req.query['path'] === 'string' ? req.query['path'] : '';
+      const session = store.getSession(id);
+      if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
+
+      const worktreePath = session.worktree.worktreePath;
+      const absPath = validateFilePath(worktreePath, userPath);
+      if (!absPath) {
+        res.status(400).json({ error: 'Invalid path' });
+        return;
+      }
+
+      let st;
+      try { st = statSync(absPath); } catch {
+        res.status(404).json({ error: 'File not found' });
+        return;
+      }
+
+      if (st.isDirectory()) {
+        res.status(400).json({ error: 'Path is a directory' });
+        return;
+      }
+
+      if (st.size > FILE_MAX_BYTES) {
+        res.status(413).json({ error: 'File too large', size: st.size });
+        return;
+      }
+
+      const filename = basename(absPath);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/"/g, '\\"')}"`);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Length', st.size);
+      res.send(readFileSync(absPath));
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // ── Diff browser endpoints ────────────────────────────────────────────
 
   /** Regex for allowed git ref characters. */

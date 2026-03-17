@@ -2078,6 +2078,18 @@
     overflow: auto;
   }
 
+  .file-browser__editor-container .fb-plain-viewer {
+    @apply m-0 p-4 text-sm leading-relaxed;
+    height: 100%;
+    overflow: auto;
+    background: #282c34;
+    color: #abb2bf;
+    font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+    white-space: pre;
+    tab-size: 2;
+    outline: none;
+  }
+
   .file-browser__editor-message {
     @apply flex-1 flex items-center justify-center;
     color: var(--color-text-muted);
