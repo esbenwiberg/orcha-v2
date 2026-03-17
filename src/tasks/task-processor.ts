@@ -14,7 +14,7 @@ import { buildModelEnv, ENV_DELETE } from '../model-config/env-builder.js';
 import { CredentialStore } from '../db/credential-store.js';
 import { credentialManager } from '../credentials/credential-manager.js';
 import { readSettingsFromDb } from '../web/routes/claude-settings-db.js';
-import { buildSessionClaudeMd, buildValidateConfigSection } from '../web/routes/claude-files.js';
+import { buildSessionClaudeMd, buildValidateConfigSection, buildPrismContextSection } from '../web/routes/claude-files.js';
 import { loadSkills } from '../web/routes/skills.js';
 import { getStoragePaths } from '../storage/paths.js';
 import type { SessionManager } from '../terminal/session-manager.js';
@@ -644,6 +644,13 @@ export class TaskProcessor {
         mergedClaudeMd = mergedClaudeMd ? `${mergedClaudeMd}\n${vcSection}` : vcSection;
       }
     }
+
+    // Append Prism architecture context (fetched from Prism API, non-blocking on failure)
+    const prismSection = await buildPrismContextSection(this.#globalSettingsStore, repo?.prismSlug ?? null);
+    if (prismSection) {
+      mergedClaudeMd = mergedClaudeMd ? `${mergedClaudeMd}\n${prismSection}` : prismSection;
+    }
+
     if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
 
     // 7. Write skills

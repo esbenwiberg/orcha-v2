@@ -61,6 +61,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         envVars: repo.envVars,
         sdkDefs: getSdkDefs(),
         sdks: repo.sdks,
+        prismSlug: repo.prismSlug ?? '',
       });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);
@@ -100,6 +101,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
           envVars: repo?.envVars ?? {},
           sdkDefs: getSdkDefs(),
           sdks: repo?.sdks ?? [],
+          prismSlug: repo?.prismSlug ?? '',
         });
         const html = eta.render('partials/form-error', { errors, formHtml });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -194,6 +196,10 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         ...(validateTimeout !== undefined && !isNaN(validateTimeout) ? { validateTimeout } : {}),
         ...(validateReadyDelay !== undefined && !isNaN(validateReadyDelay) ? { validateReadyDelay } : {}),
       });
+
+      // Update Prism slug
+      const prismSlug = (typeof req.body['prismSlug'] === 'string' ? req.body['prismSlug'] : '').trim();
+      store.updatePrismSlug(id, prismSlug || null);
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('HX-Trigger', 'close-panel');

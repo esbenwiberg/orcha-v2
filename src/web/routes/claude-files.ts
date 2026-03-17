@@ -3,6 +3,8 @@ import type { Eta } from 'eta';
 import type Database from 'better-sqlite3';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
 import type { SessionValidateConfig } from '../../domain/types.js';
+import { fetchArchitectureContext, formatPrismContext } from '../../prism/client.js';
+import type { PrismConfig } from '../../prism/client.js';
 
 /** Whitelist of allowed DB keys → filenames written into ~/.claude/ */
 const ALLOWED_FILES: Record<string, string> = {
@@ -63,6 +65,34 @@ export function buildValidateConfigSection(vc: SessionValidateConfig | undefined
     'In most cases, call `validate_start` with no arguments and it will just work.',
     '',
   ].join('\n');
+}
+
+/**
+ * Read Prism connection config from global settings.
+ * Returns null if either URL or API key is missing.
+ */
+export function getPrismConfig(store: GlobalSettingsStore): PrismConfig | null {
+  const url = store.get('prism.url');
+  const apiKey = store.get('prism.api_key');
+  if (!url || !apiKey) return null;
+  return { url, apiKey };
+}
+
+/**
+ * Fetch and format the Prism architecture overview for a repo.
+ * Returns empty string if Prism is not configured, the repo has no slug,
+ * or the fetch fails. Never throws.
+ */
+export async function buildPrismContextSection(
+  store: GlobalSettingsStore,
+  prismSlug: string | null,
+): Promise<string> {
+  if (!prismSlug) return '';
+  const config = getPrismConfig(store);
+  if (!config) return '';
+
+  const response = await fetchArchitectureContext(config, prismSlug);
+  return formatPrismContext(response);
 }
 
 export function createClaudeFilesRouter(eta: Eta, db: Database.Database): Router {
