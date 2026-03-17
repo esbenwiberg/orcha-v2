@@ -6,6 +6,9 @@
         <span id="fb-path" class="file-browser__path">Select a file...</span>
       </div>
       <div class="file-browser__toolbar-actions">
+        <button class="btn btn-ghost btn-sm hidden" id="fb-download-btn" onclick="window.__fbDownload()" title="Download file">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v9m0 0l-3-3m3 3l3-3M2 13h12"/></svg>
+        </button>
         <button class="btn btn-ghost btn-sm hidden" id="fb-edit-toggle" onclick="window.__fbToggleEdit()">Edit</button>
         <button class="btn btn-primary btn-sm hidden" id="fb-save-btn" onclick="window.__fbSave()">Save</button>
         <button class="btn btn-ghost btn-sm fb-back-btn hidden" id="fb-back-btn" onclick="window.__fbBackToTree()">Back</button>

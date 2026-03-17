@@ -10,7 +10,6 @@
   var cmTheme = null; // cached one-dark theme
   var isEditing = false;
   var isDirty = false;
-  var isLoadingCM = false;
 
   // Language loaders — lazy-loaded by extension
   var LANG_MAP = {
@@ -51,15 +50,12 @@
   var langCache = {};
 
   /** Load CodeMirror core + theme (once). */
+  var cmLoadPromise = null;
+
   async function ensureCM() {
     if (cmCore && cmTheme) return;
-    if (isLoadingCM) {
-      // Wait for in-flight load
-      while (isLoadingCM) await new Promise(function (r) { setTimeout(r, 50); });
-      return;
-    }
-    isLoadingCM = true;
-    try {
+    if (cmLoadPromise) return cmLoadPromise;
+    cmLoadPromise = (async function () {
       var results = await Promise.all([
         import(CM_BASE + '/codemirror@6'),
         import(CM_BASE + '/@codemirror/theme-one-dark@6'),
@@ -68,8 +64,12 @@
       ]);
       cmCore = { cm: results[0], view: results[2], state: results[3] };
       cmTheme = results[1];
-    } finally {
-      isLoadingCM = false;
+    })();
+    try {
+      await cmLoadPromise;
+    } catch (e) {
+      cmLoadPromise = null; // allow retry
+      throw e;
     }
   }
 
@@ -96,6 +96,32 @@
     return null;
   }
 
+  /** Render file content as plain <pre> fallback (no CodeMirror). */
+  function setPlainContent(content, readOnly) {
+    var container = document.getElementById('fb-editor-container');
+    if (!container) return;
+    container.classList.remove('hidden');
+    document.getElementById('fb-editor-empty').classList.add('hidden');
+    document.getElementById('fb-editor-message').classList.add('hidden');
+
+    if (editorView) { editorView.destroy(); editorView = null; }
+    container.innerHTML = '';
+
+    var pre = document.createElement('pre');
+    pre.className = 'fb-plain-viewer';
+    pre.textContent = content;
+    if (!readOnly) {
+      pre.contentEditable = 'true';
+      pre.spellcheck = false;
+      pre.addEventListener('input', function () {
+        if (isEditing) { isDirty = true; updateSaveBtn(); }
+      });
+    }
+    container.appendChild(pre);
+    // Stash reference so save/edit toggle can read content
+    container._plainPre = pre;
+  }
+
   /** Create or reconfigure the CodeMirror editor. */
   async function setEditorContent(content, ext, readOnly) {
     var container = document.getElementById('fb-editor-container');
@@ -104,7 +130,13 @@
     document.getElementById('fb-editor-empty').classList.add('hidden');
     document.getElementById('fb-editor-message').classList.add('hidden');
 
-    await ensureCM();
+    try {
+      await ensureCM();
+    } catch (e) {
+      console.warn('[file-browser] CodeMirror load failed, using plain viewer', e);
+      setPlainContent(content, readOnly);
+      return;
+    }
 
     var extensions = [cmCore.cm.basicSetup, cmTheme.oneDark];
     var langExt = await getLanguageExtension(ext);
@@ -135,6 +167,8 @@
     if (editorView) {
       editorView.destroy();
     }
+    container.innerHTML = '';
+    container._plainPre = null;
 
     editorView = new cmCore.view.EditorView({
       doc: content,
@@ -258,6 +292,8 @@
     var saveBtn = document.getElementById('fb-save-btn');
     if (editToggle) { editToggle.classList.remove('hidden'); editToggle.textContent = 'Edit'; }
     if (saveBtn) saveBtn.classList.add('hidden');
+    var dlBtn = document.getElementById('fb-download-btn');
+    if (dlBtn) dlBtn.classList.remove('hidden');
 
     currentPath = path;
     updateBreadcrumb(path);
@@ -283,7 +319,7 @@
           return;
         }
         var ext = path.split('.').pop() || '';
-        setEditorContent(data.content, ext, true);
+        return setEditorContent(data.content, ext, true);
       })
       .catch(function (err) {
         showMessage('Failed to load file: ' + err.message);
@@ -291,7 +327,8 @@
   };
 
   window.__fbToggleEdit = function () {
-    if (!currentPath || !editorView) return;
+    var container = document.getElementById('fb-editor-container');
+    if (!currentPath || (!editorView && !(container && container._plainPre))) return;
     var editToggle = document.getElementById('fb-edit-toggle');
     var saveBtn = document.getElementById('fb-save-btn');
 
@@ -316,15 +353,23 @@
       isDirty = false;
       if (editToggle) editToggle.textContent = 'View';
       if (saveBtn) { saveBtn.classList.remove('hidden'); saveBtn.textContent = 'Save'; }
-      var content = editorView.state.doc.toString();
+      var content = editorView ? editorView.state.doc.toString() : (container._plainPre ? container._plainPre.textContent : '');
       var ext = currentPath.split('.').pop() || '';
       setEditorContent(content, ext, false);
     }
   };
 
   window.__fbSave = function () {
-    if (!currentPath || !editorView || !isEditing) return;
-    var content = editorView.state.doc.toString();
+    if (!currentPath || !isEditing) return;
+    var container = document.getElementById('fb-editor-container');
+    var content;
+    if (editorView) {
+      content = editorView.state.doc.toString();
+    } else if (container && container._plainPre) {
+      content = container._plainPre.textContent;
+    } else {
+      return;
+    }
 
     fetch('/api/sessions/' + sessionId + '/file-content', {
       method: 'PUT',
@@ -344,6 +389,17 @@
       .catch(function (err) {
         showToast('Save failed: ' + err.message, 'error');
       });
+  };
+
+  window.__fbDownload = function () {
+    if (!currentPath || !sessionId) return;
+    // Use a hidden link to trigger browser download
+    var a = document.createElement('a');
+    a.href = '/api/sessions/' + sessionId + '/file-download?path=' + encodeURIComponent(currentPath);
+    a.download = currentPath.split('/').pop() || 'file';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
   window.__fbBackToTree = function () {
