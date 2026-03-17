@@ -13,7 +13,7 @@ import { TaskStore } from '../../db/task-store.js';
 import { ModelConfigStore } from '../../db/model-config-store.js';
 import { GlobalSettingsStore } from '../../db/global-settings-store.js';
 import { readSettingsFromDb } from './claude-settings-db.js';
-import { buildSessionClaudeMd, buildValidateConfigSection } from './claude-files.js';
+import { buildSessionClaudeMd, buildValidateConfigSection, buildPrismContextSection } from './claude-files.js';
 import { loadSkills } from './skills.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
@@ -506,6 +506,12 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             if (vcSection) {
               mergedClaudeMd = mergedClaudeMd ? `${mergedClaudeMd}\n${vcSection}` : vcSection;
             }
+          }
+
+          // Append Prism architecture context (fetched from Prism API, non-blocking on failure)
+          const prismSection = await buildPrismContextSection(globalSettingsStore, repo.prismSlug);
+          if (prismSection) {
+            mergedClaudeMd = mergedClaudeMd ? `${mergedClaudeMd}\n${prismSection}` : prismSection;
           }
 
           if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');

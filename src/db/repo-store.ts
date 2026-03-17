@@ -31,6 +31,7 @@ export interface Repo extends RepoValidateFields {
   deployCommand: string | null;
   deployEnvVars: Record<string, string>;
   sdks: string[];
+  prismSlug: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -115,6 +116,7 @@ export class RepoStore {
         if (!raw) return [];
         try { return JSON.parse(raw) as string[]; } catch { return []; }
       })(),
+      prismSlug: (row['prism_slug'] as string | null) ?? null,
       createdAt: new Date(row['created_at'] as string),
       updatedAt: new Date(row['updated_at'] as string),
     };
@@ -264,6 +266,13 @@ export class RepoStore {
     this.#db
       .prepare('UPDATE repos SET env_json = ?, updated_at = ? WHERE id = ?')
       .run(hasVars ? encryptJson(vars) : null, now, id);
+  }
+
+  updatePrismSlug(id: string, slug: string | null): void {
+    const now = new Date().toISOString();
+    this.#db
+      .prepare('UPDATE repos SET prism_slug = ?, updated_at = ? WHERE id = ?')
+      .run(slug, now, id);
   }
 
   deleteRepo(id: string): void {

@@ -1,0 +1,42 @@
+<div id="prism-panel">
+  <form
+    hx-post="/api/prism-settings"
+    hx-target="#prism-panel"
+    hx-swap="outerHTML"
+  >
+    <div class="flex flex-col gap-3 mb-4">
+      <div>
+        <label class="form-label" for="prism-url">Prism URL</label>
+        <input
+          id="prism-url"
+          name="url"
+          type="text"
+          class="form-input"
+          placeholder="https://prism.example.com"
+          value="<%= it.url %>"
+        />
+      </div>
+      <div>
+        <label class="form-label" for="prism-api-key">API Key</label>
+        <input
+          id="prism-api-key"
+          name="apiKey"
+          type="password"
+          class="form-input"
+          placeholder="Bearer token for Prism API"
+          value="<%= it.apiKey %>"
+        />
+      </div>
+    </div>
+    <span class="form-hint mb-3 block">
+      When configured, Orcha fetches an architecture overview from Prism at session start
+      and injects it into the agent's CLAUDE.md. Set the per-repo Prism slug in the repo edit form.
+    </span>
+    <div class="flex items-center gap-3">
+      <button class="btn btn-primary btn-sm">Save</button>
+      <% if (it.saved) { %>
+        <span class="badge badge-success badge-sm">Saved</span>
+      <% } %>
+    </div>
+  </form>
+</div>

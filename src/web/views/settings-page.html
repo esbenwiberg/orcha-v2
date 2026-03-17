@@ -145,6 +145,23 @@
   <div class="page-section">
     <div class="page-section__header">
       <div>
+        <h2 class="page-section__title">Prism</h2>
+        <p class="page-section__subtitle">Codebase analysis — architecture context is pre-seeded into CLAUDE.md at session start</p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/prism-settings"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row mt-2"></div>
+    </div>
+  </div>
+
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
         <h2 class="page-section__title">MCP Servers</h2>
         <p class="page-section__subtitle">Model Context Protocol servers injected into agent sessions</p>
       </div>

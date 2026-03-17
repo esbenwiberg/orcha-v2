@@ -34,6 +34,7 @@ import { createSkillsRouter } from './routes/skills.js';
 import { createAzLoginRouter } from './routes/az-login.js';
 import { createTasksRouter } from './routes/tasks.js';
 import { createFeedsRouter } from './routes/feeds.js';
+import { createPrismSettingsRouter } from './routes/prism-settings.js';
 import { buildAuthMiddleware } from './auth/index.js';
 import type { AuthConfig } from './auth/index.js';
 import { createValidateMcpRouter } from '../mcp/validate-mcp.js';
@@ -233,6 +234,9 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
 
   // Private feeds settings router
   app.use('/api', createFeedsRouter(eta, deps.db));
+
+  // Prism context settings router
+  app.use('/api', createPrismSettingsRouter(eta, deps));
 
   // Az login (session-scoped + host-scoped device code flow)
   app.use('/api', createAzLoginRouter(eta, deps));
