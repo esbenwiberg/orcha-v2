@@ -25,6 +25,7 @@ import { enrich } from './enrich.js';
 import { execute, waitForSessionExit, extractPrUrl, extractPreviewUrl } from './execute.js';
 import { resolveOrchaHost } from '../host-url.js';
 import { eventBus } from '../web/services/event-bus.js';
+import { parseOAuthExpiry, isTokenExpiredOrExpiring, refreshOAuthCredentials } from '../model-config/credential-refresh.js';
 
 export interface TaskProcessorDeps {
   db: Database.Database;
@@ -661,9 +662,30 @@ export class TaskProcessor {
       writeFileSync(join(skillDir, 'SKILL.md'), skill.content, 'utf8');
     }
 
-    // 8. Write OAuth credentials if available
+    // 8. Write OAuth credentials if available, with pre-flight refresh
     if (mc?.credentialsJson) {
-      writeFileSync(join(claudeDir, '.credentials.json'), mc.credentialsJson, 'utf8');
+      let credentialsJson = mc.credentialsJson;
+
+      // Pre-flight refresh: tasks are non-interactive and can't /login
+      if (isTokenExpiredOrExpiring(credentialsJson)) {
+        const expiryInfo = parseOAuthExpiry(credentialsJson);
+        if (expiryInfo.hasRefreshToken) {
+          try {
+            const refreshResult = await refreshOAuthCredentials(credentialsJson);
+            if (refreshResult.refreshed && refreshResult.credentialsJson) {
+              credentialsJson = refreshResult.credentialsJson;
+              this.#modelConfigStore.updateConfig(mc.id, { credentialsJson });
+              console.log('[credential-refresh] TASK-%d refreshed newExpiresAt=%s', task.displayId, refreshResult.expiresAt ?? 'none');
+            } else {
+              console.warn('[credential-refresh] TASK-%d failed: %s', task.displayId, refreshResult.error);
+            }
+          } catch (err) {
+            console.warn('[credential-refresh] TASK-%d error:', task.displayId, err);
+          }
+        }
+      }
+
+      writeFileSync(join(claudeDir, '.credentials.json'), credentialsJson, 'utf8');
     }
 
     env['HOME'] = taskHome;

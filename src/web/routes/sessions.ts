@@ -28,6 +28,7 @@ import { resolveOrchaHost } from '../../host-url.js';
 import { ensureSdksInstalled } from '../../sdk-installer.js';
 import { getStoragePaths } from '../../storage/paths.js';
 import { writeFeedConfigs } from '../../credentials/feed-config.js';
+import { parseOAuthExpiry, isTokenExpiredOrExpiring, refreshOAuthCredentials } from '../../model-config/credential-refresh.js';
 import { loadFeedConfig } from './feeds.js';
 import { parsePrUrl, fetchPrComments, formatPrReview } from '../../pr-review/index.js';
 import type { PrInfo } from '../../pr-review/index.js';
@@ -524,23 +525,37 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             writeFileSync(join(skillDir, 'SKILL.md'), skill.content, 'utf8');
           }
 
-          // Inject model credentials if available
+          // Inject model credentials if available, with pre-flight OAuth refresh
           if (modelConfigId) {
             const modelConfig = modelConfigStore.getConfig(modelConfigId);
             if (modelConfig?.credentialsJson) {
-              const credsPath = join(claudeDir, '.credentials.json');
-              writeFileSync(credsPath, modelConfig.credentialsJson, 'utf8');
+              let credentialsJson = modelConfig.credentialsJson;
 
-              // Diagnostic: verify credentials were written and check expiry
-              try {
-                const readback = readFileSync(credsPath, 'utf8');
-                const parsed = JSON.parse(readback) as Record<string, unknown>;
-                const expiresAt = parsed['expiresAt'] as string | undefined;
-                const isExpired = expiresAt ? new Date(expiresAt).getTime() < Date.now() : 'no-expiry';
-                console.log(`[sessions] credentials injected sessionId=${sessionId} path=${credsPath} expired=${isExpired} expiresAt=${expiresAt ?? 'none'} provider=${modelConfig.provider}`);
-              } catch (readErr) {
-                console.warn(`[sessions] credentials readback failed sessionId=${sessionId}:`, readErr);
+              // Diagnostic: check expiry using correct path (claudeAiOauth.expiresAt)
+              const expiryInfo = parseOAuthExpiry(credentialsJson);
+              const isExpired = expiryInfo.expiresAt ? expiryInfo.expiresAt < Date.now() : false;
+              console.log(`[sessions] credentials check sessionId=${sessionId} expired=${isExpired} expiresAt=${expiryInfo.expiresAt ?? 'none'} hasRefreshToken=${expiryInfo.hasRefreshToken} provider=${modelConfig.provider}`);
+
+              // Pre-flight refresh: if token is expired or about to expire, refresh centrally
+              if (isTokenExpiredOrExpiring(credentialsJson) && expiryInfo.hasRefreshToken) {
+                try {
+                  const refreshResult = await refreshOAuthCredentials(credentialsJson);
+                  if (refreshResult.refreshed && refreshResult.credentialsJson) {
+                    credentialsJson = refreshResult.credentialsJson;
+                    // Persist refreshed credentials to DB so all future sessions benefit
+                    modelConfigStore.updateConfig(modelConfigId, { credentialsJson });
+                    console.log(`[credential-refresh] refreshed sessionId=${sessionId} newExpiresAt=${refreshResult.expiresAt ?? 'none'}`);
+                  } else {
+                    console.warn(`[credential-refresh] failed sessionId=${sessionId}: ${refreshResult.error}`);
+                  }
+                } catch (err) {
+                  console.warn(`[credential-refresh] error sessionId=${sessionId}:`, err);
+                }
               }
+
+              const credsPath = join(claudeDir, '.credentials.json');
+              writeFileSync(credsPath, credentialsJson, 'utf8');
+              console.log(`[sessions] credentials injected sessionId=${sessionId} path=${credsPath} provider=${modelConfig.provider}`);
             }
           }
 

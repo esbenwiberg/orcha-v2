@@ -248,6 +248,33 @@ const taskProcessor = new TaskProcessor({ db, sessionManager: sessionEngine, wor
 taskProcessor.start(10_000);
 
 process.on('SIGTERM', () => {
+  // Capture refreshed OAuth credentials from all active sessions before shutdown.
+  // During deploys/restarts, sessions may have rotated refresh tokens that haven't
+  // been persisted yet (the exit handler in session-manager runs async and may not
+  // complete before the process is killed).
+  try {
+    const activeSessions = sessionEngine.listSessions();
+    for (const session of activeSessions) {
+      if (session.homeDir && session.modelConfigId) {
+        try {
+          const credsPath = path.join(session.homeDir, '.claude', '.credentials.json');
+          if (existsSync(credsPath)) {
+            const credsJson = readFileSync(credsPath, 'utf8');
+            const current = modelConfigStore.getConfig(session.modelConfigId);
+            if (current?.credentialsJson !== credsJson) {
+              modelConfigStore.updateConfig(session.modelConfigId, { credentialsJson: credsJson });
+              console.log('[shutdown] captured credentials sessionId=%s modelConfigId=%s', session.sessionId, session.modelConfigId);
+            }
+          }
+        } catch (err) {
+          console.warn('[shutdown] credential capture failed for session %s:', session.sessionId, err);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[shutdown] credential sweep failed:', err);
+  }
+
   cleanupService.stop();
   taskProcessor.stop();
 });
