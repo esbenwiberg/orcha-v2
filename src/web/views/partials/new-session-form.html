@@ -126,16 +126,7 @@
         Source Branch
         <span id="ns-source-branch-loading" class="htmx-indicator ml-1 italic normal-case tracking-normal text-slate-500">(loading…)</span>
       </label>
-      <select class="form-select" id="ns-source-branch" name="sourceBranch"
-        <% if (it.repoId && !(it.branches && it.branches.length > 0) && !(it.sourceBranch && !it.sourceBranch.startsWith('origin/'))) { %>
-          hx-get="/api/repos/<%= it.repoId %>/branches"
-          hx-trigger="focus once"
-          hx-swap="innerHTML"
-          hx-indicator="#ns-source-branch-loading"
-          hx-on::before-request="this.classList.add('is-loading')"
-          hx-on::after-request="this.classList.remove('is-loading')"
-        <% } %>
-      >
+      <select class="form-select" id="ns-source-branch" name="sourceBranch">
         <% if (it.branches && it.branches.length > 0) { %>
           <% for (const b of it.branches) { %>
             <option value="origin/<%= b.name %>" <%= b.name === (it.defaultBranch ?? '') || ('origin/' + b.name) === (it.sourceBranch ?? '') ? 'selected' : '' %>><%= b.name %><%= b.isDefault ? ' (default)' : '' %></option>
@@ -298,4 +289,24 @@
       >Cancel</button>
     </div>
   </div>
+
+  <!-- Auto-load branches when form renders with a pre-selected repo -->
+  <script>
+    (function() {
+      var repo = document.getElementById('ns-repo');
+      var branchSel = document.getElementById('ns-source-branch');
+      if (repo && repo.value && branchSel) {
+        branchSel.classList.add('is-loading');
+        var indicator = document.getElementById('ns-source-branch-loading');
+        if (indicator) indicator.style.display = '';
+        htmx.ajax('GET', '/api/repos/' + repo.value + '/branches', {
+          target: branchSel,
+          swap: 'innerHTML'
+        }).then(function() {
+          branchSel.classList.remove('is-loading');
+          if (indicator) indicator.style.display = 'none';
+        });
+      }
+    })();
+  </script>
 </form>
