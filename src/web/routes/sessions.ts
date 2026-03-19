@@ -176,6 +176,36 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
+  // GET /api/repos/:id/branches.json — JSON variant for branch picker typeahead
+  router.get('/repos/:id/branches.json', async (req, res, next) => {
+    try {
+      const repoId = req.params['id'] ?? '';
+      const repo = repoStore.getRepo(repoId);
+      if (repo === undefined || repo.barePath === null) {
+        res.json({ branches: [], defaultBranch: null });
+        return;
+      }
+
+      try {
+        await deps.worktreeManager.fetchBareRepo(repo.barePath);
+      } catch (err) {
+        console.warn(`[sessions] fetchBareRepo failed for ${repoId}:`, err);
+      }
+
+      const branches = await deps.worktreeManager.listRemoteBranches(repo.barePath);
+      const defaultBranch = await deps.worktreeManager.getDefaultBranch(repo.barePath);
+
+      res.json({
+        branches: branches
+          .filter((b) => b !== 'HEAD')
+          .map((b) => ({ name: b, isDefault: b === defaultBranch })),
+        defaultBranch: defaultBranch ?? null,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // POST /api/sessions — create session from HTMX form submission
   router.post('/sessions', async (req, res, next) => {
     try {
