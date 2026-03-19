@@ -102,13 +102,7 @@
         id="ns-repo"
         name="repoId"
         required
-        hx-get=""
-        hx-trigger="change"
-        hx-target="#ns-source-branch"
-        hx-swap="innerHTML"
-        hx-indicator="#ns-source-branch-loading"
-        onchange="this.setAttribute('hx-get', this.value ? '/api/repos/' + this.value + '/branches' : ''); if(!this.value){ document.getElementById('ns-source-branch').innerHTML='<option value=\x22\x22>Select a repo first</option>'; document.getElementById('ns-source-branch').classList.remove('is-loading'); } else { document.getElementById('ns-source-branch').classList.add('is-loading'); } htmx.process(this);"
-        hx-on::after-request="document.getElementById('ns-source-branch').classList.remove('is-loading')"
+        onchange="var bp = document.getElementById('ns-branch-picker'); if (bp && bp._branchPicker) bp._branchPicker.setRepoId(this.value);"
       >
         <option value="">Select a repository…</option>
         <% if (it.repos) { for (const r of it.repos) { %>
@@ -122,23 +116,43 @@
     </div>
 
     <div class="form-group" id="ns-source-branch-group" style="<%= (it.prUrl ?? '').trim().length > 0 ? 'display:none' : '' %>">
-      <label class="form-label" for="ns-source-branch">
-        Source Branch
-        <span id="ns-source-branch-loading" class="htmx-indicator ml-1 italic normal-case tracking-normal text-slate-500">(loading…)</span>
-      </label>
-      <select class="form-select" id="ns-source-branch" name="sourceBranch">
-        <% if (it.branches && it.branches.length > 0) { %>
-          <% for (const b of it.branches) { %>
-            <option value="origin/<%= b.name %>" <%= b.name === (it.defaultBranch ?? '') || ('origin/' + b.name) === (it.sourceBranch ?? '') ? 'selected' : '' %>><%= b.name %><%= b.isDefault ? ' (default)' : '' %></option>
-          <% } %>
-        <% } else if (it.sourceBranch && !it.sourceBranch.startsWith('origin/')) { %>
-          <option value="<%= it.sourceBranch %>" selected>Fork point: <%= it.sourceBranch.slice(0, 12) %>…</option>
-        <% } else if (it.repoId) { %>
-          <option value="origin/main" selected>main (default)</option>
-        <% } else { %>
-          <option value="">Select a repo first</option>
-        <% } %>
-      </select>
+      <label class="form-label">Source Branch</label>
+      <%
+        /* Determine initial display + value */
+        let _bpValue = 'origin/main';
+        let _bpLabel = 'main (default)';
+        if (it.branches && it.branches.length > 0) {
+          const sel = it.branches.find(b => b.name === (it.defaultBranch ?? '') || ('origin/' + b.name) === (it.sourceBranch ?? '')) || it.branches[0];
+          _bpValue = 'origin/' + sel.name;
+          _bpLabel = sel.name + (sel.isDefault ? ' (default)' : '');
+        } else if (it.sourceBranch && !it.sourceBranch.startsWith('origin/')) {
+          _bpValue = it.sourceBranch;
+          _bpLabel = 'Fork point: ' + it.sourceBranch.slice(0, 12) + '…';
+        }
+      %>
+      <div class="branch-picker" id="ns-branch-picker"
+        data-repo-id="<%= it.repoId ?? '' %>"
+        data-value="<%= _bpValue %>"
+      >
+        <input type="hidden" name="sourceBranch" value="<%= _bpValue %>" />
+        <button type="button" class="branch-picker__trigger form-input" aria-haspopup="listbox">
+          <svg class="branch-picker__icon" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M5 3v6.5a2.5 2.5 0 005 0V3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="5" cy="2.5" r="1.5" stroke="currentColor" stroke-width="1"/>
+            <circle cx="10" cy="2.5" r="1.5" stroke="currentColor" stroke-width="1"/>
+            <circle cx="7.5" cy="12.5" r="1.5" stroke="currentColor" stroke-width="1"/>
+          </svg>
+          <span class="branch-picker__label"><%= _bpLabel %></span>
+          <svg class="branch-picker__chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="branch-picker__dropdown" hidden>
+          <input type="text" class="branch-picker__search form-input" placeholder="Search branches…" autocomplete="off" />
+          <div class="branch-picker__list" role="listbox"></div>
+          <div class="branch-picker__status">Click to load branches</div>
+        </div>
+      </div>
     </div>
 
     <div class="form-group" id="ns-branch-group" style="<%= (it.prUrl ?? '').trim().length > 0 ? 'display:none' : '' %>">
@@ -290,23 +304,152 @@
     </div>
   </div>
 
-  <!-- Auto-load branches when form renders with a pre-selected repo -->
+  <!-- Branch picker component -->
   <script>
     (function() {
-      var repo = document.getElementById('ns-repo');
-      var branchSel = document.getElementById('ns-source-branch');
-      if (repo && repo.value && branchSel) {
-        branchSel.classList.add('is-loading');
-        var indicator = document.getElementById('ns-source-branch-loading');
-        if (indicator) indicator.style.display = '';
-        htmx.ajax('GET', '/api/repos/' + repo.value + '/branches', {
-          target: branchSel,
-          swap: 'innerHTML'
-        }).then(function() {
-          branchSel.classList.remove('is-loading');
-          if (indicator) indicator.style.display = 'none';
-        });
+      var picker = document.getElementById('ns-branch-picker');
+      if (!picker) return;
+
+      var trigger = picker.querySelector('.branch-picker__trigger');
+      var dropdown = picker.querySelector('.branch-picker__dropdown');
+      var search = picker.querySelector('.branch-picker__search');
+      var list = picker.querySelector('.branch-picker__list');
+      var status = picker.querySelector('.branch-picker__status');
+      var label = picker.querySelector('.branch-picker__label');
+      var hidden = picker.querySelector('input[type="hidden"]');
+
+      var branches = null; // null = not loaded, [] = loaded empty
+      var loading = false;
+      var open = false;
+
+      function setValue(value, text) {
+        hidden.value = value;
+        label.textContent = text;
+        picker.dataset.value = value;
+        close();
       }
+
+      function setRepoId(id) {
+        picker.dataset.repoId = id;
+        branches = null; // reset cache
+        if (!id) {
+          setValue('', 'Select a repo first');
+        } else {
+          setValue('origin/main', 'main (default)');
+        }
+      }
+
+      function toggle() {
+        open ? close() : openDropdown();
+      }
+
+      function close() {
+        open = false;
+        dropdown.hidden = true;
+        trigger.classList.remove('is-open');
+      }
+
+      function openDropdown() {
+        if (!picker.dataset.repoId) return;
+        open = true;
+        dropdown.hidden = false;
+        trigger.classList.add('is-open');
+        search.value = '';
+
+        if (branches === null && !loading) {
+          fetchBranches();
+        } else if (branches) {
+          renderList(branches);
+        }
+        // Focus search after a tick (so dropdown paints first)
+        setTimeout(function() { search.focus(); }, 0);
+      }
+
+      function fetchBranches() {
+        loading = true;
+        status.textContent = 'Loading branches…';
+        status.style.display = '';
+        list.innerHTML = '';
+        picker.classList.add('is-loading');
+
+        fetch('/api/repos/' + picker.dataset.repoId + '/branches.json')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            branches = data.branches || [];
+            loading = false;
+            picker.classList.remove('is-loading');
+            if (branches.length === 0) {
+              status.textContent = 'No branches found';
+            } else {
+              status.style.display = 'none';
+              renderList(branches);
+            }
+          })
+          .catch(function() {
+            loading = false;
+            picker.classList.remove('is-loading');
+            status.textContent = 'Failed to load branches';
+          });
+      }
+
+      function renderList(items) {
+        var q = search.value.toLowerCase();
+        var filtered = q ? items.filter(function(b) { return b.name.toLowerCase().indexOf(q) !== -1; }) : items;
+        var currentVal = hidden.value;
+
+        if (filtered.length === 0) {
+          list.innerHTML = '<div class="branch-picker__empty">No matching branches</div>';
+          return;
+        }
+
+        var html = '';
+        for (var i = 0; i < filtered.length; i++) {
+          var b = filtered[i];
+          var val = 'origin/' + b.name;
+          var selected = val === currentVal;
+          html += '<button type="button" class="branch-picker__item' + (selected ? ' is-selected' : '') + '" '
+            + 'data-value="' + val + '" role="option">'
+            + b.name + (b.isDefault ? ' <span class="branch-picker__default">(default)</span>' : '')
+            + '</button>';
+        }
+        list.innerHTML = html;
+      }
+
+      // Events
+      trigger.addEventListener('click', function(e) {
+        e.preventDefault();
+        toggle();
+      });
+
+      search.addEventListener('input', function() {
+        if (branches) renderList(branches);
+      });
+
+      // Keyboard: Escape to close, Enter to select first match
+      search.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') { close(); trigger.focus(); }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          var first = list.querySelector('.branch-picker__item');
+          if (first) first.click();
+        }
+      });
+
+      list.addEventListener('click', function(e) {
+        var item = e.target.closest('.branch-picker__item');
+        if (!item) return;
+        var val = item.dataset.value;
+        var text = item.textContent.trim();
+        setValue(val, text);
+      });
+
+      // Close on outside click
+      document.addEventListener('click', function(e) {
+        if (open && !picker.contains(e.target)) close();
+      });
+
+      // Expose for repo onchange
+      picker._branchPicker = { setRepoId: setRepoId };
     })();
   </script>
 </form>
