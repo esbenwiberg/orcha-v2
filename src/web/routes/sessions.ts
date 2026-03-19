@@ -1474,25 +1474,38 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       const authUrl = extractAuthUrl(snapshot);
       // Strip ANSI escape codes so welcome-text regex works on PTY output.
       const text = stripAnsi(snapshot.toString('utf8'));
-      const claudeStarted = /Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/i.test(text);
+
+      // Find the LAST position of the "Claude started" indicator in the text.
+      // We need position info (not just a boolean) to compare against the auth
+      // URL position — a session can start successfully, then need re-auth later
+      // when the token expires mid-session.
+      const startedRe = /Welcome to|Claude Code v\d|(?:Opus|Sonnet|Haiku)\s+\d/gi;
+      let lastStartedPos = -1;
+      let startedMatch: RegExpExecArray | null;
+      while ((startedMatch = startedRe.exec(text)) !== null) {
+        lastStartedPos = startedMatch.index;
+      }
 
       if (authUrl) {
-        // If Claude Code already started (refresh token worked), the URL
-        // is stale — auth succeeded without user interaction.
-        if (claudeStarted) {
+        // Find where the auth URL appears in the text — use a prefix since
+        // the full URL may be line-wrapped differently after stripping ANSI.
+        const urlSnippet = authUrl.slice(0, 50);
+        const authUrlPos = text.lastIndexOf(urlSnippet);
+
+        // The URL is stale only if a "Claude started" marker appears AFTER it.
+        // This means the refresh token worked and the URL from the initial OAuth
+        // prompt is no longer relevant. If the auth URL is more recent than the
+        // last started marker, it's a re-auth request (token expired mid-session).
+        const isStaleUrl = lastStartedPos > -1 && authUrlPos > -1 && lastStartedPos > authUrlPos;
+
+        if (isStaleUrl) {
           const html = eta.render('partials/session-auth-banner', { authenticated: true });
           res.status(286).send(html);
           return;
         }
 
-        // After 30s the auth window is over — any URL in the buffer is from
-        // the agent's working output (e.g. DevOps/GitHub links), not a login
-        // prompt. The "Welcome to" text may have scrolled out of the buffer.
-        if (ageMs > 30_000) {
-          res.status(286).send('');
-          return;
-        }
-
+        // Auth URL is current — show buttons (regardless of session age, since
+        // re-auth can happen at any point when tokens expire mid-session).
         const html = eta.render('partials/session-auth-banner', { authenticated: false, authUrl, sessionId: id });
         res.status(200).send(html);
         return;
@@ -1501,7 +1514,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // No URL found yet — check if we can stop polling early
 
       // If Claude Code already started (prompt visible), auth is fine — stop polling
-      if (claudeStarted) {
+      if (lastStartedPos > -1) {
         res.status(286).send('');
         return;
       }
