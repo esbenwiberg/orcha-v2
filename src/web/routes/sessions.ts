@@ -1433,7 +1433,30 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      // Tier 3: Check if credentials were refreshed after in-session auth.
+      // If auth was recently resolved, show a brief green banner for ~5s then
+      // return to idle polling. This gives the user visual feedback without
+      // permanently killing the poller (which was the root cause of the
+      // "no login button" bug — 286 stopped polling, so mid-session re-auth
+      // was never detected).
+      if (active.authResolvedAt) {
+        const sinceClear = Date.now() - active.authResolvedAt;
+        if (sinceClear < 5_000) {
+          const html = eta.render('partials/session-auth-banner', { authenticated: true, sessionId: id });
+          res.status(200).send(html);
+          return;
+        }
+        // Banner shown long enough — clear the flag so we don't re-enter
+        delete active.authResolvedAt;
+      }
+
+      // Helper: mark auth as resolved and return green banner (200, NOT 286).
+      const resolveAuth = () => {
+        active.authResolvedAt = Date.now();
+        const html = eta.render('partials/session-auth-banner', { authenticated: true, sessionId: id });
+        res.status(200).send(html);
+      };
+
+      // Tier 1: Check if credentials were refreshed after in-session auth.
       // Compare file content to what's stored in the model config — if different,
       // Claude Code refreshed the tokens during in-session auth.
       if (active.homeDir && active.modelConfigId) {
@@ -1447,9 +1470,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
             if (isRefreshed) {
               modelConfigStore.updateConfig(active.modelConfigId, { credentialsJson: credsJson });
               console.log(`[sessions] captured refreshed credentials sessionId=${id} modelConfigId=${active.modelConfigId}`);
-              const html = eta.render('partials/session-auth-banner', { authenticated: true });
-              // 286 tells HTMX to stop polling — auth is resolved
-              res.status(286).send(html);
+              resolveAuth();
               return;
             }
           } catch {
@@ -1461,13 +1482,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // If auth code was sent and enough time passed, assume auth succeeded
       // (credential file may not change if tokens were already valid).
       if (active.authCodeSentAt && Date.now() - active.authCodeSentAt > 15_000) {
-        const html = eta.render('partials/session-auth-banner', { authenticated: true });
-        res.status(286).send(html);
+        delete active.authCodeSentAt; // reset so future re-auth isn't blocked
+        resolveAuth();
         return;
       }
-
-      // Compute session age early — used by multiple checks below.
-      const ageMs = Date.now() - active.createdAt.getTime();
 
       // Tier 2: Check terminal output for login URL
       const snapshot = active.outputBuffer.snapshot();
@@ -1499,8 +1517,7 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         const isStaleUrl = lastStartedPos > -1 && authUrlPos > -1 && lastStartedPos > authUrlPos;
 
         if (isStaleUrl) {
-          const html = eta.render('partials/session-auth-banner', { authenticated: true });
-          res.status(286).send(html);
+          resolveAuth();
           return;
         }
 
@@ -1511,28 +1528,15 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      // No URL found yet — check if we can stop polling early
-
-      // If Claude Code already started (prompt visible), auth is fine — stop polling
-      if (lastStartedPos > -1) {
+      // No auth URL and session is dead — stop polling (only case that uses 286)
+      if (active.terminal.exitCode !== undefined) {
         res.status(286).send('');
         return;
       }
 
-      if (ageMs > 60_000 && active.terminal.exitCode !== undefined) {
-        // Session exited without auth URL — stop polling
-        res.status(286).send('');
-        return;
-      }
-
-      // After 30s with no URL and session still alive, auth likely succeeded
-      // without needing user interaction (existing refresh token worked)
-      if (ageMs > 30_000) {
-        res.status(286).send('');
-        return;
-      }
-
-      // Still in early startup — return empty to keep polling without showing a banner
+      // Session alive, no auth URL needed — return empty to keep polling.
+      // CRITICAL: do NOT return 286 here. The poll must stay alive so that
+      // mid-session token expiry (which can happen hours later) gets detected.
       res.status(200).send('');
     } catch (err) {
       next(err);

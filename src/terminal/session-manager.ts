@@ -67,6 +67,9 @@ export interface ActiveSession {
   modelProvider?: string;
   /** Timestamp when auth code was sent to PTY (for detecting post-auth state). */
   authCodeSentAt?: number;
+  /** Timestamp when auth was resolved (credential refresh, stale URL, or code accepted).
+   *  Used to briefly show the green "Authenticated" banner before resuming idle polling. */
+  authResolvedAt?: number;
   /** Spawn context preserved for debug shells to inherit. */
   spawnContext?: {
     env?: Record<string, string>;
