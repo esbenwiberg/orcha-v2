@@ -34,6 +34,16 @@ const VALIDATION_ENV_ALLOWLIST = new Set([
   'NPM_CONFIG_REGISTRY',
   'COREPACK_ENABLE_STRICT',
 
+  // .NET SDK (non-secret runtime knobs — safe to forward from host)
+  'DOTNET_CLI_HOME',
+  'DOTNET_SKIP_FIRST_TIME_EXPERIENCE',
+  'DOTNET_NOLOGO',
+  'DOTNET_CLI_TELEMETRY_OPTOUT',
+  'DOTNET_EnableDiagnostics',
+  'DOTNET_GCHeapHardLimit',
+  'DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER',
+  'NUGET_PACKAGES',
+
   // Build/CI conventions
   'CI',
   'FORCE_COLOR',

@@ -88,6 +88,42 @@ describe('sanitizeEnvForValidation', () => {
     const env = sanitizeEnvForValidation();
     expect(env['RANDOM_UNKNOWN_VAR']).toBeUndefined();
   });
+
+  it('passes through dotnet system vars', () => {
+    process.env['DOTNET_CLI_HOME'] = '/tmp/dotnet-cli';
+    process.env['DOTNET_SKIP_FIRST_TIME_EXPERIENCE'] = '1';
+    process.env['DOTNET_NOLOGO'] = 'true';
+    process.env['DOTNET_CLI_TELEMETRY_OPTOUT'] = '1';
+    process.env['DOTNET_EnableDiagnostics'] = '0';
+    process.env['DOTNET_GCHeapHardLimit'] = '0x20000000';
+    process.env['DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER'] = '1';
+    process.env['NUGET_PACKAGES'] = '/tmp/nuget-cache';
+
+    const env = sanitizeEnvForValidation();
+    expect(env['DOTNET_CLI_HOME']).toBe('/tmp/dotnet-cli');
+    expect(env['DOTNET_SKIP_FIRST_TIME_EXPERIENCE']).toBe('1');
+    expect(env['DOTNET_NOLOGO']).toBe('true');
+    expect(env['DOTNET_CLI_TELEMETRY_OPTOUT']).toBe('1');
+    expect(env['DOTNET_EnableDiagnostics']).toBe('0');
+    expect(env['DOTNET_GCHeapHardLimit']).toBe('0x20000000');
+    expect(env['DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER']).toBe('1');
+    expect(env['NUGET_PACKAGES']).toBe('/tmp/nuget-cache');
+  });
+
+  it('extra env overrides dotnet allowlist vars (session HOME wins over host HOME)', () => {
+    process.env['HOME'] = '/app';
+    process.env['DOTNET_CLI_HOME'] = '/tmp/dotnet-cli';
+
+    const env = sanitizeEnvForValidation({
+      HOME: '/tmp/orcha-home-abc123',
+      DOTNET_CLI_HOME: '/tmp/orcha-home-abc123',
+      VSS_NUGET_EXTERNAL_FEED_ENDPOINTS: '{"endpointCredentials":[]}',
+    });
+
+    expect(env['HOME']).toBe('/tmp/orcha-home-abc123');
+    expect(env['DOTNET_CLI_HOME']).toBe('/tmp/orcha-home-abc123');
+    expect(env['VSS_NUGET_EXTERNAL_FEED_ENDPOINTS']).toBe('{"endpointCredentials":[]}');
+  });
 });
 
 describe('sanitizeEnvForDocker', () => {
