@@ -1,5 +1,9 @@
 <% if (it.authenticated) { %>
-<div class="auth-banner auth-banner--success">
+<div class="auth-banner auth-banner--success"
+     hx-get="/api/sessions/<%= it.sessionId %>/auth-url"
+     hx-trigger="every 3s"
+     hx-target="closest [id^=auth-slot-]"
+     hx-swap="innerHTML">
   <span class="auth-banner__icon">&#10003;</span>
   <span class="auth-banner__text">Authenticated</span>
 </div>
