@@ -38,6 +38,13 @@ export interface ValidationEnv {
 
 export interface StartParams {
   worktreePath: string;
+  /**
+   * Session-level env vars (HOME, DOTNET_CLI_HOME, VSS_NUGET_EXTERNAL_FEED_ENDPOINTS, etc.)
+   * that the validation child process needs to find credentials written into the
+   * per-session home directory. Merged as a base layer — config-level and agent-override
+   * env vars take precedence.
+   */
+  sessionEnv?: Record<string, string>;
   repoFields?: {
     validateMode?: string | null;
     validateBuild?: string | null;
@@ -122,17 +129,24 @@ export class ValidationManager {
     };
     this._envs.set(sessionId, env);
 
+    // Merge session-level env (HOME, feed creds) as base, with config env on top
+    // so user-configured validateEnv and agent overrides take precedence.
+    const mergedEnv: Record<string, string> | undefined =
+      params.sessionEnv || config.env
+        ? { ...params.sessionEnv, ...config.env }
+        : undefined;
+
     try {
       // Optional build step
       if (config.build) {
         env.output.push(`$ ${config.build}`);
-        await this._runBuild(config.build, params.worktreePath, port, env.output, config.env);
+        await this._runBuild(config.build, params.worktreePath, port, env.output, mergedEnv);
       }
 
       env.status = 'starting';
 
       if (config.mode === 'serve') {
-        await this._startServe(sessionId, config, params.worktreePath, port, env);
+        await this._startServe(sessionId, { ...config, ...(mergedEnv ? { env: mergedEnv } : {}) }, params.worktreePath, port, env);
       } else {
         await this._startDocker(sessionId, config, params.worktreePath, port, env);
       }

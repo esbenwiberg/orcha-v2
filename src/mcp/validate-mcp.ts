@@ -206,6 +206,11 @@ function buildMcpServer(
 
         const worktreePath = dbSession.worktree.worktreePath;
 
+        // Extract session-level env vars that the validation child process needs
+        // to find credentials in the per-session home directory (NuGet.Config, .npmrc).
+        // These are set by the session route when privateFeeds is enabled.
+        const sessionEnv = extractSessionEnvForValidation(dbSession.config.env);
+
         // Use the snapshotted validation config from the session (merged repo + preset at creation time).
         // This is deterministic — retries always use the same defaults regardless of later config edits.
         const vc = dbSession.config.validateConfig;
@@ -223,6 +228,7 @@ function buildMcpServer(
 
         const result = await validationManager.start(sessionId, {
           worktreePath,
+          ...(sessionEnv ? { sessionEnv } : {}),
           ...(repoFields ? { repoFields } : {}),
           agentOverrides: {
             ...(args.mode ? { mode: args.mode } : {}),
@@ -537,4 +543,35 @@ function buildMcpServer(
   );
 
   return mcp;
+}
+
+/**
+ * Keys from the session's env that the validation child process needs to
+ * authenticate against private feeds and resolve configs from the per-session
+ * home directory. These are non-secret session-infrastructure vars, not user
+ * credentials — the actual PAT is embedded in NuGet.Config / .npmrc files.
+ */
+const SESSION_ENV_KEYS_FOR_VALIDATION = [
+  'HOME',
+  'DOTNET_CLI_HOME',
+  'VSS_NUGET_EXTERNAL_FEED_ENDPOINTS',
+] as const;
+
+/**
+ * Extract the subset of session env vars needed by validation child processes.
+ * Returns undefined when no relevant vars are present (e.g. privateFeeds is off).
+ */
+function extractSessionEnvForValidation(
+  sessionEnv: Record<string, string>,
+): Record<string, string> | undefined {
+  const result: Record<string, string> = {};
+  let found = false;
+  for (const key of SESSION_ENV_KEYS_FOR_VALIDATION) {
+    const val = sessionEnv[key];
+    if (val !== undefined) {
+      result[key] = val;
+      found = true;
+    }
+  }
+  return found ? result : undefined;
 }
