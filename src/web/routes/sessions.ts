@@ -1521,6 +1521,13 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           return;
         }
 
+        // User dismissed this exact URL — don't re-show it. But if a NEW auth
+        // URL appears later (different OAuth state = different URL), show that.
+        if (active.dismissedAuthUrl && authUrl === active.dismissedAuthUrl) {
+          res.status(200).send('');
+          return;
+        }
+
         // Auth URL is current — show buttons (regardless of session age, since
         // re-auth can happen at any point when tokens expire mid-session).
         const html = eta.render('partials/session-auth-banner', { authenticated: false, authUrl, sessionId: id });
@@ -1537,6 +1544,30 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       // Session alive, no auth URL needed — return empty to keep polling.
       // CRITICAL: do NOT return 286 here. The poll must stay alive so that
       // mid-session token expiry (which can happen hours later) gets detected.
+      res.status(200).send('');
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /api/sessions/:id/dismiss-auth — dismiss the current auth banner
+  router.post('/sessions/:id/dismiss-auth', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const active = deps.sessionEngine.getSessionByDbId(id);
+      if (!active) {
+        res.status(404).send('');
+        return;
+      }
+
+      // Store the dismissed URL so the poller skips it, but a NEW auth URL
+      // (different OAuth state param) will still trigger the banner.
+      const snapshot = active.outputBuffer.snapshot();
+      const authUrl = extractAuthUrl(snapshot);
+      if (authUrl) {
+        active.dismissedAuthUrl = authUrl;
+      }
+
       res.status(200).send('');
     } catch (err) {
       next(err);

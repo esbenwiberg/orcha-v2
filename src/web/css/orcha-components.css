@@ -1220,6 +1220,18 @@
     flex: 1;
   }
 
+  .auth-banner__dismiss {
+    margin-left: auto;
+    opacity: 0.6;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0.25rem;
+  }
+
+  .auth-banner__dismiss:hover {
+    opacity: 1;
+  }
+
   /* ===================================================================
      PR link banner (dismissable, shown when agent outputs a PR URL)
      =================================================================== */

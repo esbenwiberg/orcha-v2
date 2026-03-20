@@ -20,6 +20,11 @@
   <button class="btn btn-xs btn-ghost"
     onclick="var el=this;navigator.clipboard.readText().then(function(t){if(t){el.disabled=true;el.textContent='Sending...';fetch('/api/sessions/<%= it.sessionId %>/send-input',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'text='+encodeURIComponent(t)})}})"
   >Paste Code</button>
+  <button class="btn btn-xs btn-ghost auth-banner__dismiss"
+    hx-post="/api/sessions/<%= it.sessionId %>/dismiss-auth"
+    hx-target="closest [id^=auth-slot-]"
+    hx-swap="innerHTML"
+    title="Dismiss">&times;</button>
 </div>
 <% } else if (it.waiting) { %>
 <div class="auth-banner auth-banner--waiting">
