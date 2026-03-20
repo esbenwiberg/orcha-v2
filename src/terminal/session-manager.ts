@@ -77,6 +77,8 @@ export interface ActiveSession {
     deleteEnv?: string[];
     extraRwPaths?: string[];
   };
+  /** Auth URL that the user explicitly dismissed (so we don't re-show the same one). */
+  dismissedAuthUrl?: string;
   /** When true, skip validation teardown on exit (let auto-timeout handle it). */
   taskOwned?: boolean;
 }
