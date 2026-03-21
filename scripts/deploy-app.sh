@@ -15,7 +15,8 @@
 # no separate migration step is needed here.
 #
 # Env vars:
-#   GITHUB_PAT  — (optional) GitHub PAT for private repos when using ACR Tasks git source
+#   DEPLOY_BRANCH — (optional) override git branch for ACR Tasks builds (default: current HEAD)
+#   GITHUB_PAT    — (optional) GitHub PAT for private repos when using ACR Tasks git source
 #
 # Requires: az CLI >= 2.50, Docker >= 24 (or ACR Tasks if Docker is unavailable)
 
@@ -114,7 +115,7 @@ if [[ "${USE_ACR_BUILD}" == "true" ]]; then
     if [[ "${GIT_REMOTE}" == git@* ]]; then
       GIT_REMOTE=$(echo "${GIT_REMOTE}" | sed 's|git@\([^:]*\):\(.*\)|https://\1/\2|')
     fi
-    GIT_BRANCH=$(git -C "${REPO_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+    GIT_BRANCH="${DEPLOY_BRANCH:-$(git -C "${REPO_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")}"
     # Embed PAT for private repos if available
     if [[ -n "${GITHUB_PAT:-}" ]]; then
       ACR_GIT_SOURCE=$(echo "${GIT_REMOTE}" | sed "s|https://|https://${GITHUB_PAT}@|")
@@ -227,24 +228,45 @@ OLD_REVISION=$(az containerapp revision list \
   --query "sort_by(@, &properties.createdTime) | [-1].name" \
   -o tsv 2>/dev/null || echo "")
 
-# ── Update Container App (both containers) ───────────────────────────────────
+# ── Update Container App (both containers in a single PATCH) ─────────────────
+# Updating both containers atomically avoids a race condition where two
+# sequential PATCHes can read stale template state due to eventual consistency,
+# causing the second update to overwrite the first.
 echo ""
-info "Updating orcha container to tag '${TAG}'..."
-az containerapp update \
+info "Updating both containers to tag '${TAG}'..."
+
+# Get current app JSON, patch both container images in one API call.
+# Using a temp file avoids shell argument-length limits on large container specs.
+PATCH_FILE=$(mktemp)
+trap 'rm -f "${PATCH_FILE}"' EXIT
+
+az containerapp show \
   --name "${CONTAINER_APP_NAME}" \
   --resource-group "${RESOURCE_GROUP}" \
-  --container-name orcha \
-  --image "${ACR_SERVER}/orcha:${TAG}" \
+  -o json \
+| python3 -c "
+import json, sys
+app = json.load(sys.stdin)
+orcha_img = sys.argv[1]
+caddy_img = sys.argv[2]
+containers = app['properties']['template']['containers']
+for c in containers:
+    if c['name'] == 'orcha':
+        c['image'] = orcha_img
+    elif c['name'] == 'caddy':
+        c['image'] = caddy_img
+json.dump({'properties': {'template': {'containers': containers}}}, sys.stdout)
+" "${ACR_SERVER}/orcha:${TAG}" "${ACR_SERVER}/orcha-caddy:${TAG}" > "${PATCH_FILE}"
+
+SUB_ID=$(az account show --query id -o tsv)
+az rest \
+  --method PATCH \
+  --url "https://management.azure.com/subscriptions/${SUB_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.App/containerApps/${CONTAINER_APP_NAME}?api-version=2024-03-01" \
+  --headers "Content-Type=application/json" \
+  --body @"${PATCH_FILE}" \
   --output none
 
-info "Updating caddy container to tag '${TAG}'..."
-az containerapp update \
-  --name "${CONTAINER_APP_NAME}" \
-  --resource-group "${RESOURCE_GROUP}" \
-  --container-name caddy \
-  --image "${ACR_SERVER}/orcha-caddy:${TAG}" \
-  --output none
-ok "Container App update triggered (orcha + caddy)"
+ok "Container App update triggered (orcha + caddy, atomic)"
 
 # ── Poll revision state ───────────────────────────────────────────────────────
 info "Waiting for new revision to become active..."
