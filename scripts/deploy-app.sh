@@ -245,18 +245,26 @@ az containerapp show \
   --resource-group "${RESOURCE_GROUP}" \
   -o json \
 | python3 -c "
-import json, sys
+import json, sys, time
 app = json.load(sys.stdin)
 orcha_img = sys.argv[1]
 caddy_img = sys.argv[2]
+tag = sys.argv[3]
 containers = app['properties']['template']['containers']
 for c in containers:
     if c['name'] == 'orcha':
         c['image'] = orcha_img
     elif c['name'] == 'caddy':
         c['image'] = caddy_img
-json.dump({'properties': {'template': {'containers': containers}}}, sys.stdout)
-" "${ACR_SERVER}/orcha:${TAG}" "${ACR_SERVER}/orcha-caddy:${TAG}" > "${PATCH_FILE}"
+# Force a new revision even if images haven't changed (e.g. re-deploy same commit).
+# Without revisionSuffix, ACA may detect no template diff and skip revision creation,
+# causing the poll loop below to time out.
+suffix = tag[:8] + '-' + str(int(time.time()))[-6:]
+template = app['properties']['template']
+template['containers'] = containers
+template['revisionSuffix'] = suffix
+json.dump({'properties': {'template': template}}, sys.stdout)
+" "${ACR_SERVER}/orcha:${TAG}" "${ACR_SERVER}/orcha-caddy:${TAG}" "${TAG}" > "${PATCH_FILE}"
 
 SUB_ID=$(az account show --query id -o tsv)
 az rest \
