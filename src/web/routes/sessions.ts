@@ -1133,13 +1133,34 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
           const mergedClaudeMd = buildSessionClaudeMd(globalSettingsStore);
           if (mergedClaudeMd) writeFileSync(join(claudeDir, 'CLAUDE.md'), mergedClaudeMd, 'utf8');
 
-          // Restore credentials if available
+          // Restore credentials if available, with pre-flight OAuth refresh
           const modelConfigId = existing.config.modelConfigId;
           if (modelConfigId) {
             const modelConfigStore = new ModelConfigStore(deps.db);
             const modelConfig = modelConfigStore.getConfig(modelConfigId);
             if (modelConfig?.credentialsJson) {
-              writeFileSync(join(claudeDir, '.credentials.json'), modelConfig.credentialsJson, 'utf8');
+              let credentialsJson = modelConfig.credentialsJson;
+
+              // Pre-flight refresh: same logic as session creation to avoid 401s on reopen
+              if (isTokenExpiredOrExpiring(credentialsJson)) {
+                const expiryInfo = parseOAuthExpiry(credentialsJson);
+                if (expiryInfo.hasRefreshToken) {
+                  try {
+                    const refreshResult = await refreshOAuthCredentials(credentialsJson);
+                    if (refreshResult.refreshed && refreshResult.credentialsJson) {
+                      credentialsJson = refreshResult.credentialsJson;
+                      modelConfigStore.updateConfig(modelConfigId, { credentialsJson });
+                      console.log(`[sessions] refreshed credentials on reopen id=${id} newExpiresAt=${refreshResult.expiresAt ?? 'none'}`);
+                    } else {
+                      console.warn(`[sessions] credential refresh failed on reopen id=${id}: ${refreshResult.error}`);
+                    }
+                  } catch (err) {
+                    console.warn(`[sessions] credential refresh error on reopen id=${id}:`, err);
+                  }
+                }
+              }
+
+              writeFileSync(join(claudeDir, '.credentials.json'), credentialsJson, 'utf8');
             }
           }
 
