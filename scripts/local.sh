@@ -86,23 +86,25 @@ pull_aca_db() {
 # ── Scrub runtime tables from a downloaded DB ────────────────────────────────
 scrub_db() {
   echo "    Scrubbing runtime tables..."
-  node --input-type=module -e "
-    import Database from 'better-sqlite3';
-    const db = new Database('$DATA_DIR/orcha.db');
-    db.pragma('journal_mode = WAL');
-    const tables = [
-      'session_messages','channel_members','message_channels',
-      'task_transcript','task_events','tasks',
-      'session_credentials','status_events','sessions',
-      'web_sessions','instances'
-    ];
-    for (const t of tables) {
-      try { const r = db.prepare('DELETE FROM \"'+t+'\"').run(); if (r.changes) console.log('    cleared', t, '('+r.changes+' rows)'); } catch {}
-    }
-    const r = db.prepare(\"UPDATE repos SET status = 'pending', bare_path = NULL\").run();
-    console.log('    reset', r.changes, 'repos to pending');
-    db.close();
-  "
+  if ! command -v sqlite3 &>/dev/null; then
+    echo "    sqlite3 not found — installing..."
+    sudo apt-get update -qq && sudo apt-get install -yqq sqlite3 >/dev/null 2>&1
+  fi
+  sqlite3 "$DATA_DIR/orcha.db" <<'SQL'
+DELETE FROM session_messages;
+DELETE FROM channel_members;
+DELETE FROM message_channels;
+DELETE FROM task_transcript;
+DELETE FROM task_events;
+DELETE FROM tasks;
+DELETE FROM session_credentials;
+DELETE FROM status_events;
+DELETE FROM sessions;
+DELETE FROM web_sessions;
+DELETE FROM instances;
+UPDATE repos SET status = 'pending', bare_path = NULL;
+SQL
+  echo "    Scrubbed runtime tables and reset repos to pending"
 }
 
 # ── Check .env ───────────────────────────────────────────────────────────────
