@@ -1,0 +1,49 @@
+# Run Orcha locally with config seeded from your ACA deployment.
+#
+# Prerequisites:
+#   1. Mount your Azure File Share on the host:
+#
+#      Windows (PowerShell):
+#        net use Z: \\<storage-acct>.file.core.windows.net\orcha-data /user:AZURE\<storage-acct> <key> /persistent:yes
+#
+#      Linux/macOS:
+#        sudo mount -t cifs //<storage-acct>.file.core.windows.net/orcha-data /mnt/aca \
+#          -o username=<storage-acct>,password=<key>,vers=3.0,readonly
+#
+#   2. Set SESSION_SECRET in .env or inline below (must match your ACA deployment
+#      to decrypt credentials and model configs).
+#
+#   3. docker compose -f docker-compose.local.yml up --build
+#
+# To re-seed after ACA changes: delete ./data-local/orcha.db and restart,
+# or set SEED_FORCE=1 in the environment section below.
+
+services:
+  orcha:
+    build: .
+    entrypoint: ["/bin/bash", "/app/scripts/local-entrypoint.sh"]
+    ports:
+      - "${LOCAL_PORT:-3001}:3000"
+    environment:
+      ORCHA_DATA_DIR: /data
+      ORCHA_DB_DIR: /data
+      NODE_ENV: development
+      AUTH_MODE: none
+      SESSION_SECRET: ${SESSION_SECRET:?Set SESSION_SECRET to match your ACA deployment}
+      MAX_CONCURRENT_SESSIONS: ${MAX_CONCURRENT_SESSIONS:-3}
+      SANDBOX_MODE: none
+      VALIDATE_DOCKER_HOST: host.docker.internal
+      # Seed config — override if your ACA mount is somewhere else
+      ACA_MOUNT: /mnt/aca
+      LOCAL_DATA: /data
+      # Set to "1" to force re-seed (overwrites local DB with fresh ACA copy)
+      # SEED_FORCE: "1"
+    volumes:
+      # Local persistent data — survives container restarts
+      - ./data-local:/data
+      # ACA file share — read-only, used only for initial seed
+      - ${ACA_MOUNT_PATH:-Z:/}:/mnt/aca:ro
+      # Docker socket for validation containers
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -61,6 +61,8 @@ WORKDIR /app
 
 COPY --from=builder /build/landlock-exec /usr/local/bin/landlock-exec
 COPY scripts/entrypoint.sh /app/entrypoint.sh
+COPY scripts/seed-local.mjs /app/scripts/seed-local.mjs
+COPY scripts/local-entrypoint.sh /app/scripts/local-entrypoint.sh
 COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json ./package.json
