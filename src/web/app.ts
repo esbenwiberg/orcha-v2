@@ -29,6 +29,7 @@ import { createHistoryRouter } from './routes/history.js';
 import { createModelConfigsRouter } from './routes/model-configs.js';
 import { createBootstrapPatsRouter } from './routes/bootstrap-pats.js';
 import { createTaskSettingsRouter } from './routes/task-settings.js';
+import { createSessionSettingsRouter } from './routes/session-settings.js';
 import { createSdksRouter } from './routes/sdks.js';
 import { createSkillsRouter } from './routes/skills.js';
 import { createAzLoginRouter } from './routes/az-login.js';
@@ -225,6 +226,9 @@ export async function createApp(deps: AppDeps): Promise<CreateAppResult> {
 
   // Task pipeline settings router
   app.use('/api', createTaskSettingsRouter(eta, deps.db));
+
+  // Session limits settings router
+  app.use('/api', createSessionSettingsRouter(eta, deps.db, deps.sessionEngine));
 
   // Git identity settings router
   app.use('/api', createGitIdentityRouter(eta, deps));

@@ -139,6 +139,14 @@ export class SessionManager {
     this._maxSessions = Number.isFinite(envMax) && envMax >= 1 ? envMax : DEFAULT_MAX_SESSIONS;
   }
 
+  get maxSessions(): number {
+    return this._maxSessions;
+  }
+
+  set maxSessions(value: number) {
+    this._maxSessions = Math.max(1, value);
+  }
+
   setStatusMonitor(monitor: StatusMonitor): void {
     this._statusMonitor = monitor;
   }
