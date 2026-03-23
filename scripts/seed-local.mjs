@@ -28,16 +28,20 @@ if (existsSync(localDb) && !force) {
   process.exit(0);
 }
 
-// Guard: ACA DB available?
-if (!existsSync(acaDb)) {
+mkdirSync(localData, { recursive: true });
+
+// If ACA mount is available, copy the DB from there.
+// If not but a pre-downloaded DB exists at LOCAL_DATA, scrub it in-place.
+if (existsSync(acaDb)) {
+  copyFileSync(acaDb, localDb);
+  console.log('[seed] copied ACA DB → %s', localDb);
+} else if (force && existsSync(localDb)) {
+  // SEED_FORCE with existing DB but no mount — scrub in-place
+  console.log('[seed] no ACA mount — scrubbing existing DB in-place');
+} else {
   console.log('[seed] no ACA DB found at %s — starting fresh (nothing to seed)', acaDb);
   process.exit(0);
 }
-
-// Copy the full DB
-mkdirSync(localData, { recursive: true });
-copyFileSync(acaDb, localDb);
-console.log('[seed] copied ACA DB → %s', localDb);
 
 // Open and scrub runtime tables
 const db = new Database(localDb);
