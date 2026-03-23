@@ -258,14 +258,24 @@ export class Deployer {
       };
     };
 
-    // Find the orcha container and update its image
-    const containers = app.properties?.template?.containers;
+    // Find containers and update images
+    const template = app.properties?.template;
+    const containers = template?.containers;
     if (!containers) throw new Error('Container App has no containers');
 
     const orchaContainer = containers.find((c) => c.name === 'orcha');
     if (!orchaContainer) throw new Error("No container named 'orcha' found");
-
     orchaContainer.image = `${acrServer}/orcha:${tag}`;
+
+    const caddyContainer = containers.find((c) => c.name === 'caddy');
+    if (caddyContainer) {
+      caddyContainer.image = `${acrServer}/orcha-caddy:${tag}`;
+    }
+
+    // Force a new revision even if images haven't changed (e.g. re-deploy same commit).
+    // Without revisionSuffix, ACA may detect no template diff and skip revision creation,
+    // causing the poll loop to time out.
+    const suffix = tag.substring(0, 8) + '-' + Date.now().toString().slice(-6);
 
     // PATCH the app
     const patchResp = await fetch(appUrl, {
@@ -274,7 +284,9 @@ export class Deployer {
         Authorization: `Bearer ${bearer}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ properties: { template: { containers } } }),
+      body: JSON.stringify({
+        properties: { template: { containers, revisionSuffix: suffix } },
+      }),
     });
 
     if (!patchResp.ok) {
