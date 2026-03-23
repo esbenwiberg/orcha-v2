@@ -151,6 +151,10 @@ export class PtyManager {
     // Default env vars to cap child-process memory usage (e.g. dotnet build,
     // npm install). Lowest priority — process.env and session overrides win.
     const memoryDefaults: Record<string, string> = {
+      // Raise Node.js V8 heap above default ~1.7 GB which OOMs on large Vite/webpack builds.
+      // ACA container is 3.75 GB: ~0.5 GB Orcha + ~1.2 GB for 3 light Claude sessions,
+      // leaving ~2 GB for one heavy build process.
+      NODE_OPTIONS: '--max-old-space-size=2048',
       // Cap .NET GC heap to 512 MB — prevents dotnet build from eating the container
       DOTNET_GCHeapHardLimit: '0x20000000',
       // Kill persistent MSBuild/Roslyn compiler servers that linger between builds
