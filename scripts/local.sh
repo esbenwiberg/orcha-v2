@@ -26,6 +26,14 @@ DATA_DIR="$PROJECT_DIR/data-local"
 
 cd "$PROJECT_DIR"
 
+# ── Source .env if present ────────────────────────────────────────────────────
+if [ -f "$PROJECT_DIR/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$PROJECT_DIR/.env"
+  set +a
+fi
+
 # ── Detect OS for mount path default ─────────────────────────────────────────
 if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(uname -s)" == CYGWIN* ]]; then
   DEFAULT_MOUNT="Z:/"
