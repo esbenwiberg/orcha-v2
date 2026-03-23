@@ -142,7 +142,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
               // Cap concurrent agent sessions to avoid OOM on memory-constrained
               // containers. Each Claude Code process uses 200-400 MB of RSS.
               name: 'MAX_CONCURRENT_SESSIONS'
-              value: '3'
+              value: '4'
             }
             {
               name: 'AUTH_MODE'

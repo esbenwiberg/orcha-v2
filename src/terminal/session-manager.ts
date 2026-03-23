@@ -116,7 +116,7 @@ export class SessionError extends Error {
  *
  * Override via MAX_CONCURRENT_SESSIONS env var.
  */
-const DEFAULT_MAX_SESSIONS = 3;
+const DEFAULT_MAX_SESSIONS = 4;
 
 export class SessionManager {
   private _active: Map<string, ActiveSession> = new Map();
