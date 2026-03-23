@@ -4,20 +4,46 @@ import type { OutputBuffer } from '../../terminal/output-buffer.js';
 import type { SessionManager } from '../../terminal/session-manager.js';
 
 /**
+ * High-water mark (bytes) for the WebSocket send buffer.
+ * When bufferedAmount exceeds this, we pause the PTY stream to avoid
+ * unbounded memory growth that causes 1006 disconnects on verbose builds.
+ */
+const WS_HIGH_WATER_MARK = 1024 * 1024; // 1 MB
+
+/**
  * Bridge a PTY terminal to a WebSocket connection.
  *
  * Subscribes to output, replays buffered data, routes input/resize messages,
- * and cleans up listeners on WS close.
+ * and cleans up listeners on WS close. Implements backpressure: pauses the
+ * PTY stream when the WS send buffer is full, resumes on drain.
  */
 export function bridgeTerminalToWebSocket(
   ws: WebSocket,
   terminal: SessionTerminal,
   outputBuffer: OutputBuffer,
 ): void {
+  let paused = false;
+
+  const maybePause = (): void => {
+    if (!paused && ws.bufferedAmount > WS_HIGH_WATER_MARK) {
+      paused = true;
+      terminal.output.pause();
+    }
+  };
+
+  const onDrain = (): void => {
+    if (paused) {
+      paused = false;
+      terminal.output.resume();
+    }
+  };
+  ws.on('drain', onDrain);
+
   const onData = (chunk: Buffer | string): void => {
     if (ws.readyState === WebSocket.OPEN) {
       const data = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
       ws.send(JSON.stringify({ type: 'output', data }));
+      maybePause();
     }
   };
 
@@ -105,11 +131,19 @@ export function bridgeTerminalToWebSocket(
     }
   });
 
-  // Clean up listeners when the client disconnects to prevent memory leaks.
-  ws.on('close', () => {
+  const cleanup = (): void => {
     terminal.output.removeListener('data', onData);
     terminal.output.removeListener('end', onEnd);
-  });
+    ws.removeListener('drain', onDrain);
+    if (paused) {
+      paused = false;
+      terminal.output.resume();
+    }
+  };
+
+  // Clean up listeners when the client disconnects to prevent memory leaks.
+  ws.on('close', cleanup);
+  ws.on('error', cleanup);
 }
 
 /**

@@ -109,10 +109,29 @@ export function attachWebSocketServer(
         return;
       }
 
+      const WS_HIGH_WATER_MARK = 1024 * 1024; // 1 MB
+      let paused = false;
+
+      const maybePause = (): void => {
+        if (!paused && ws.bufferedAmount > WS_HIGH_WATER_MARK) {
+          paused = true;
+          authSession.terminal.output.pause();
+        }
+      };
+
+      const onDrain = (): void => {
+        if (paused) {
+          paused = false;
+          authSession.terminal.output.resume();
+        }
+      };
+      ws.on('drain', onDrain);
+
       const onData = (chunk: Buffer | string): void => {
         if (ws.readyState === WebSocket.OPEN) {
           const data = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
           ws.send(JSON.stringify({ type: 'output', data }));
+          maybePause();
         }
       };
       authSession.terminal.output.on('data', onData);
@@ -143,10 +162,17 @@ export function attachWebSocketServer(
         }
       });
 
-      ws.on('close', () => {
+      const cleanup = (): void => {
         authSession.terminal.output.removeListener('data', onData);
         authSession.terminal.output.removeListener('end', sendExitMessage);
-      });
+        ws.removeListener('drain', onDrain);
+        if (paused) {
+          paused = false;
+          authSession.terminal.output.resume();
+        }
+      };
+      ws.on('close', cleanup);
+      ws.on('error', cleanup);
       return;
     }
 
