@@ -94,12 +94,12 @@ export interface DebugShell {
 }
 
 export class SessionError extends Error {
-  code: 'DUPLICATE_SESSION' | 'WORKTREE_FAILED' | 'PTY_FAILED' | 'NOT_FOUND' | 'STOP_TIMEOUT';
+  code: 'DUPLICATE_SESSION' | 'WORKTREE_FAILED' | 'PTY_FAILED' | 'NOT_FOUND' | 'STOP_TIMEOUT' | 'MAX_SESSIONS';
   cause?: unknown;
 
   constructor(
     message: string,
-    code: 'DUPLICATE_SESSION' | 'WORKTREE_FAILED' | 'PTY_FAILED' | 'NOT_FOUND' | 'STOP_TIMEOUT',
+    code: 'DUPLICATE_SESSION' | 'WORKTREE_FAILED' | 'PTY_FAILED' | 'NOT_FOUND' | 'STOP_TIMEOUT' | 'MAX_SESSIONS',
     cause?: unknown,
   ) {
     super(message);
@@ -109,12 +109,22 @@ export class SessionError extends Error {
   }
 }
 
+/**
+ * Default max concurrent sessions. Each Claude Code process uses 200-400 MB
+ * of RSS even when idle. On a 3 Gi container this allows ~3 sessions with
+ * enough headroom for builds and Orcha itself.
+ *
+ * Override via MAX_CONCURRENT_SESSIONS env var.
+ */
+const DEFAULT_MAX_SESSIONS = 4;
+
 export class SessionManager {
   private _active: Map<string, ActiveSession> = new Map();
   private _debugShells: Map<string, DebugShell> = new Map();
 
   private _validationManager?: ValidationManager;
   private _statusMonitor?: StatusMonitor;
+  private readonly _maxSessions: number;
 
   constructor(
     private readonly _worktreeManager: WorktreeManager,
@@ -124,7 +134,18 @@ export class SessionManager {
     private readonly _instanceId: string = 'local',
     private readonly _modelConfigStore?: ModelConfigStore,
     private readonly _dataDir?: string,
-  ) {}
+  ) {
+    const envMax = parseInt(process.env['MAX_CONCURRENT_SESSIONS'] ?? '', 10);
+    this._maxSessions = Number.isFinite(envMax) && envMax >= 1 ? envMax : DEFAULT_MAX_SESSIONS;
+  }
+
+  get maxSessions(): number {
+    return this._maxSessions;
+  }
+
+  set maxSessions(value: number) {
+    this._maxSessions = Math.max(1, value);
+  }
 
   setStatusMonitor(monitor: StatusMonitor): void {
     this._statusMonitor = monitor;
@@ -135,6 +156,19 @@ export class SessionManager {
   }
 
   async createSession(opts: CreateSessionOptions): Promise<ActiveSession> {
+    // Count only sessions whose PTY is still running (not exited sessions
+    // lingering in the map for late-connecting WebSocket clients).
+    const runningSessions = Array.from(this._active.values()).filter(
+      (s) => s.terminal.exitCode === undefined,
+    ).length;
+
+    if (runningSessions >= this._maxSessions) {
+      throw new SessionError(
+        `Maximum concurrent sessions reached (${this._maxSessions}). Stop an existing session first.`,
+        'MAX_SESSIONS',
+      );
+    }
+
     const sessionId = opts.sessionId ?? randomUUID();
 
     if (this._active.has(sessionId)) {
@@ -392,6 +426,16 @@ export class SessionManager {
   }
 
   async reopenSession(dbSessionId: string, opts?: { sandbox?: boolean }): Promise<ActiveSession> {
+    const runningSessions = Array.from(this._active.values()).filter(
+      (s) => s.terminal.exitCode === undefined,
+    ).length;
+    if (runningSessions >= this._maxSessions) {
+      throw new SessionError(
+        `Maximum concurrent sessions reached (${this._maxSessions}). Stop an existing session first.`,
+        'MAX_SESSIONS',
+      );
+    }
+
     // Step 1: Look up the DB session
     const dbSession = this._sessionStore.getSession(dbSessionId);
     if (dbSession === undefined) {

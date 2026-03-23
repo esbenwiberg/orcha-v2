@@ -41,6 +41,22 @@
   <div class="page-section">
     <div class="page-section__header">
       <div>
+        <h2 class="page-section__title">Session Limits</h2>
+        <p class="page-section__subtitle">Controls how many agent sessions can run concurrently in this container</p>
+      </div>
+    </div>
+    <div
+      hx-get="/api/session-settings"
+      hx-trigger="load"
+      hx-swap="innerHTML"
+    >
+      <div class="skeleton skeleton-row"></div>
+    </div>
+  </div>
+
+  <div class="page-section">
+    <div class="page-section__header">
+      <div>
         <h2 class="page-section__title">Git Identity</h2>
         <p class="page-section__subtitle">Default <code class="font-mono text-xs">user.name</code> and <code class="font-mono text-xs">user.email</code> injected into every session's <code class="font-mono text-xs">.gitconfig</code></p>
       </div>

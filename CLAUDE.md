@@ -107,6 +107,7 @@ src/
 | `SANDBOX_MODE` | `none` | `none` / `landlock` |
 | `NODE_ENV` | `production` | |
 | `ORCHA_HOST` | _(auto)_ | External host URL override. Auto-inferred from `OIDC_REDIRECT_URI` or `localhost:PORT`. Used for preview URLs in PRs and task links. |
+| `MAX_CONCURRENT_SESSIONS` | `4` | Max simultaneous agent sessions. Each Claude Code process uses 200-400 MB RSS. |
 
 ## Local Development
 
