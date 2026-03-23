@@ -86,8 +86,8 @@ pull_aca_db() {
 # ── Scrub runtime tables from a downloaded DB ────────────────────────────────
 scrub_db() {
   echo "    Scrubbing runtime tables..."
-  node -e "
-    const Database = (await import('better-sqlite3')).default;
+  node --input-type=module -e "
+    import Database from 'better-sqlite3';
     const db = new Database('$DATA_DIR/orcha.db');
     db.pragma('journal_mode = WAL');
     const tables = [
