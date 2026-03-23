@@ -18,6 +18,8 @@ import { loadSkills } from './skills.js';
 import { credentialManager } from '../../credentials/credential-manager.js';
 import { buildModelEnv, ENV_DELETE } from '../../model-config/env-builder.js';
 import { McpServerStore } from '../../db/mcp-server-store.js';
+import { SessionError } from '../../terminal/session-manager.js';
+import { AppError } from '../errors.js';
 import { MessageStore } from '../../db/message-store.js';
 import { extractAuthUrl, stripAnsi } from '../../terminal/auth-terminal-manager.js';
 import { executeGit } from '../utils/git-utils.js';
@@ -783,6 +785,10 @@ export function createSessionsRouter(eta: Eta, deps: AppDeps): Router {
       res.setHeader('HX-Redirect', isMobile ? `/mobile${focusParam}` : `/${focusParam}`);
       res.status(201).send('');
     } catch (err) {
+      if (err instanceof SessionError && err.code === 'MAX_SESSIONS') {
+        next(new AppError(429, err.message, 'MAX_SESSIONS'));
+        return;
+      }
       next(err);
     }
   });

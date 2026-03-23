@@ -75,6 +75,10 @@ export function createApiRouter(deps: AppDeps): Router {
 
       res.status(201).json({ data: session });
     } catch (err) {
+      if (err instanceof SessionError && err.code === 'MAX_SESSIONS') {
+        next(new AppError(429, err.message, 'MAX_SESSIONS'));
+        return;
+      }
       next(err);
     }
   });

@@ -118,8 +118,8 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
           name: 'orcha'
           image: '${acrLoginServer}/orcha:${imageTag}'
           resources: {
-            cpu: json('1.0')
-            memory: '2Gi'
+            cpu: json('1.5')
+            memory: '3Gi'
           }
           env: [
             {
@@ -137,6 +137,12 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
               // (SMB) does not support. Use local ephemeral disk instead.
               name: 'ORCHA_WORKTREE_DIR'
               value: '/tmp/orcha-worktrees'
+            }
+            {
+              // Cap concurrent agent sessions to avoid OOM on memory-constrained
+              // containers. Each Claude Code process uses 200-400 MB of RSS.
+              name: 'MAX_CONCURRENT_SESSIONS'
+              value: '3'
             }
             {
               name: 'AUTH_MODE'
