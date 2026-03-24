@@ -301,7 +301,7 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
-      if (repo.status !== 'error') {
+      if (repo.status !== 'error' && repo.status !== 'pending') {
         const html = eta.render('partials/repo-item', { repo });
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.status(200).send(html);
