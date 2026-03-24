@@ -2,11 +2,13 @@ import { Router } from 'express';
 import type { Eta } from 'eta';
 import type { AppDeps } from '../app.js';
 import { RepoStore, validateRepoUrl } from '../../db/repo-store.js';
+import { CredentialStore } from '../../db/credential-store.js';
 import { getSdkDefs } from '../../sdk-installer.js';
 
 export function createReposRouter(eta: Eta, deps: AppDeps): Router {
   const router = Router();
   const store = new RepoStore(deps.db);
+  const credentialStore = new CredentialStore(deps.db);
 
   // GET /api/repos — render repo list partial
   router.get('/repos', (_req, res, next) => {
@@ -289,7 +291,26 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
     }
   });
 
-  // POST /api/repos/:id/retry — re-trigger clone for repos in error state
+  // GET /api/repos/:id/clone-form — inline form with credential picker
+  router.get('/repos/:id/clone-form', (req, res, next) => {
+    try {
+      const id = req.params['id'] ?? '';
+      const repo = store.getRepo(id);
+      if (repo === undefined) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.status(404).send('<span class="badge badge-error">Not found</span>');
+        return;
+      }
+      const profiles = credentialStore.listProfiles();
+      const html = eta.render('partials/repo-clone-form', { repo, profiles });
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(200).send(html);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // POST /api/repos/:id/retry — re-trigger clone (optionally with credential profile)
   router.post('/repos/:id/retry', (req, res, next) => {
     try {
       const id = req.params['id'] ?? '';
@@ -308,9 +329,27 @@ export function createReposRouter(eta: Eta, deps: AppDeps): Router {
         return;
       }
 
+      // Resolve clone URL — inject PAT from credential profile if provided
+      let cloneUrl = repo.url;
+      const profileId = (typeof req.body['credentialProfileId'] === 'string' ? req.body['credentialProfileId'] : '').trim();
+      if (profileId.length > 0) {
+        const profile = credentialStore.getProfile(profileId);
+        const pat = profile?.github?.pat ?? profile?.devops?.pat;
+        if (pat) {
+          try {
+            const u = new URL(repo.url);
+            u.username = 'token';
+            u.password = pat;
+            cloneUrl = u.toString();
+          } catch {
+            // URL parse failed — fall through with raw URL
+          }
+        }
+      }
+
       store.updateStatus(repo.id, 'cloning');
       deps.worktreeManager
-        .ensureBareRepo(repo.url)
+        .ensureBareRepo(cloneUrl)
         .then((barePath) => {
           store.updateStatus(repo.id, 'ready', { barePath });
         })
