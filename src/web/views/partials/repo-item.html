@@ -35,7 +35,7 @@
     <% if (it.repo.status === 'error' || it.repo.status === 'pending') { %>
       <button
         class="btn btn-ghost btn-xs"
-        hx-post="/api/repos/<%= it.repo.id %>/retry"
+        hx-get="/api/repos/<%= it.repo.id %>/clone-form"
         hx-target="#repo-<%= it.repo.id %>"
         hx-swap="outerHTML"
       ><%~ it.repo.status === 'pending' ? 'Clone' : 'Retry' %></button>

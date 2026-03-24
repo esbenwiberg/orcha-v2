@@ -1,0 +1,29 @@
+<tr id="repo-<%= it.repo.id %>">
+  <td colspan="4">
+    <form
+      class="flex items-end gap-2 py-1"
+      hx-post="/api/repos/<%= it.repo.id %>/retry"
+      hx-target="#repo-<%= it.repo.id %>"
+      hx-swap="outerHTML"
+    >
+      <span class="font-medium text-slate-50 text-sm mr-auto"><%= it.repo.displayName %></span>
+      <div class="flex flex-col gap-0.5">
+        <label class="text-[11px] text-slate-400">Credential Profile</label>
+        <select class="form-select text-xs py-1" name="credentialProfileId">
+          <option value="">None — public repo</option>
+          <% for (const p of it.profiles) { %>
+            <option value="<%= p.id %>"><%= p.name %></option>
+          <% } %>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary btn-xs">Clone</button>
+      <button
+        type="button"
+        class="btn btn-ghost btn-xs"
+        hx-get="/api/repos/<%= it.repo.id %>/status"
+        hx-target="#repo-<%= it.repo.id %>"
+        hx-swap="outerHTML"
+      >Cancel</button>
+    </form>
+  </td>
+</tr>
