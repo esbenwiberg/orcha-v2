@@ -2,7 +2,7 @@ import path from 'node:path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { openDatabase, runMigrations, SessionStore, InstanceRegistry } from '@orcha/db';
+import { openDatabase, runMigrations, SessionStore, InstanceRegistry, RepoStore } from '@orcha/db';
 import { CredentialStore } from '../db/credential-store.js';
 import { ModelConfigStore } from '../db/model-config-store.js';
 import { WorktreeManager } from '../terminal/worktree-manager.js';
@@ -199,6 +199,9 @@ process.on('SIGTERM', () => {
 
 const sessionStore = new SessionStore(db);
 sessionStore.reconcileOrphanedSessions();
+const repoStore = new RepoStore(db);
+const stalledCount = repoStore.reconcileStalledClones();
+if (stalledCount > 0) console.log(`[startup] reset ${stalledCount} stalled repo clone(s) to pending`);
 const credentialStore = new CredentialStore(db);
 const worktreeManager = new WorktreeManager({ repoRoot });
 const ptyManager = new PtyManager();

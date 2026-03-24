@@ -32,13 +32,13 @@
         onclick="document.getElementById('form-panel').classList.add('is-open')"
       >Edit</button>
     <% } %>
-    <% if (it.repo.status === 'error') { %>
+    <% if (it.repo.status === 'error' || it.repo.status === 'pending') { %>
       <button
         class="btn btn-ghost btn-xs"
         hx-post="/api/repos/<%= it.repo.id %>/retry"
         hx-target="#repo-<%= it.repo.id %>"
         hx-swap="outerHTML"
-      >Retry</button>
+      ><%~ it.repo.status === 'pending' ? 'Clone' : 'Retry' %></button>
     <% } %>
     <button
       class="btn btn-ghost btn-xs"

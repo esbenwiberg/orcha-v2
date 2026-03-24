@@ -275,6 +275,15 @@ export class RepoStore {
       .run(slug, now, id);
   }
 
+  /** Reset repos stuck in 'cloning' (from a crashed server) back to 'pending'. */
+  reconcileStalledClones(): number {
+    const now = new Date().toISOString();
+    const result = this.#db
+      .prepare("UPDATE repos SET status = 'pending', updated_at = ? WHERE status = 'cloning'")
+      .run(now);
+    return result.changes;
+  }
+
   deleteRepo(id: string): void {
     this.#db.prepare('DELETE FROM repos WHERE id = ?').run(id);
   }
