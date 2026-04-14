@@ -799,7 +799,9 @@ export class SessionManager {
     };
 
     terminal.on('exit', () => {
-      this._debugShells.delete(shellId);
+      // Keep shell accessible for 2 min after exit so a WS that connects late
+      // (e.g. browser roundtrip after deploy button click) can still read the output buffer.
+      setTimeout(() => this._debugShells.delete(shellId), 2 * 60 * 1000);
     });
 
     this._debugShells.set(shellId, shell);
@@ -867,7 +869,9 @@ export class SessionManager {
     };
 
     terminal.on('exit', () => {
-      this._debugShells.delete(shellId);
+      // Keep shell accessible for 2 min after exit so a WS that connects late
+      // can still read the output buffer.
+      setTimeout(() => this._debugShells.delete(shellId), 2 * 60 * 1000);
     });
 
     this._debugShells.set(shellId, shell);
@@ -938,7 +942,9 @@ export class SessionManager {
     };
 
     terminal.on('exit', () => {
-      this._debugShells.delete(shellId);
+      // Keep shell accessible for 2 min after exit so a WS that connects late
+      // can still read the output buffer.
+      setTimeout(() => this._debugShells.delete(shellId), 2 * 60 * 1000);
     });
 
     this._debugShells.set(shellId, shell);
